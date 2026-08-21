@@ -8,7 +8,7 @@
 
 ## 2. 현재 구현 범위
 
-`v0.1 Data & Risk Foundation`은 데이터 신뢰 경계와 위험 계산을 끝까지 연결한 첫 수직 슬라이스다.
+`v0.1 Data & Risk Foundation`의 첫 단계로 데이터 신뢰 경계와 수집 저장 기반을 구현 중이다.
 
 | 영역 | 구현 상태 |
 |---|---|
@@ -18,11 +18,17 @@
 | 불변 raw JSON snapshot + SHA-256 | 구현 |
 | 종가 입력 품질 검사 | 구현 |
 | 공급원 차이 quarantine | 구현 |
-| 단일 자산 위험 엔진 | 구현 |
-| 사용자 위험 한도 게이트 | 구현 |
-| CLI 및 FastAPI | 구현 |
-| PostgreSQL 핵심 스키마 | 초기 정의 |
-| KRX·OpenDART·Tiingo 실제 연결 | 다음 단계 |
+| 단일 자산 위험 엔진 | 미구현 |
+| 사용자 위험 한도 게이트 | 미구현 |
+| SEC 수집 CLI | 구현 |
+| FastAPI 읽기 전용 Data Console·종목 상세 | 구현 |
+| PostgreSQL 핵심 스키마와 수집 adapter | 초기 구현 |
+| KRX 종목·가격 실제 연결 | 구현 |
+| OpenDART 공시목록 실제 연결 | 구현 |
+| Tiingo 미국 가격·종목정보 연결 | 구현 |
+| SEC·OpenDART 규제기관 식별자 매핑 | 구현 |
+| 수집 실행 이력과 stale 상태 조회 | 구현 |
+| 20개 Data Spike manifest·준비상태 점검 | 구현 |
 | 기본·기술·ETF 분석 | 자격 체계 매핑 후 구현 |
 | AI 문서 분석·Decision Journal | 후속 단계 |
 
@@ -42,7 +48,7 @@ flowchart TD
     H --> I["User Decision Journal"]
 ```
 
-현재 코드가 직접 실행하는 경로는 `공식 SEC API → raw snapshot`과 `검증된 가격 입력 → 위험 계산 → 정책 게이트 → API/CLI 응답`이다. Canonical DB와 AI 경로는 인터페이스 경계를 먼저 고정한 뒤 추가한다.
+현재 코드가 직접 실행하는 경로는 SEC 공시, KRX 종목·가격, OpenDART 공시목록과 Tiingo 미국 EOD 수집이다. SEC와 OpenDART의 공식 목록에서 기존 ticker에 CIK와 corp code를 정확 일치로 연결한다. 모든 응답은 raw snapshot으로 보존하고 PostgreSQL canonical 테이블 및 수집 실행에 계보를 연결한다. 가격 중 품질 검사를 통과하지 못한 행은 canonical에 넣지 않고 격리한다. FastAPI Data Console은 이 상태를 읽기 전용 HTML과 JSON API로 제공한다. 위험 계산과 AI 경로는 아직 구현하지 않았다.
 
 ## 4. 계층별 책임
 
@@ -75,9 +81,9 @@ flowchart TD
 - Canonical: 내부 asset ID, 원 식별자, 통화, 단위, 경제적·공개 시점
 - Derived: 계산 버전, 파라미터, 입력 해시를 가진 위험·재무·시장 지표
 
-## 6. 리스크 엔진 v0.1
+## 6. 계획된 리스크 엔진 v0.1
 
-입력은 날짜 순으로 정렬된 양의 일별 종가다. 엔진은 다음을 계산한다.
+위험 계산 단계의 입력은 날짜 순으로 정렬된 양의 일별 종가로 계획한다. 엔진은 다음을 계산할 예정이다.
 
 - 기간수익률
 - 산술 일수익률 관측치 수
@@ -88,7 +94,7 @@ flowchart TD
 - 95% Historical VaR: 일수익률 5% 분위수의 손실 크기
 - 양의 수익률 일수 비중
 
-엔진은 “변동성 30%면 나쁨” 같은 숨은 기준을 넣지 않는다. 사용자가 `max_annualized_volatility`, `max_drawdown`, `max_daily_var_95`를 명시했을 때만 통과·위반을 반환한다. 표본이 짧거나 가격이 기업행동 조정값인지 확인할 수 없다는 한계는 별도 필드로 표시한다.
+엔진에는 “변동성 30%면 나쁨” 같은 숨은 기준을 넣지 않는다. 사용자가 한도를 명시했을 때만 통과·위반을 반환하고, 표본 및 기업행동 조정 여부의 한계를 별도 필드로 표시하는 계약은 구현 전에 PRD와 ADR에서 확정한다.
 
 ## 7. 소스 정책
 
@@ -105,43 +111,42 @@ flowchart TD
 ## 8. 저장소 구조
 
 ```text
-investment-decision-support/
+Asset_Frame/
 ├── AGENTS.md
 ├── README.md
 ├── pyproject.toml
 ├── compose.yaml
 ├── db/init/001_core.sql
+├── config/sources.toml
 ├── docs/
-│   ├── PRD.md
-│   ├── PROJECT_OVERVIEW.md
-│   └── adr/
-├── examples/
-├── src/investment_decision/
-│   ├── analytics/
-│   ├── api/
+│   ├── dependency-sources.toml
+│   └── adr/0001-data-ingestion-boundaries.md
+├── src/asset_frame/
 │   ├── connectors/
+│   ├── dashboard/
+│   ├── domain/
+│   ├── ingestion/
 │   ├── quality/
 │   ├── sources/
-│   └── storage/
+│   ├── storage/
+│   └── web/
 └── tests/
 ```
 
 ## 9. 실행 구성
 
 - Python 3.12/3.13와 `uv`
-- FastAPI는 로컬 HTTP 계약과 자동 API 문서를 제공
-- 순수 Python 정량 엔진은 API와 분리되어 테스트 가능
 - PostgreSQL은 canonical 데이터와 lineage의 목표 저장소
 - 로컬 raw 디렉터리는 API 응답 원본을 content hash 기반으로 보존
 - 테스트는 fake transport를 사용해 외부 네트워크와 키가 없어도 실행
+- FastAPI Data Console은 읽기 전용 dashboard repository를 통해 PostgreSQL 상태를 제공
+- 정량 엔진은 후속 단계에서 현재 service 경계 위에 추가
 
 ### 로컬
 
 ```bash
 uv sync --dev
 uv run pytest
-uv run investment-decision risk --input examples/risk-analysis-input.json
-uv run uvicorn investment_decision.api.app:app --reload
 ```
 
 ### Docker Compose
@@ -151,7 +156,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-PostgreSQL 초기화 시 핵심 Source Registry·Raw Snapshot·Price·Quality Issue·Derived Metric 테이블이 생성된다. 애플리케이션 저장소 연결 전까지 위험 API는 요청 입력을 순수 함수로 분석한다.
+PostgreSQL 초기화 시 Source Registry·수집 실행·Raw Snapshot·자산 식별자·가격·기업행동·재무사실·공시·ETF 보유·거시 시계열·Quality Issue 테이블이 생성된다. 현재 repository adapter는 공급원, 성공·실패 수집 실행, raw snapshot 계보, 자산 식별자, 공시, KRX·Tiingo 가격, Tiingo 기업행동과 격리 기록을 지원한다. `source-status`는 호출자가 지정한 허용 경과시간으로 마지막 성공 실행의 stale 여부를 계산한다.
 
 ## 10. 주요 기술 결정
 
@@ -162,18 +167,18 @@ PostgreSQL 초기화 시 핵심 Source Registry·Raw Snapshot·Price·Quality Is
 | 숫자와 AI 책임 분리 | 재현성·감사 가능성·환각 통제 | ADR-0003 |
 | 20개 Data Spike 우선 | 전체 범위 확장 전 데이터 함정 발견 | PRD 7.1 |
 | PostgreSQL + 불변 raw | point-in-time·수정 이력·계보 보존 | 본 문서 5장 |
+| Tiingo raw + CRSP 조정종가 병행 | 가격 의미와 기업행동 계보 분리 | ADR-0002 |
 
 ## 11. 다음 구현 순서
 
-1. 표본 20개와 경계 사례 선정
-2. KRX Open API·OpenDART·Tiingo 커넥터 및 fixture 계약 테스트
-3. Source Registry를 PostgreSQL로 이관하고 ingestion job 연결
-4. 가격 canonicalization과 기업행동 조정 정책 확정
-5. Primary/Validation 비교와 quarantine 운영 화면
-6. 투자자산운용사 목차를 분석 도메인·공식·사용자 설명으로 매핑
-7. 기본·기술·ETF·포트폴리오 엔진 구현
-8. 공식 공시 우선 AI 문서 분석과 평가셋 구축
-9. 조건부 보고서와 Decision Journal 구현
+1. `config/data-spike.toml`의 초기 20개 표본 검토와 상장폐지·저유동성 사례 확정
+2. 누락된 표본 자산 등록과 CIK·DART 식별자 매핑
+3. 20개 표본의 SEC·KRX·OpenDART·Tiingo 5년 end-to-end Data Spike
+4. Data Console에 quarantine 상세 및 Primary/Validation 비교 화면 추가
+5. 투자자산운용사 목차를 분석 도메인·공식·사용자 설명으로 매핑
+6. 기본·기술·ETF·포트폴리오 엔진 구현
+7. 공식 공시 우선 AI 문서 분석과 평가셋 구축
+8. 조건부 보고서와 Decision Journal 구현
 
 ## 12. 변경 원칙
 
@@ -182,4 +187,3 @@ PostgreSQL 초기화 시 핵심 Source Registry·Raw Snapshot·Price·Quality Is
 - 새 지표는 계산식, 입력, 시점, 조정 여부, 한계, 테스트 근거를 함께 추가한다.
 - 수익 결과가 좋아 보인다는 이유만으로 규칙을 채택하지 않는다.
 - 외부 공개·다중 사용자·유료화가 시작되면 모든 공급자 라이선스와 금융규제 검토를 다시 수행한다.
-

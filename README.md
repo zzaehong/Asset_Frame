@@ -2,17 +2,21 @@
 
 수익을 예측하거나 매수·매도 점수를 만드는 대신, 공식 원천의 근거와 재현 가능한 계산으로 자산의 여러 관점과 위험을 보여주는 개인용 투자 의사결정 지원 도구입니다.
 
-현재 버전은 `v0.1 Data & Risk Foundation`입니다. 다음 수직 슬라이스가 실행됩니다.
+현재는 `v0.1 Data & Risk Foundation`의 데이터 수집 기반을 구현하고 있습니다.
 
-- 허용된 공식 API·공식 배포 파일만 등록하는 Source Registry
-- 비공식 라이브러리와 웹 크롤링을 거부하는 소스 정책
-- 원본 JSON의 불변 스냅샷과 SHA-256 계보 기록
-- 일별 종가 기반 수익률·변동성·하방편차·최대낙폭·회복기간·Historical VaR 계산
-- 사용자가 정한 위험 한도만 검사하는 정책 게이트
-- 공급원 충돌 시 값을 평균하지 않고 `quarantined` 처리
-- 매수/매도 의견 없이 위험·불확실성·데이터 상태를 반환하는 API와 CLI
+- 공식 원천만 허용하는 파일 기반 Source Registry
+- 원본 bytes의 content-addressed 불변 저장과 수집별 metadata·SHA-256 계보
+- PostgreSQL의 자산 식별자, 가격, 기업행동, 재무사실, 공시, ETF 보유, 거시 시계열 모델
+- 가격 품질 검사와 공급원 충돌의 `quarantined` 판정
+- SEC EDGAR submissions connector와 주입 가능한 HTTP·저장소 경계
+- KRX KOSPI·KOSDAQ 기본정보와 KOSPI·KOSDAQ·ETF 일별 가격 수집 CLI
+- OpenDART 기업별 공시목록 수집과 페이지별 원본 계보
+- Tiingo 미국 주식·ETF 기본정보, EOD 원가격·조정종가와 기업행동 수집
+- SEC ticker→CIK와 KRX ticker→OpenDART corp code의 공식 목록 기반 정확 일치 매핑
+- 공급원·데이터 종류별 수집 실행 성공/실패/처리 건수와 stale 상태 조회
+- PostgreSQL의 공급원·자산·수집 실행·raw snapshot을 보여주는 읽기 전용 FastAPI Data Console
 
-프로젝트의 요구사항과 설계는 [PRD](docs/PRD.md), [프로젝트 개요](docs/PROJECT_OVERVIEW.md)에서 확인할 수 있습니다.
+프로젝트의 요구사항과 설계는 [PRD](PRD.md), [프로젝트 개요](Project_Overview.md)에서 확인할 수 있습니다.
 
 ## 빠른 시작
 
@@ -20,13 +24,100 @@
 
 ```bash
 cp .env.example .env
-uv sync --dev
-uv run investment-decision sources
-uv run investment-decision risk --input examples/risk-analysis-input.json
-uv run uvicorn investment_decision.api.app:app --reload
+uv sync --dev --frozen
 ```
 
-API 문서는 실행 후 `http://127.0.0.1:8000/docs`에서 확인합니다.
+Tiingo 등으로 등록한 미국 ticker를 SEC 공식 회사 목록의 CIK에 연결한 뒤 SEC
+submissions를 수집합니다.
+
+```bash
+uv run asset-frame collect-sec-identifiers
+uv run asset-frame collect-sec \
+  --cik 320193 \
+  --asset-id <registered-asset-uuid>
+```
+
+승인된 KRX API는 시장 전체의 기준일 snapshot으로 수집합니다.
+
+```bash
+uv run asset-frame collect-krx --dataset kospi_assets --date 2026-08-19
+uv run asset-frame collect-krx --dataset kosdaq_assets --date 2026-08-19
+uv run asset-frame collect-krx --dataset kospi_prices --date 2026-08-19
+uv run asset-frame collect-krx --dataset kosdaq_prices --date 2026-08-19
+uv run asset-frame collect-krx --dataset etf_prices --date 2026-08-19
+```
+
+KRX로 등록한 국내 ticker를 OpenDART 공식 고유번호 파일의 corp code에 연결한 뒤 기간별
+공시목록을 수집합니다.
+
+```bash
+uv run asset-frame collect-opendart-identifiers
+uv run asset-frame collect-opendart \
+  --corp-code 00126380 \
+  --asset-id <registered-asset-uuid> \
+  --start-date 2026-01-01 \
+  --end-date 2026-08-21
+```
+
+자산 유형을 명시하여 Tiingo 기본정보와 EOD 가격을 함께 수집합니다.
+
+```bash
+uv run asset-frame collect-tiingo \
+  --ticker AAPL \
+  --asset-type equity \
+  --start-date 2021-01-01 \
+  --end-date 2026-08-21
+```
+
+Tiingo metadata에는 자산 유형과 통화가 없으므로 `--asset-type`은 추측하지 않고 사용자가
+`equity` 또는 `etf`로 지정합니다. 이 경로는 미국 자산만 대상으로 하며 통화는 USD로 저장합니다.
+OHLCV는 raw 값, `adjusted_close`는 Tiingo의 CRSP 방식 배당·분할 조정 종가입니다.
+
+수집 상태는 공급원과 데이터 종류별 마지막 성공시각을 기준으로 확인합니다. stale 임계값은
+숨은 기본값을 사용하지 않고 호출자가 시간 단위로 지정합니다.
+
+```bash
+uv run asset-frame source-status \
+  --source-id tiingo-eod \
+  --data-kind price \
+  --max-age-hours 48
+```
+
+`config/data-spike.toml`은 한국·미국 주식과 ETF 각 5개씩 총 20개 표본을 고정합니다. 이 목록은
+투자 추천이 아니라 분할, 배당, 특수 ticker, 인버스, 채권·원자재 ETF 등 수집 경계 사례를
+재현하기 위한 테스트 대상입니다. 다음 명령은 DB 등록과 필수 식별자 준비 상태를 나눠
+보여줍니다. 미국 자산은 CIK, 국내 주식은 DART corp code를 요구하며 국내 ETF에는 적용되지
+않는 DART corp code를 강제하지 않습니다.
+
+```bash
+uv run asset-frame data-spike-status
+```
+
+## 로컬 Data Console
+
+`.env`의 `DATABASE_URL`을 주입한 뒤 다음 명령으로 읽기 전용 대시보드를 실행합니다.
+
+```bash
+set -a
+. ./.env
+set +a
+uv run uvicorn asset_frame.web.app:app --host 127.0.0.1 --port 8000
+```
+
+브라우저에서 `http://127.0.0.1:8000`을 열면 다음 데이터를 확인할 수 있습니다.
+
+- 활성 공급원과 공급원별 최근 실행 상태
+- 자산 수, 가격·공시·raw snapshot·격리 이슈 건수
+- ticker, ISIN, CIK, DART corp code, 거래소 식별자
+- 전체·주식·ETF 유형별 자산 목록과 가격·공시 수집 기간
+- 종목별 OHLCV·가격 기준 상세와 페이지 단위 공식 공시 원문 링크
+- 최근 수집 실행의 성공·실패와 수신·수락·격리 건수
+- raw snapshot의 수집시각, HTTP 상태, 크기, SHA-256, 저장 경로
+
+JSON API와 schema는 `http://127.0.0.1:8000/docs`에서 확인할 수 있습니다. 현재 화면에는 인증이
+없으므로 개인 PC의 loopback 주소인 `127.0.0.1`에만 바인딩합니다. 외부 네트워크에 공개하려면
+인증, HTTPS, 접근 로그와 secret 검토가 먼저 필요합니다. Dashboard repository는 각 DB transaction을
+`READ ONLY`로 설정하며 화면에서 수집이나 데이터 변경을 실행하지 않습니다.
 
 ```bash
 uv run pytest
@@ -34,17 +125,28 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-Docker가 준비된 환경에서는 다음 명령으로 API와 PostgreSQL 스키마를 함께 실행할 수 있습니다.
+Docker가 준비된 환경에서는 다음 명령으로 PostgreSQL과 초기 스키마를 실행할 수 있습니다.
 
 ```bash
-docker compose up --build
+docker compose up -d --wait
 ```
+
+PostgreSQL schema는 `db/init/001_core.sql`, 공급원 설정은 `config/sources.toml`에 있습니다.
 
 ## 현재 제한
 
-- KRX·OpenDART·Tiingo 등 API 키가 필요한 실제 수집기는 순차 연결 예정입니다.
-- v0.1에서 동작하는 네트워크 커넥터는 키가 필요 없는 SEC EDGAR submissions API입니다.
-- PostgreSQL에는 핵심 데이터 계보 스키마만 먼저 정의했으며 애플리케이션 저장소 연결은 다음 단계입니다.
+- ECOS·FRED connector는 아직 구현하지 않았습니다.
+- KRX 가격은 수정주가가 아닌 거래소 원가격으로 저장합니다.
+- 현재 구현된 connector와 CLI는 SEC EDGAR submissions, KRX 종목·가격, OpenDART 공시목록 및 Tiingo 미국 EOD 수집 경로입니다.
+- 규제기관 식별자 매핑은 ticker의 대소문자를 정규화한 정확 일치만 사용합니다. 서로 다른
+  표기나 우선주 등 공식 목록에서 일치하지 않는 ticker는 추정하지 않고 누락으로 보고합니다.
+- Data Spike manifest의 종목 선정은 초기 운영 표본이며, 상장폐지·저유동성 사례 포함 여부는
+  실제 5년 수집을 시작하기 전에 별도로 확정해야 합니다.
+- Tiingo 조정 OHLC·조정 거래량은 raw snapshot에만 보존하며 분석 기본 가격은 아직 정하지 않았습니다.
+- FastAPI Data Console은 데이터 상태 조회만 지원하며 가격 차트·공시 본문·위험 계산은 아직
+  구현하지 않았습니다.
+- PostgreSQL adapter는 공급원, raw snapshot, 자산 식별자, 공시, KRX·Tiingo 가격,
+  Tiingo 기업행동과 격리 기록을 연결합니다.
 - 기본적·기술적·ETF·AI 문서 분석의 세부 기준은 투자자산운용사 자격 체계 매핑 후 확정합니다.
 - 이 프로젝트는 투자자문, 수익 보장, 자동매매 도구가 아닙니다.
 
@@ -56,4 +158,3 @@ docker compose up --build
 4. 데이터 충돌은 평균하지 않고 격리합니다.
 5. 모든 결과에는 기준시각, 입력 계보, 계산 버전, 한계가 따라야 합니다.
 6. 최종 판단은 사용자에게 남겨둡니다.
-

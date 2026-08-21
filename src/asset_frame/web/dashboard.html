@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Asset Frame · Data Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080b10;
+      --panel: #10151d;
+      --panel-2: #151c26;
+      --line: #263142;
+      --text: #edf2f7;
+      --muted: #8d9aab;
+      --mint: #6ee7b7;
+      --mint-dim: #173d35;
+      --amber: #f6c453;
+      --red: #fb7185;
+      --blue: #7dd3fc;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 80% -10%, rgba(51, 120, 104, .2), transparent 32rem),
+        var(--bg);
+      color: var(--text);
+      font: 14px/1.5 Inter, Pretendard, ui-sans-serif, system-ui, -apple-system, sans-serif;
+    }
+    button, input, select { font: inherit; }
+    code, .mono { font-family: "SFMono-Regular", Consolas, monospace; }
+    .shell { max-width: 1480px; margin: 0 auto; padding: 0 28px 64px; }
+    .topbar {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      min-height: 76px; margin: 0 -28px 34px; padding: 0 28px;
+      border-bottom: 1px solid rgba(38, 49, 66, .8);
+      background: rgba(8, 11, 16, .86); backdrop-filter: blur(16px);
+    }
+    .brand { display: flex; align-items: center; gap: 13px; }
+    .mark {
+      display: grid; place-items: center; width: 38px; height: 38px;
+      border: 1px solid #3e625b; border-radius: 11px; color: var(--mint);
+      background: linear-gradient(145deg, #18322e, #0d1518); font-weight: 800;
+    }
+    .brand strong { display: block; letter-spacing: .08em; font-size: 13px; }
+    .brand span { color: var(--muted); font-size: 11px; letter-spacing: .12em; }
+    .actions { display: flex; align-items: center; gap: 10px; }
+    .button, .link-button {
+      border: 1px solid var(--line); border-radius: 9px; padding: 9px 13px;
+      color: var(--text); background: var(--panel); cursor: pointer; text-decoration: none;
+    }
+    .button:hover, .link-button:hover { border-color: #4a5d76; background: var(--panel-2); }
+    .eyebrow { color: var(--mint); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 7px 0 7px; max-width: 720px; font-size: clamp(28px, 4vw, 48px); line-height: 1.08; }
+    .lead { max-width: 720px; margin: 0; color: var(--muted); font-size: 15px; }
+    .hero { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 30px; }
+    .live {
+      display: flex; gap: 9px; align-items: center; color: var(--muted); white-space: nowrap;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; }
+    .dot.ok { background: var(--mint); }
+    .dot.fail { background: var(--red); }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 12px; }
+    .metric, .panel {
+      border: 1px solid var(--line); border-radius: 13px;
+      background: linear-gradient(145deg, rgba(21, 28, 38, .92), rgba(13, 18, 25, .96));
+      box-shadow: 0 16px 50px rgba(0, 0, 0, .16);
+    }
+    .metric { padding: 17px 18px; min-height: 106px; }
+    .metric span { color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; margin-top: 15px; font-size: 25px; font-weight: 680; }
+    .metric strong.warn { color: var(--amber); }
+    .metric strong.bad { color: var(--red); }
+    .section { margin-top: 34px; }
+    .section-head { display: flex; justify-content: space-between; align-items: end; margin-bottom: 12px; gap: 20px; }
+    .section h2 { margin: 0; font-size: 18px; }
+    .section-note { color: var(--muted); font-size: 12px; }
+    .source-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .source { padding: 18px; }
+    .source-top { display: flex; justify-content: space-between; gap: 12px; }
+    .source h3 { margin: 0; font-size: 14px; }
+    .source p { min-height: 42px; margin: 8px 0 14px; color: var(--muted); font-size: 12px; }
+    .tag, .status {
+      display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 8px;
+      font-size: 10px; letter-spacing: .04em; white-space: nowrap;
+    }
+    .tag { margin: 2px 3px 0 0; color: #c5d2e2; background: #202a38; }
+    .status { color: var(--muted); border: 1px solid var(--line); }
+    .status.succeeded { color: var(--mint); border-color: #285c4e; background: rgba(25, 79, 65, .22); }
+    .status.failed { color: var(--red); border-color: #663342; background: rgba(97, 32, 49, .2); }
+    .source-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 16px; border-top: 1px solid var(--line); padding-top: 13px; }
+    .source-stats small { display: block; color: var(--muted); font-size: 9px; text-transform: uppercase; }
+    .source-stats b { font-size: 13px; }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+    .asset-tabs, .detail-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+    .asset-tabs { margin-bottom: 10px; }
+    .tab {
+      min-height: 38px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px;
+      color: var(--muted); background: #0d1219; cursor: pointer;
+    }
+    .tab:hover { color: var(--text); border-color: #4a5d76; }
+    .tab.active { color: var(--mint); border-color: #376d60; background: var(--mint-dim); }
+    input, select {
+      min-height: 38px; padding: 8px 11px; color: var(--text); background: #0d1219;
+      border: 1px solid var(--line); border-radius: 8px; outline: none;
+    }
+    input { width: min(320px, 60vw); }
+    input:focus, select:focus { border-color: #4c7d70; box-shadow: 0 0 0 3px rgba(110, 231, 183, .08); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 880px; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    th { color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+    td { font-size: 12px; }
+    tbody tr:hover { background: rgba(125, 211, 252, .025); }
+    .asset-row { cursor: pointer; }
+    .asset-row:focus-visible { outline: 2px solid var(--mint); outline-offset: -2px; }
+    .asset-link {
+      padding: 0; border: 0; color: var(--blue); background: transparent; cursor: pointer;
+      font: inherit; font-weight: 700;
+    }
+    .asset-link:hover { text-decoration: underline; }
+    td.primary { font-size: 13px; font-weight: 650; }
+    td.muted { color: var(--muted); }
+    .record-period { white-space: nowrap; }
+    .record-period small { display: block; color: var(--muted); }
+    .coverage-empty { color: var(--amber); }
+    .hash { display: inline-block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+    .empty, .error { padding: 34px; text-align: center; color: var(--muted); }
+    .error { color: var(--red); }
+    .pager { display: flex; align-items: center; justify-content: flex-end; gap: 9px; padding: 12px 14px; }
+    .pager .button:disabled { opacity: .4; cursor: default; }
+    .drawer-backdrop {
+      position: fixed; inset: 0; z-index: 30; background: rgba(2, 6, 10, .72);
+      backdrop-filter: blur(3px);
+    }
+    .drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; z-index: 31; width: min(820px, 94vw);
+      overflow-y: auto; border-left: 1px solid var(--line); padding: 25px;
+      background: #0b1017; box-shadow: -30px 0 80px rgba(0, 0, 0, .42);
+    }
+    [hidden] { display: none !important; }
+    .drawer-head { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
+    .drawer-head h2 { margin: 5px 0 4px; font-size: 28px; }
+    .drawer-close { min-width: 40px; padding: 8px; }
+    .detail-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 22px 0; }
+    .detail-card { min-height: 104px; overflow-wrap: anywhere; padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }
+    .detail-card small { color: var(--muted); }
+    .detail-card strong { display: block; margin-top: 11px; font-size: 18px; }
+    .detail-identifiers { margin: 0 0 22px; padding: 14px; }
+    .detail-pane { margin-top: 13px; }
+    .detail-table { min-width: 760px; }
+    .official-link { color: var(--blue); text-decoration: none; }
+    .official-link:hover { text-decoration: underline; }
+    body.drawer-open { overflow: hidden; }
+    .loading { opacity: .52; pointer-events: none; }
+    .footer { margin-top: 34px; color: var(--muted); font-size: 11px; text-align: right; }
+
+    @media (max-width: 1120px) {
+      .metrics { grid-template-columns: repeat(3, 1fr); }
+      .source-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 680px) {
+      .shell { padding: 0 16px 40px; }
+      .topbar { margin: 0 -16px 26px; padding: 0 16px; }
+      .brand span, .docs-link { display: none; }
+      .hero { align-items: start; flex-direction: column; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .source-grid { grid-template-columns: 1fr; }
+      .section-head { align-items: start; flex-direction: column; }
+      .drawer { width: 100vw; padding: 18px 14px; }
+      .detail-summary { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell" id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">AF</div>
+        <div><strong>ASSET FRAME</strong><span>DATA CONSOLE · LOCAL</span></div>
+      </div>
+      <div class="actions">
+        <a class="link-button docs-link" href="/docs">API 문서</a>
+        <button class="button" id="refresh">새로고침</button>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Evidence before interpretation</div>
+        <h1>데이터의 상태부터<br>확인합니다.</h1>
+        <p class="lead">공급원, 수집 실행, 원본 스냅샷과 정규화 자산을 한 화면에서 확인하는 읽기 전용 콘솔입니다.</p>
+      </div>
+      <div class="live"><i class="dot" id="health-dot"></i><span id="health-text">연결 확인 중</span></div>
+    </section>
+
+    <section class="metrics" id="metrics"></section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><div class="eyebrow">Sources</div><h2>공급원 상태</h2></div>
+        <div class="section-note" id="generated-at">—</div>
+      </div>
+      <div class="source-grid" id="sources"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><div class="eyebrow">Canonical assets</div><h2>자산과 식별자</h2></div>
+        <div class="filters">
+          <span class="section-note" id="asset-result-count"></span>
+          <input id="asset-query" type="search" placeholder="종목명, ticker, CIK, ISIN 검색">
+          <select id="country"><option value="">전체 국가</option><option>KR</option><option>US</option></select>
+        </div>
+      </div>
+      <div class="asset-tabs" id="asset-tabs" role="tablist" aria-label="자산 유형">
+        <button class="tab active" type="button" role="tab" aria-selected="true" data-asset-type="">전체</button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-asset-type="equity">주식</button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-asset-type="etf">ETF</button>
+      </div>
+      <div class="panel table-wrap">
+        <table>
+          <thead><tr><th>Ticker</th><th>자산</th><th>시장</th><th>규제 식별자</th><th>가격 레코드</th><th>가격 기간</th><th>수집된 공시</th></tr></thead>
+          <tbody id="asset-rows"></tbody>
+        </table>
+        <div class="empty" id="asset-empty" hidden></div>
+        <div class="pager">
+          <span class="section-note" id="asset-page-note"></span>
+          <button class="button" type="button" id="asset-prev">이전</button>
+          <button class="button" type="button" id="asset-next">다음</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><div class="eyebrow">Ingestion lineage</div><h2>최근 수집 실행</h2></div>
+        <div class="section-note">최근 30개 · 성공/실패와 처리 건수</div>
+      </div>
+      <div class="panel table-wrap">
+        <table>
+          <thead><tr><th>상태</th><th>공급원</th><th>데이터</th><th>시작</th><th>수신</th><th>수락</th><th>격리</th><th>오류</th></tr></thead>
+          <tbody id="run-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><div class="eyebrow">Immutable raw</div><h2>최근 원본 스냅샷</h2></div>
+        <div class="section-note">요청 URL은 secret이 마스킹된 값만 표시</div>
+      </div>
+      <div class="panel table-wrap">
+        <table>
+          <thead><tr><th>공급원</th><th>수집시각</th><th>HTTP</th><th>크기</th><th>SHA-256</th><th>저장 경로</th></tr></thead>
+          <tbody id="snapshot-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="footer">읽기 전용 · 투자 추천이나 매매 판단을 제공하지 않습니다.</footer>
+  </main>
+
+  <div class="drawer-backdrop" id="detail-backdrop" hidden></div>
+  <aside class="drawer" id="asset-detail" aria-label="종목 상세" aria-hidden="true" hidden>
+    <div class="drawer-head">
+      <div>
+        <div class="eyebrow" id="detail-market">Asset detail</div>
+        <h2 id="detail-title">종목 상세</h2>
+        <div class="section-note mono" id="detail-identification">—</div>
+      </div>
+      <button class="button drawer-close" type="button" id="detail-close" aria-label="상세 닫기">✕</button>
+    </div>
+    <div id="detail-body">
+      <div class="detail-summary" id="detail-summary"></div>
+      <div class="panel detail-identifiers" id="detail-identifiers"></div>
+      <div class="detail-tabs" id="detail-tabs" role="tablist" aria-label="상세 데이터 유형">
+        <button class="tab active" type="button" role="tab" aria-selected="true" data-detail-tab="prices">가격</button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-detail-tab="filings">공시</button>
+      </div>
+      <section class="detail-pane" id="price-pane">
+        <div class="panel table-wrap">
+          <table class="detail-table">
+            <thead><tr><th>거래일</th><th>종가</th><th>조정종가</th><th>시가 / 고가 / 저가</th><th>거래량</th><th>공급원·기준</th></tr></thead>
+            <tbody id="detail-price-rows"></tbody>
+          </table>
+          <div class="empty" id="detail-price-empty" hidden></div>
+          <div class="pager">
+            <span class="section-note" id="price-page-note"></span>
+            <button class="button" type="button" id="price-prev">이전</button>
+            <button class="button" type="button" id="price-next">다음</button>
+          </div>
+        </div>
+      </section>
+      <section class="detail-pane" id="filing-pane" hidden>
+        <div class="panel table-wrap">
+          <table class="detail-table">
+            <thead><tr><th>접수일</th><th>양식·보고서</th><th>보고기간</th><th>공급원</th><th>원문</th></tr></thead>
+            <tbody id="detail-filing-rows"></tbody>
+          </table>
+          <div class="empty" id="detail-filing-empty" hidden></div>
+          <div class="pager">
+            <span class="section-note" id="filing-page-note"></span>
+            <button class="button" type="button" id="filing-prev">이전</button>
+            <button class="button" type="button" id="filing-next">다음</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="error" id="detail-error" hidden></div>
+  </aside>
+
+  <script>
+    const $ = (selector) => document.querySelector(selector);
+    const escapeHtml = (value) => String(value ?? "—").replace(/[&<>'"]/g, (character) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+    })[character]);
+    const number = (value) => new Intl.NumberFormat("ko-KR").format(value ?? 0);
+    const priceNumber = (value) => value == null ? "—" : new Intl.NumberFormat("ko-KR", {
+      maximumFractionDigits: 4
+    }).format(Number(value));
+    const dateTime = (value) => value ? new Intl.DateTimeFormat("ko-KR", {
+      dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Seoul"
+    }).format(new Date(value)) : "—";
+    const dateOnly = (value) => value ? String(value).slice(0, 10) : "—";
+    const statusClass = (value) => ["succeeded", "failed"].includes(value) ? value : "";
+    const ASSET_PAGE_SIZE = 100;
+    const DETAIL_PAGE_SIZE = 50;
+    let assetOffset = 0;
+    let selectedAssetType = "";
+    let selectedAssetId = null;
+    let priceOffset = 0;
+    let filingOffset = 0;
+
+    async function getJson(path) {
+      const response = await fetch(path, {
+        cache: "no-store", headers: { "Accept": "application/json" }
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    function renderOverview(data) {
+      const totals = data.totals;
+      const cards = [
+        ["활성 공급원", totals.enabled_sources], ["정규화 자산", totals.assets],
+        ["가격 관측치", totals.prices], ["공시 문서", totals.filings],
+        ["Raw snapshots", totals.raw_snapshots],
+        ["격리 이슈", totals.quarantined_issues, totals.quarantined_issues ? "warn" : ""],
+        ["실패 실행", totals.failed_runs, totals.failed_runs ? "bad" : ""]
+      ];
+      $("#metrics").innerHTML = cards.map(([label, value, tone]) =>
+        `<article class="metric"><span>${escapeHtml(label)}</span><strong class="${tone || ""}">${number(value)}</strong></article>`
+      ).join("");
+      $("#generated-at").textContent = `화면 기준 ${dateTime(data.generated_at)}`;
+      $("#sources").innerHTML = data.sources.map((source) => `
+        <article class="panel source">
+          <div class="source-top"><h3>${escapeHtml(source.source_id)}</h3><span class="status ${statusClass(source.latest_status)}">${escapeHtml(source.latest_status || "실행 없음")}</span></div>
+          <p>${escapeHtml(source.authority)}</p>
+          <div>${(source.data_kinds || []).map((kind) => `<span class="tag">${escapeHtml(kind)}</span>`).join("")}</div>
+          <div class="source-stats">
+            <div><small>received</small><b>${number(source.records_received)}</b></div>
+            <div><small>accepted</small><b>${number(source.records_accepted)}</b></div>
+            <div><small>last run</small><b>${source.latest_finished_at ? dateTime(source.latest_finished_at).split(" ").slice(0, 3).join(" ") : "—"}</b></div>
+          </div>
+        </article>`).join("");
+    }
+
+    function renderAssets(data) {
+      $("#asset-rows").innerHTML = data.items.map((asset) => {
+        const regulator = asset.cik ? `CIK ${asset.cik}` : asset.dart_corp_code ? `DART ${asset.dart_corp_code}` : asset.isin || "—";
+        const pricePeriod = asset.price_records ? `${dateOnly(asset.earliest_price_date)} ~ ${dateOnly(asset.latest_price_date)}` : "수집된 가격 없음";
+        const filingPeriod = asset.filing_records ? `${dateOnly(asset.earliest_filing_date)} ~ ${dateOnly(asset.latest_filing_date)}` : "실제 공시 부재를 의미하지 않음";
+        return `<tr class="asset-row" data-asset-id="${escapeHtml(asset.asset_id)}" tabindex="0" aria-label="${escapeHtml(asset.ticker)} 상세 열기">
+          <td class="primary mono"><button class="asset-link" type="button">${escapeHtml(asset.ticker)}</button></td>
+          <td><b>${escapeHtml(asset.name)}</b><br><span class="section-note mono">${escapeHtml(String(asset.asset_id).slice(0, 8))}</span></td>
+          <td>${escapeHtml(asset.country_code)} · ${escapeHtml(asset.asset_type)}<br><span class="section-note">${escapeHtml(asset.exchange_code)}</span></td>
+          <td class="mono">${escapeHtml(regulator)}</td>
+          <td>${number(asset.price_records)}</td>
+          <td class="record-period">${escapeHtml(pricePeriod)}</td>
+          <td class="${asset.filing_records ? "" : "coverage-empty"}">${asset.filing_records ? `${number(asset.filing_records)}건` : "수집된 공시 없음"}<br><span class="section-note">${escapeHtml(filingPeriod)}</span></td>
+        </tr>`;
+      }).join("");
+      const empty = $("#asset-empty");
+      empty.hidden = data.items.length > 0;
+      empty.textContent = data.items.length ? "" : "조건에 맞는 자산이 없습니다.";
+      $("#asset-result-count").textContent = `${number(data.total)}개 중 ${number(data.items.length)}개 표시`;
+      const first = data.total ? data.offset + 1 : 0;
+      const last = Math.min(data.offset + data.items.length, data.total);
+      $("#asset-page-note").textContent = `${number(first)}–${number(last)} / ${number(data.total)}`;
+      $("#asset-prev").disabled = data.offset === 0;
+      $("#asset-next").disabled = data.offset + data.items.length >= data.total;
+    }
+
+    function renderDetail(detail) {
+      $("#detail-market").textContent = `${detail.country_code} · ${detail.asset_type} · ${detail.currency}`;
+      $("#detail-title").textContent = `${detail.ticker || "—"} · ${detail.name}`;
+      $("#detail-identification").textContent = detail.asset_id;
+      const pricePeriod = detail.price_records ? `${dateOnly(detail.earliest_price_date)} ~ ${dateOnly(detail.latest_price_date)}` : "수집 없음";
+      const filingPeriod = detail.filing_records ? `${dateOnly(detail.earliest_filing_date)} ~ ${dateOnly(detail.latest_filing_date)}` : "수집 없음";
+      $("#detail-summary").innerHTML = `
+        <article class="detail-card"><small>가격 레코드</small><strong>${number(detail.price_records)}건</strong><span class="section-note">${escapeHtml(pricePeriod)}</span></article>
+        <article class="detail-card"><small>공시 레코드</small><strong class="${detail.filing_records ? "" : "coverage-empty"}">${number(detail.filing_records)}건</strong><span class="section-note">${escapeHtml(filingPeriod)}</span></article>
+        <article class="detail-card"><small>연결된 공급원</small><strong>${escapeHtml([...(detail.price_sources || []), ...(detail.filing_sources || [])].filter((value, index, values) => values.indexOf(value) === index).join(", ") || "—")}</strong></article>`;
+      const identifiers = [
+        ["Ticker", detail.ticker], ["Exchange", detail.exchange_code], ["ISIN", detail.isin],
+        ["CIK", detail.cik], ["DART corp code", detail.dart_corp_code]
+      ].filter(([, value]) => value);
+      $("#detail-identifiers").innerHTML = `<div class="eyebrow">Identifiers</div>${identifiers.length ? identifiers.map(([label, value]) => `<span class="tag"><b>${escapeHtml(label)}</b>&nbsp; ${escapeHtml(value)}</span>`).join("") : `<span class="section-note">연결된 식별자가 없습니다.</span>`}`;
+    }
+
+    function renderPricePage(data) {
+      $("#detail-price-rows").innerHTML = data.items.map((price) => `<tr>
+        <td class="primary">${escapeHtml(dateOnly(price.trading_date))}</td>
+        <td>${priceNumber(price.close)} ${escapeHtml(price.currency)}</td>
+        <td>${priceNumber(price.adjusted_close)}</td>
+        <td>${priceNumber(price.open)} / ${priceNumber(price.high)} / ${priceNumber(price.low)}</td>
+        <td>${price.volume == null ? "—" : number(price.volume)}</td>
+        <td>${escapeHtml(price.source_id)}<br><span class="section-note">${escapeHtml(price.price_basis)}</span></td>
+      </tr>`).join("");
+      const empty = $("#detail-price-empty");
+      empty.hidden = data.items.length > 0;
+      empty.textContent = data.items.length ? "" : "현재 저장소에 연결된 가격 레코드가 없습니다.";
+      renderDetailPager("price", data);
+    }
+
+    function renderFilingPage(data) {
+      $("#detail-filing-rows").innerHTML = data.items.map((filing) => `<tr>
+        <td class="primary">${escapeHtml(dateOnly(filing.filed_at))}</td>
+        <td>${escapeHtml(filing.form_type)}<br><span class="section-note mono">${escapeHtml(filing.accession_number)}</span></td>
+        <td>${escapeHtml(dateOnly(filing.report_period))}</td>
+        <td>${escapeHtml(filing.source_id)}</td>
+        <td><a class="official-link" href="${escapeHtml(filing.document_url)}" target="_blank" rel="noreferrer">공식 원문 ↗</a></td>
+      </tr>`).join("");
+      const empty = $("#detail-filing-empty");
+      empty.hidden = data.items.length > 0;
+      empty.textContent = data.items.length ? "" : "현재 저장소에 연결된 공시가 없습니다. 실제 공시가 존재하지 않는다는 뜻은 아닙니다.";
+      renderDetailPager("filing", data);
+    }
+
+    function renderDetailPager(kind, data) {
+      const first = data.total ? data.offset + 1 : 0;
+      const last = Math.min(data.offset + data.items.length, data.total);
+      $(`#${kind}-page-note`).textContent = `${number(first)}–${number(last)} / ${number(data.total)}`;
+      $(`#${kind}-prev`).disabled = data.offset === 0;
+      $(`#${kind}-next`).disabled = data.offset + data.items.length >= data.total;
+    }
+
+    function renderRuns(data) {
+      $("#run-rows").innerHTML = data.items.map((run) => `<tr>
+        <td><span class="status ${statusClass(run.status)}">${escapeHtml(run.status)}</span></td>
+        <td class="primary">${escapeHtml(run.source_id)}</td><td>${escapeHtml(run.data_kind)}</td>
+        <td>${dateTime(run.started_at)}</td><td>${number(run.records_received)}</td>
+        <td>${number(run.records_accepted)}</td><td>${number(run.records_quarantined)}</td>
+        <td class="muted">${escapeHtml(run.error_code)}</td>
+      </tr>`).join("") || `<tr><td colspan="8" class="empty">아직 기록된 수집 실행이 없습니다.</td></tr>`;
+    }
+
+    function renderSnapshots(data) {
+      $("#snapshot-rows").innerHTML = data.items.map((snapshot) => `<tr title="${escapeHtml(snapshot.request_url)}">
+        <td class="primary">${escapeHtml(snapshot.source_id)}</td><td>${dateTime(snapshot.fetched_at)}</td>
+        <td><span class="status ${snapshot.http_status === 200 ? "succeeded" : "failed"}">${escapeHtml(snapshot.http_status)}</span></td>
+        <td>${number(snapshot.content_length)} B</td><td class="mono"><span class="hash">${escapeHtml(snapshot.sha256)}</span></td>
+        <td class="mono muted">${escapeHtml(snapshot.storage_path)}</td>
+      </tr>`).join("") || `<tr><td colspan="6" class="empty">아직 저장된 원본이 없습니다.</td></tr>`;
+    }
+
+    async function openAssetDetail(assetId) {
+      selectedAssetId = assetId;
+      priceOffset = 0;
+      filingOffset = 0;
+      $("#asset-detail").hidden = false;
+      $("#detail-backdrop").hidden = false;
+      $("#asset-detail").setAttribute("aria-hidden", "false");
+      document.body.classList.add("drawer-open");
+      selectDetailTab("prices");
+      $("#detail-body").hidden = true;
+      $("#detail-error").hidden = true;
+      try {
+        const [detail, prices, filings] = await Promise.all([
+          getJson(`/api/assets/${encodeURIComponent(assetId)}`),
+          getJson(`/api/assets/${encodeURIComponent(assetId)}/prices?limit=${DETAIL_PAGE_SIZE}&offset=0`),
+          getJson(`/api/assets/${encodeURIComponent(assetId)}/filings?limit=${DETAIL_PAGE_SIZE}&offset=0`)
+        ]);
+        if (selectedAssetId !== assetId) return;
+        renderDetail(detail);
+        renderPricePage(prices);
+        renderFilingPage(filings);
+        $("#detail-body").hidden = false;
+      } catch (error) {
+        $("#detail-error").textContent = error.message;
+        $("#detail-error").hidden = false;
+      }
+    }
+
+    function closeAssetDetail() {
+      selectedAssetId = null;
+      $("#asset-detail").hidden = true;
+      $("#detail-backdrop").hidden = true;
+      $("#asset-detail").setAttribute("aria-hidden", "true");
+      document.body.classList.remove("drawer-open");
+    }
+
+    async function loadDetailPage(kind, offset) {
+      if (!selectedAssetId) return;
+      const assetId = selectedAssetId;
+      const path = kind === "price" ? "prices" : "filings";
+      const data = await getJson(`/api/assets/${encodeURIComponent(assetId)}/${path}?limit=${DETAIL_PAGE_SIZE}&offset=${offset}`);
+      if (selectedAssetId !== assetId) return;
+      if (kind === "price") {
+        priceOffset = offset;
+        renderPricePage(data);
+      } else {
+        filingOffset = offset;
+        renderFilingPage(data);
+      }
+    }
+
+    function selectDetailTab(kind) {
+      document.querySelectorAll("[data-detail-tab]").forEach((button) => {
+        const active = button.dataset.detailTab === kind;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", String(active));
+      });
+      $("#price-pane").hidden = kind !== "prices";
+      $("#filing-pane").hidden = kind !== "filings";
+    }
+
+    async function loadAssets() {
+      const params = new URLSearchParams({ limit: String(ASSET_PAGE_SIZE), offset: String(assetOffset) });
+      if ($("#asset-query").value.trim()) params.set("q", $("#asset-query").value.trim());
+      if ($("#country").value) params.set("country_code", $("#country").value);
+      if (selectedAssetType) params.set("asset_type", selectedAssetType);
+      renderAssets(await getJson(`/api/assets?${params}`));
+    }
+
+    async function refresh() {
+      const app = $("#app");
+      app.classList.add("loading");
+      try {
+        const [health, overview, runs, snapshots] = await Promise.all([
+          getJson("/api/health"), getJson("/api/overview"), getJson("/api/runs?limit=30"),
+          getJson("/api/snapshots?limit=30"), loadAssets()
+        ]);
+        renderOverview(overview); renderRuns(runs); renderSnapshots(snapshots);
+        $("#health-dot").className = "dot ok";
+        $("#health-text").textContent = `${health.database} · 연결됨`;
+      } catch (error) {
+        $("#health-dot").className = "dot fail";
+        $("#health-text").textContent = error.message;
+      } finally { app.classList.remove("loading"); }
+    }
+
+    let searchTimer;
+    $("#asset-query").addEventListener("input", () => {
+      assetOffset = 0;
+      clearTimeout(searchTimer); searchTimer = setTimeout(() => loadAssets().catch(console.error), 250);
+    });
+    $("#country").addEventListener("change", () => {
+      assetOffset = 0;
+      loadAssets().catch(console.error);
+    });
+    $("#asset-tabs").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-asset-type]");
+      if (!button) return;
+      selectedAssetType = button.dataset.assetType;
+      assetOffset = 0;
+      document.querySelectorAll("[data-asset-type]").forEach((tab) => {
+        const active = tab === button;
+        tab.classList.toggle("active", active);
+        tab.setAttribute("aria-selected", String(active));
+      });
+      loadAssets().catch(console.error);
+    });
+    $("#asset-rows").addEventListener("click", (event) => {
+      const row = event.target.closest("[data-asset-id]");
+      if (row) openAssetDetail(row.dataset.assetId);
+    });
+    $("#asset-rows").addEventListener("keydown", (event) => {
+      const row = event.target.closest("[data-asset-id]");
+      if (row && ["Enter", " "].includes(event.key)) {
+        event.preventDefault();
+        openAssetDetail(row.dataset.assetId);
+      }
+    });
+    $("#asset-prev").addEventListener("click", () => {
+      assetOffset = Math.max(0, assetOffset - ASSET_PAGE_SIZE);
+      loadAssets().catch(console.error);
+    });
+    $("#asset-next").addEventListener("click", () => {
+      assetOffset += ASSET_PAGE_SIZE;
+      loadAssets().catch(console.error);
+    });
+    $("#detail-tabs").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-detail-tab]");
+      if (button) selectDetailTab(button.dataset.detailTab);
+    });
+    $("#price-prev").addEventListener("click", () => loadDetailPage("price", Math.max(0, priceOffset - DETAIL_PAGE_SIZE)).catch(console.error));
+    $("#price-next").addEventListener("click", () => loadDetailPage("price", priceOffset + DETAIL_PAGE_SIZE).catch(console.error));
+    $("#filing-prev").addEventListener("click", () => loadDetailPage("filing", Math.max(0, filingOffset - DETAIL_PAGE_SIZE)).catch(console.error));
+    $("#filing-next").addEventListener("click", () => loadDetailPage("filing", filingOffset + DETAIL_PAGE_SIZE).catch(console.error));
+    $("#detail-close").addEventListener("click", closeAssetDetail);
+    $("#detail-backdrop").addEventListener("click", closeAssetDetail);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && selectedAssetId) closeAssetDetail();
+    });
+    $("#refresh").addEventListener("click", refresh);
+    refresh();
+    setInterval(refresh, 30000);
+  </script>
+</body>
+</html>

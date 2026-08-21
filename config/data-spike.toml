@@ -1,0 +1,121 @@
+version = 1
+
+[[assets]]
+ticker = "005930"
+country_code = "KR"
+asset_type = "equity"
+coverage_tags = ["historical_split", "cash_dividend"]
+
+[[assets]]
+ticker = "000660"
+country_code = "KR"
+asset_type = "equity"
+coverage_tags = ["semiconductor_cycle"]
+
+[[assets]]
+ticker = "035420"
+country_code = "KR"
+asset_type = "equity"
+coverage_tags = ["technology"]
+
+[[assets]]
+ticker = "005380"
+country_code = "KR"
+asset_type = "equity"
+coverage_tags = ["cash_dividend"]
+
+[[assets]]
+ticker = "105560"
+country_code = "KR"
+asset_type = "equity"
+coverage_tags = ["financial"]
+
+[[assets]]
+ticker = "069500"
+country_code = "KR"
+asset_type = "etf"
+coverage_tags = ["broad_market"]
+
+[[assets]]
+ticker = "102110"
+country_code = "KR"
+asset_type = "etf"
+coverage_tags = ["broad_market", "alternate_manager"]
+
+[[assets]]
+ticker = "114800"
+country_code = "KR"
+asset_type = "etf"
+coverage_tags = ["inverse"]
+
+[[assets]]
+ticker = "229200"
+country_code = "KR"
+asset_type = "etf"
+coverage_tags = ["secondary_market"]
+
+[[assets]]
+ticker = "360750"
+country_code = "KR"
+asset_type = "etf"
+coverage_tags = ["foreign_underlying"]
+
+[[assets]]
+ticker = "AAPL"
+country_code = "US"
+asset_type = "equity"
+coverage_tags = ["historical_split", "cash_dividend"]
+
+[[assets]]
+ticker = "MSFT"
+country_code = "US"
+asset_type = "equity"
+coverage_tags = ["cash_dividend"]
+
+[[assets]]
+ticker = "BRK-B"
+country_code = "US"
+asset_type = "equity"
+coverage_tags = ["nonstandard_ticker"]
+
+[[assets]]
+ticker = "KO"
+country_code = "US"
+asset_type = "equity"
+coverage_tags = ["cash_dividend"]
+
+[[assets]]
+ticker = "NVDA"
+country_code = "US"
+asset_type = "equity"
+coverage_tags = ["historical_split", "high_volatility"]
+
+[[assets]]
+ticker = "SPY"
+country_code = "US"
+asset_type = "etf"
+coverage_tags = ["broad_market"]
+
+[[assets]]
+ticker = "QQQ"
+country_code = "US"
+asset_type = "etf"
+coverage_tags = ["concentrated_index"]
+
+[[assets]]
+ticker = "VTI"
+country_code = "US"
+asset_type = "etf"
+coverage_tags = ["broad_market", "alternate_manager"]
+
+[[assets]]
+ticker = "TLT"
+country_code = "US"
+asset_type = "etf"
+coverage_tags = ["bond"]
+
+[[assets]]
+ticker = "GLD"
+country_code = "US"
+asset_type = "etf"
+coverage_tags = ["commodity"]
