@@ -133,7 +133,7 @@ class AssetIdentifier:
 @dataclass(frozen=True, slots=True)
 class RegulatoryIdentifierRecord:
     ticker: str
-    name: str
+    name: str | None
     identifier_type: IdentifierType
     identifier_value: str
     exchange_code: str | None = None

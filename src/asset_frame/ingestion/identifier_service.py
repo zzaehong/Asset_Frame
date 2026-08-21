@@ -11,7 +11,9 @@ from asset_frame.connectors.opendart import (
 )
 from asset_frame.connectors.sec import (
     SEC_SOURCE_ID,
+    build_mutual_fund_ticker_mapping_request,
     build_ticker_mapping_request,
+    parse_mutual_fund_ticker_mapping,
     parse_ticker_mapping,
 )
 from asset_frame.domain.models import (
@@ -67,8 +69,14 @@ class RegulatoryIdentifierCollector:
             or self._target_identifier_type is not IdentifierType.CIK
         ):
             raise ValueError("SEC identifier collector configuration is invalid")
-        request = build_ticker_mapping_request(user_agent)
-        return self._collect(request, parse_ticker_mapping)
+        requests = (
+            (build_ticker_mapping_request(user_agent), parse_ticker_mapping),
+            (
+                build_mutual_fund_ticker_mapping_request(user_agent),
+                parse_mutual_fund_ticker_mapping,
+            ),
+        )
+        return self._collect(requests)
 
     def collect_opendart(self, *, api_key: str) -> IdentifierMappingResult:
         if (
@@ -77,12 +85,14 @@ class RegulatoryIdentifierCollector:
         ):
             raise ValueError("OpenDART identifier collector configuration is invalid")
         request = build_corp_code_request(api_key)
-        return self._collect(request, parse_corp_code_archive)
+        return self._collect(((request, parse_corp_code_archive),))
 
     def _collect(
         self,
-        request: FetchRequest,
-        parser: Callable[[bytes], tuple[RegulatoryIdentifierRecord, ...]],
+        requests: tuple[
+            tuple[FetchRequest, Callable[[bytes], tuple[RegulatoryIdentifierRecord, ...]]],
+            ...,
+        ],
     ) -> IdentifierMappingResult:
         self._repository.upsert_source(self._source)
         with IngestionRunSession(
@@ -90,20 +100,23 @@ class RegulatoryIdentifierCollector:
             source_id=self._source.id,
             data_kind=DataKind.ASSET_IDENTIFIER.value,
         ) as run:
-            response = self._transport.fetch(request)
-            if response.status_code != 200:
-                raise IdentifierMappingError(
-                    f"{self._source.id} identifier source returned HTTP {response.status_code}"
+            received_records = []
+            for request, parser in requests:
+                response = self._transport.fetch(request)
+                if response.status_code != 200:
+                    raise IdentifierMappingError(
+                        f"{self._source.id} identifier source returned HTTP {response.status_code}"
+                    )
+                snapshot = self._raw_store.save(
+                    snapshot_id=uuid4(),
+                    source_id=self._source.id,
+                    request_url=request.url,
+                    response=response,
+                    ingestion_run_id=run.id,
                 )
-            snapshot = self._raw_store.save(
-                snapshot_id=uuid4(),
-                source_id=self._source.id,
-                request_url=request.url,
-                response=response,
-                ingestion_run_id=run.id,
-            )
-            self._repository.save_raw_snapshot(snapshot)
-            records: tuple[RegulatoryIdentifierRecord, ...] = parser(response.body)
+                self._repository.save_raw_snapshot(snapshot)
+                received_records.extend(parser(response.body))
+            records = tuple(received_records)
             if any(
                 record.identifier_type is not self._target_identifier_type for record in records
             ):
@@ -123,7 +136,17 @@ class RegulatoryIdentifierCollector:
                     raise IdentifierMappingError(f"multiple assets share ticker: {ticker}")
                 asset_by_ticker[ticker] = identifier.asset_id
 
-            record_by_ticker = {record.ticker.strip().upper(): record for record in records}
+            record_by_ticker: dict[str, RegulatoryIdentifierRecord] = {}
+            for record in records:
+                ticker = record.ticker.strip().upper()
+                if ticker not in asset_by_ticker:
+                    continue
+                existing = record_by_ticker.get(ticker)
+                if existing is not None and existing.identifier_value != record.identifier_value:
+                    raise IdentifierMappingError(
+                        f"SEC sources map ticker to multiple CIKs: {ticker}"
+                    )
+                record_by_ticker[ticker] = record
             mapped = []
             missing = []
             for ticker, asset_id in asset_by_ticker.items():

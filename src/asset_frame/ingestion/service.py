@@ -60,8 +60,8 @@ class SecSubmissionsCollector:
                 response=response,
                 ingestion_run_id=run.id,
             )
-            filings = parse_recent_filings(response.body, asset_id=asset_id, snapshot=snapshot)
             self._repository.save_raw_snapshot(snapshot)
+            filings = parse_recent_filings(response.body, asset_id=asset_id, snapshot=snapshot)
             self._repository.save_filings(filings)
             run.succeed(records_received=len(filings), records_accepted=len(filings))
             return filings

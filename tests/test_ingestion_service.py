@@ -91,3 +91,35 @@ def test_collection_records_failed_run_for_http_error(tmp_path: Path) -> None:
     assert run["status"] == "failed"
     assert run["error_code"] == "IngestionError"
     assert repository.snapshots == {}
+
+
+def test_collection_persists_raw_when_parsing_fails(tmp_path: Path) -> None:
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "sec-edgar-submissions"
+    )
+    repository = MemoryIngestionRepository()
+    collector = SecSubmissionsCollector(
+        source=source,
+        transport=FakeTransport(
+            FetchResponse(
+                status_code=200,
+                body=b"{}",
+                headers={"Content-Type": "application/json"},
+                fetched_at=datetime(2026, 8, 21, tzinfo=UTC),
+            )
+        ),
+        raw_store=FileRawStore(tmp_path),
+        repository=repository,
+    )
+
+    with pytest.raises(ValueError, match="invalid SEC submissions"):
+        collector.collect(
+            cik="320193", asset_id=uuid4(), user_agent="Asset Frame admin@example.com"
+        )
+
+    run_id, run = next(iter(repository.ingestion_runs.items()))
+    assert run["status"] == "failed"
+    assert len(repository.snapshots) == 1
+    assert next(iter(repository.snapshots.values())).ingestion_run_id == run_id

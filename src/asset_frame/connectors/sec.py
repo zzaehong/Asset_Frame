@@ -17,6 +17,7 @@ SEC_SOURCE_ID = "sec-edgar-submissions"
 SEC_SUBMISSIONS_BASE_URL = "https://data.sec.gov/submissions"
 SEC_ARCHIVES_BASE_URL = "https://www.sec.gov/Archives/edgar/data"
 SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
+SEC_MUTUAL_FUND_TICKERS_URL = "https://www.sec.gov/files/company_tickers_mf.json"
 
 
 class SecPayloadError(ValueError):
@@ -38,6 +39,15 @@ def build_ticker_mapping_request(user_agent: str) -> FetchRequest:
         raise ValueError("SEC User-Agent is required")
     return FetchRequest(
         url=SEC_TICKERS_URL,
+        headers={"Accept": "application/json", "User-Agent": user_agent},
+    )
+
+
+def build_mutual_fund_ticker_mapping_request(user_agent: str) -> FetchRequest:
+    if not user_agent.strip():
+        raise ValueError("SEC User-Agent is required")
+    return FetchRequest(
+        url=SEC_MUTUAL_FUND_TICKERS_URL,
         headers={"Accept": "application/json", "User-Agent": user_agent},
     )
 
@@ -83,6 +93,50 @@ def parse_ticker_mapping(body: bytes) -> tuple[RegulatoryIdentifierRecord, ...]:
     return tuple(records)
 
 
+def parse_mutual_fund_ticker_mapping(body: bytes) -> tuple[RegulatoryIdentifierRecord, ...]:
+    try:
+        payload = json.loads(body)
+        fields = payload["fields"]
+        rows = payload["data"]
+    except (json.JSONDecodeError, KeyError, TypeError) as error:
+        raise SecPayloadError("invalid SEC mutual fund ticker mapping payload") from error
+    expected_fields = ["cik", "seriesId", "classId", "symbol"]
+    if fields != expected_fields or not isinstance(rows, list):
+        raise SecPayloadError("SEC mutual fund ticker mapping schema is unsupported")
+
+    records = []
+    seen: dict[str, str] = {}
+    for row in rows:
+        if not isinstance(row, list) or len(row) != len(expected_fields):
+            raise SecPayloadError("SEC mutual fund ticker mapping row is invalid")
+        cik, series_id, class_id, symbol = row
+        if not isinstance(cik, int) or cik <= 0:
+            raise SecPayloadError("SEC mutual fund ticker mapping CIK is invalid")
+        if not all(
+            isinstance(value, str) and value for value in (series_id, class_id)
+        ) or not isinstance(symbol, str):
+            raise SecPayloadError("SEC mutual fund ticker mapping text field is invalid")
+        if not symbol.strip():
+            continue
+        normalized_ticker = symbol.strip().upper()
+        normalized_cik = normalize_cik(str(cik))
+        existing = seen.get(normalized_ticker)
+        if existing is not None and existing != normalized_cik:
+            raise SecPayloadError(
+                f"SEC mutual fund ticker maps to multiple CIKs: {normalized_ticker}"
+            )
+        seen[normalized_ticker] = normalized_cik
+        records.append(
+            RegulatoryIdentifierRecord(
+                ticker=normalized_ticker,
+                name=None,
+                identifier_type=IdentifierType.CIK,
+                identifier_value=normalized_cik,
+            )
+        )
+    return tuple(records)
+
+
 def normalize_cik(cik: str) -> str:
     if not cik.isascii() or not cik.isdigit() or len(cik) > 10:
         raise ValueError("CIK must contain at most 10 ASCII digits")
@@ -114,8 +168,9 @@ def parse_recent_filings(
         accession_number = _required_string(recent, "accessionNumber", index)
         accession_path = accession_number.replace("-", "")
         primary_document = _optional_string(recent, "primaryDocument", index)
-        if primary_document is None:
-            raise SecPayloadError("SEC primary document is missing")
+        document_url = f"{SEC_ARCHIVES_BASE_URL}/{int(cik)}/{accession_path}/"
+        if primary_document is not None:
+            document_url += primary_document
         filings.append(
             FilingDocument(
                 asset_id=asset_id,
@@ -127,9 +182,7 @@ def parse_recent_filings(
                 published_at=None,
                 report_period=_optional_date(recent, "reportDate", index),
                 primary_document=primary_document,
-                document_url=(
-                    f"{SEC_ARCHIVES_BASE_URL}/{int(cik)}/{accession_path}/{primary_document}"
-                ),
+                document_url=document_url,
                 metadata={
                     "acceptance_datetime": _optional_string(recent, "acceptanceDateTime", index),
                     "film_number": _optional_string(recent, "filmNumber", index),

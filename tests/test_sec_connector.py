@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -51,6 +52,29 @@ def test_parse_recent_filings_keeps_source_lineage() -> None:
     assert filings[0].accession_number == "0000320193-26-000001"
     assert filings[0].document_url == (
         "https://www.sec.gov/Archives/edgar/data/320193/000032019326000001/example-20260630.htm"
+    )
+
+
+def test_parse_recent_filing_without_primary_document_uses_accession_directory() -> None:
+    payload = {
+        "cik": "884394",
+        "filings": {
+            "recent": {
+                "accessionNumber": ["0001193125-00-000001"],
+                "filingDate": ["2000-01-03"],
+                "form": ["24F-2NT"],
+                "primaryDocument": [""],
+            }
+        },
+    }
+
+    filing = parse_recent_filings(
+        json.dumps(payload).encode(), asset_id=uuid4(), snapshot=make_snapshot()
+    )[0]
+
+    assert filing.primary_document is None
+    assert filing.document_url == (
+        "https://www.sec.gov/Archives/edgar/data/884394/000119312500000001/"
     )
 
 

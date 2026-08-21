@@ -13,7 +13,9 @@ from asset_frame.connectors.opendart import (
 )
 from asset_frame.connectors.sec import (
     SecPayloadError,
+    build_mutual_fund_ticker_mapping_request,
     build_ticker_mapping_request,
+    parse_mutual_fund_ticker_mapping,
     parse_ticker_mapping,
 )
 from asset_frame.connectors.tiingo import tiingo_asset_id
@@ -38,6 +40,21 @@ def sec_mapping_body() -> bytes:
                 [320193, "Apple Inc.", "AAPL", "Nasdaq"],
                 [789019, "Microsoft Corp", "MSFT", "Nasdaq"],
                 [1, "No Exchange Corp", "NOEX", None],
+                [10, "Unrelated Company", "ACRT", "NYSE"],
+            ],
+        }
+    ).encode()
+
+
+def sec_mutual_fund_mapping_body() -> bytes:
+    return json.dumps(
+        {
+            "fields": ["cik", "seriesId", "classId", "symbol"],
+            "data": [
+                [36405, "S000002848", "C000007808", "VTI"],
+                [1100663, "S000004360", "C000012090", "TLT"],
+                [2078265, "S000102687", "C000273194", ""],
+                [20, "S000000020", "C000000020", "ACRT"],
             ],
         }
     ).encode()
@@ -70,6 +87,16 @@ def test_sec_mapping_request_and_parser() -> None:
     assert records[0].identifier_value == "0000320193"
     assert records[0].exchange_code == "Nasdaq"
     assert records[2].exchange_code is None
+
+
+def test_sec_mutual_fund_mapping_request_and_parser() -> None:
+    request = build_mutual_fund_ticker_mapping_request("Asset Frame admin@example.com")
+    records = parse_mutual_fund_ticker_mapping(sec_mutual_fund_mapping_body())
+
+    assert request.url == "https://www.sec.gov/files/company_tickers_mf.json"
+    assert records[0].ticker == "VTI"
+    assert records[0].identifier_value == "0000036405"
+    assert records[0].name is None
 
 
 def test_sec_mapping_rejects_schema_and_conflicting_ticker() -> None:
@@ -112,14 +139,14 @@ def test_opendart_mapping_rejects_invalid_archive() -> None:
 
 
 class FakeTransport:
-    def __init__(self, body: bytes, content_type: str) -> None:
-        self.body = body
+    def __init__(self, bodies: tuple[bytes, ...], content_type: str) -> None:
+        self.bodies = iter(bodies)
         self.content_type = content_type
 
     def fetch(self, request):  # type: ignore[no-untyped-def]
         return FetchResponse(
             200,
-            self.body,
+            next(self.bodies),
             {"Content-Type": self.content_type},
             datetime(2026, 8, 21, tzinfo=UTC),
         )
@@ -148,14 +175,16 @@ def test_sec_collector_maps_only_exact_existing_tickers(tmp_path: Path) -> None:
         source=source,
         country_code="US",
         target_identifier_type=IdentifierType.CIK,
-        transport=FakeTransport(sec_mapping_body(), "application/json"),
+        transport=FakeTransport(
+            (sec_mapping_body(), sec_mutual_fund_mapping_body()), "application/json"
+        ),
         raw_store=FileRawStore(tmp_path),
         repository=repository,
     )
 
     result = collector.collect_sec(user_agent="Asset Frame admin@example.com")
 
-    assert result.records_received == 3
+    assert result.records_received == 7
     assert result.assets_considered == 2
     assert result.assets_mapped == 1
     assert result.assets_missing == ("MISSING",)
@@ -163,6 +192,36 @@ def test_sec_collector_maps_only_exact_existing_tickers(tmp_path: Path) -> None:
     run_id, run = next(iter(repository.ingestion_runs.items()))
     assert run["status"] == "succeeded"
     assert run["data_kind"] == "asset_identifier"
-    assert run["records_received"] == 3
+    assert run["records_received"] == 7
     assert run["records_accepted"] == 1
-    assert next(iter(repository.snapshots.values())).ingestion_run_id == run_id
+    assert len(repository.snapshots) == 2
+    assert all(snapshot.ingestion_run_id == run_id for snapshot in repository.snapshots.values())
+
+
+def test_sec_collector_rejects_cross_file_conflict_for_existing_asset(tmp_path: Path) -> None:
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "sec-edgar-submissions"
+    )
+    repository = MemoryIngestionRepository()
+    apple_id = tiingo_asset_id("AAPL")
+    repository.upsert_assets(
+        (Asset(apple_id, "Apple Inc", AssetType.EQUITY, "US", "USD"),),
+        (AssetIdentifier(apple_id, IdentifierType.TICKER, "AAPL"),),
+    )
+    fund_payload = json.loads(sec_mutual_fund_mapping_body())
+    fund_payload["data"].append([999, "S000000999", "C000000999", "AAPL"])
+    collector = RegulatoryIdentifierCollector(
+        source=source,
+        country_code="US",
+        target_identifier_type=IdentifierType.CIK,
+        transport=FakeTransport(
+            (sec_mapping_body(), json.dumps(fund_payload).encode()), "application/json"
+        ),
+        raw_store=FileRawStore(tmp_path),
+        repository=repository,
+    )
+
+    with pytest.raises(RuntimeError, match="multiple CIKs: AAPL"):
+        collector.collect_sec(user_agent="Asset Frame admin@example.com")
