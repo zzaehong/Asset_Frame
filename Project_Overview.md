@@ -21,7 +21,7 @@
 | 단일 자산 위험 엔진 | 미구현 |
 | 사용자 위험 한도 게이트 | 미구현 |
 | SEC 수집 CLI | 구현 |
-| FastAPI 읽기 전용 Data Console | 구현 |
+| FastAPI 읽기 전용 Data Console·종목 상세 | 구현 |
 | PostgreSQL 핵심 스키마와 수집 adapter | 초기 구현 |
 | KRX 종목·가격 실제 연결 | 구현 |
 | OpenDART 공시목록 실제 연결 | 구현 |
@@ -174,7 +174,7 @@ PostgreSQL 초기화 시 Source Registry·수집 실행·Raw Snapshot·자산 �
 1. `config/data-spike.toml`의 초기 20개 표본 검토와 상장폐지·저유동성 사례 확정
 2. 누락된 표본 자산 등록과 CIK·DART 식별자 매핑
 3. 20개 표본의 SEC·KRX·OpenDART·Tiingo 5년 end-to-end Data Spike
-4. Data Console에 가격·공시·quarantine 상세 및 Primary/Validation 비교 화면 추가
+4. Data Console에 quarantine 상세 및 Primary/Validation 비교 화면 추가
 5. 투자자산운용사 목차를 분석 도메인·공식·사용자 설명으로 매핑
 6. 기본·기술·ETF·포트폴리오 엔진 구현
 7. 공식 공시 우선 AI 문서 분석과 평가셋 구축

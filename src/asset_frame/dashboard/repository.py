@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Protocol
+from uuid import UUID
 
 import psycopg
 from psycopg import Connection
@@ -30,6 +31,12 @@ class DashboardRepository(Protocol):
         limit: int,
         offset: int,
     ) -> dict[str, object]: ...
+
+    def asset_detail(self, *, asset_id: UUID) -> dict[str, object] | None: ...
+
+    def asset_prices(self, *, asset_id: UUID, limit: int, offset: int) -> dict[str, object]: ...
+
+    def asset_filings(self, *, asset_id: UUID, limit: int, offset: int) -> dict[str, object]: ...
 
 
 class PostgresDashboardRepository:
@@ -189,8 +196,10 @@ class PostgresDashboardRepository:
                     identifiers.dart_corp_code,
                     identifiers.exchange_code,
                     prices.price_records,
+                    prices.earliest_price_date,
                     prices.latest_price_date,
                     filings.filing_records,
+                    filings.earliest_filing_date,
                     filings.latest_filing_date
                 FROM assets AS a
                 LEFT JOIN LATERAL (
@@ -215,12 +224,14 @@ class PostgresDashboardRepository:
                 ) AS identifiers ON true
                 LEFT JOIN LATERAL (
                     SELECT count(*) AS price_records,
+                           min(trading_date) AS earliest_price_date,
                            max(trading_date) AS latest_price_date
                     FROM price_observations
                     WHERE asset_id = a.asset_id AND valid_to IS NULL
                 ) AS prices ON true
                 LEFT JOIN LATERAL (
                     SELECT count(*) AS filing_records,
+                           min(filed_at) AS earliest_filing_date,
                            max(filed_at) AS latest_filing_date
                     FROM filing_documents
                     WHERE asset_id = a.asset_id
@@ -230,6 +241,121 @@ class PostgresDashboardRepository:
                 LIMIT %s OFFSET %s
                 """,  # noqa: S608
                 (*filter_parameters, limit, offset),
+            )
+        return {"total": total, "limit": limit, "offset": offset, "items": items}
+
+    def asset_detail(self, *, asset_id: UUID) -> dict[str, object] | None:
+        with self._connection() as connection:
+            item = self._fetch_one(
+                connection,
+                """
+                SELECT
+                    a.asset_id,
+                    a.name,
+                    a.country_code,
+                    a.currency,
+                    a.asset_type,
+                    identifiers.ticker,
+                    identifiers.isin,
+                    identifiers.cik,
+                    identifiers.dart_corp_code,
+                    identifiers.exchange_code,
+                    prices.price_records,
+                    prices.earliest_price_date,
+                    prices.latest_price_date,
+                    prices.price_sources,
+                    filings.filing_records,
+                    filings.earliest_filing_date,
+                    filings.latest_filing_date,
+                    filings.filing_sources
+                FROM assets AS a
+                LEFT JOIN LATERAL (
+                    SELECT
+                        max(identifier_value) FILTER (
+                            WHERE identifier_type = 'ticker'
+                        ) AS ticker,
+                        max(identifier_value) FILTER (
+                            WHERE identifier_type = 'isin'
+                        ) AS isin,
+                        max(identifier_value) FILTER (
+                            WHERE identifier_type = 'cik'
+                        ) AS cik,
+                        max(identifier_value) FILTER (
+                            WHERE identifier_type = 'dart_corp_code'
+                        ) AS dart_corp_code,
+                        max(identifier_value) FILTER (
+                            WHERE identifier_type = 'exchange_code'
+                        ) AS exchange_code
+                    FROM asset_identifiers
+                    WHERE asset_id = a.asset_id AND valid_to IS NULL
+                ) AS identifiers ON true
+                LEFT JOIN LATERAL (
+                    SELECT
+                        count(*) AS price_records,
+                        min(trading_date) AS earliest_price_date,
+                        max(trading_date) AS latest_price_date,
+                        array_agg(DISTINCT source_id ORDER BY source_id) AS price_sources
+                    FROM price_observations
+                    WHERE asset_id = a.asset_id AND valid_to IS NULL
+                ) AS prices ON true
+                LEFT JOIN LATERAL (
+                    SELECT
+                        count(*) AS filing_records,
+                        min(filed_at) AS earliest_filing_date,
+                        max(filed_at) AS latest_filing_date,
+                        array_agg(DISTINCT source_id ORDER BY source_id) AS filing_sources
+                    FROM filing_documents
+                    WHERE asset_id = a.asset_id
+                ) AS filings ON true
+                WHERE a.asset_id = %s
+                """,
+                (asset_id,),
+            )
+        return item or None
+
+    def asset_prices(self, *, asset_id: UUID, limit: int, offset: int) -> dict[str, object]:
+        with self._connection() as connection:
+            total = connection.execute(
+                """
+                SELECT count(*)
+                FROM price_observations
+                WHERE asset_id = %s AND valid_to IS NULL
+                """,
+                (asset_id,),
+            ).fetchone()[0]
+            items = self._fetch_all(
+                connection,
+                """
+                SELECT source_id, raw_snapshot_id, trading_date, currency,
+                       open, high, low, close, adjusted_close, volume,
+                       price_basis, quality_status, fetched_at
+                FROM price_observations
+                WHERE asset_id = %s AND valid_to IS NULL
+                ORDER BY trading_date DESC, source_id, price_basis
+                LIMIT %s OFFSET %s
+                """,
+                (asset_id, limit, offset),
+            )
+        return {"total": total, "limit": limit, "offset": offset, "items": items}
+
+    def asset_filings(self, *, asset_id: UUID, limit: int, offset: int) -> dict[str, object]:
+        with self._connection() as connection:
+            total = connection.execute(
+                "SELECT count(*) FROM filing_documents WHERE asset_id = %s",
+                (asset_id,),
+            ).fetchone()[0]
+            items = self._fetch_all(
+                connection,
+                """
+                SELECT source_id, raw_snapshot_id, accession_number, form_type,
+                       filed_at, report_period, primary_document, document_url,
+                       metadata
+                FROM filing_documents
+                WHERE asset_id = %s
+                ORDER BY filed_at DESC, accession_number DESC
+                LIMIT %s OFFSET %s
+                """,
+                (asset_id, limit, offset),
             )
         return {"total": total, "limit": limit, "offset": offset, "items": items}
 

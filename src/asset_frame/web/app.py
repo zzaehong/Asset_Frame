@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from importlib.resources import files
+from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -77,6 +78,42 @@ def create_app(
                 asset_type=asset_type,
                 limit=limit,
                 offset=offset,
+            )
+        )
+
+    def require_asset(asset_id: UUID) -> dict[str, object]:
+        item = safely(lambda: dashboard_repository().asset_detail(asset_id=asset_id))
+        if item is None:
+            raise HTTPException(status_code=404, detail="asset was not found")
+        return item
+
+    @app.get("/api/assets/{asset_id}")
+    def asset_detail(asset_id: UUID) -> dict[str, object]:
+        return require_asset(asset_id)
+
+    @app.get("/api/assets/{asset_id}/prices")
+    def asset_prices(
+        asset_id: UUID,
+        limit: int = Query(default=100, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+    ) -> dict[str, object]:
+        require_asset(asset_id)
+        return safely(
+            lambda: dashboard_repository().asset_prices(
+                asset_id=asset_id, limit=limit, offset=offset
+            )
+        )
+
+    @app.get("/api/assets/{asset_id}/filings")
+    def asset_filings(
+        asset_id: UUID,
+        limit: int = Query(default=100, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+    ) -> dict[str, object]:
+        require_asset(asset_id)
+        return safely(
+            lambda: dashboard_repository().asset_filings(
+                asset_id=asset_id, limit=limit, offset=offset
             )
         )
 

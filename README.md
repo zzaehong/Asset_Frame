@@ -109,6 +109,8 @@ uv run uvicorn asset_frame.web.app:app --host 127.0.0.1 --port 8000
 - 활성 공급원과 공급원별 최근 실행 상태
 - 자산 수, 가격·공시·raw snapshot·격리 이슈 건수
 - ticker, ISIN, CIK, DART corp code, 거래소 식별자
+- 전체·주식·ETF 유형별 자산 목록과 가격·공시 수집 기간
+- 종목별 OHLCV·가격 기준 상세와 페이지 단위 공식 공시 원문 링크
 - 최근 수집 실행의 성공·실패와 수신·수락·격리 건수
 - raw snapshot의 수집시각, HTTP 상태, 크기, SHA-256, 저장 경로
 
