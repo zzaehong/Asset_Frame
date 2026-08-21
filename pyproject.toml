@@ -9,7 +9,9 @@ description = "Risk-first investment decision data foundation"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "fastapi>=0.141.1,<1",
     "psycopg[binary]>=3.3,<4",
+    "uvicorn>=0.46,<0.47",
 ]
 
 [project.scripts]

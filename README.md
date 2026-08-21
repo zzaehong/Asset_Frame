@@ -14,6 +14,7 @@
 - Tiingo 미국 주식·ETF 기본정보, EOD 원가격·조정종가와 기업행동 수집
 - SEC ticker→CIK와 KRX ticker→OpenDART corp code의 공식 목록 기반 정확 일치 매핑
 - 공급원·데이터 종류별 수집 실행 성공/실패/처리 건수와 stale 상태 조회
+- PostgreSQL의 공급원·자산·수집 실행·raw snapshot을 보여주는 읽기 전용 FastAPI Data Console
 
 프로젝트의 요구사항과 설계는 [PRD](PRD.md), [프로젝트 개요](Project_Overview.md)에서 확인할 수 있습니다.
 
@@ -92,6 +93,30 @@ uv run asset-frame source-status \
 uv run asset-frame data-spike-status
 ```
 
+## 로컬 Data Console
+
+`.env`의 `DATABASE_URL`을 주입한 뒤 다음 명령으로 읽기 전용 대시보드를 실행합니다.
+
+```bash
+set -a
+. ./.env
+set +a
+uv run uvicorn asset_frame.web.app:app --host 127.0.0.1 --port 8000
+```
+
+브라우저에서 `http://127.0.0.1:8000`을 열면 다음 데이터를 확인할 수 있습니다.
+
+- 활성 공급원과 공급원별 최근 실행 상태
+- 자산 수, 가격·공시·raw snapshot·격리 이슈 건수
+- ticker, ISIN, CIK, DART corp code, 거래소 식별자
+- 최근 수집 실행의 성공·실패와 수신·수락·격리 건수
+- raw snapshot의 수집시각, HTTP 상태, 크기, SHA-256, 저장 경로
+
+JSON API와 schema는 `http://127.0.0.1:8000/docs`에서 확인할 수 있습니다. 현재 화면에는 인증이
+없으므로 개인 PC의 loopback 주소인 `127.0.0.1`에만 바인딩합니다. 외부 네트워크에 공개하려면
+인증, HTTPS, 접근 로그와 secret 검토가 먼저 필요합니다. Dashboard repository는 각 DB transaction을
+`READ ONLY`로 설정하며 화면에서 수집이나 데이터 변경을 실행하지 않습니다.
+
 ```bash
 uv run pytest
 uv run ruff check .
@@ -116,7 +141,8 @@ PostgreSQL schema는 `db/init/001_core.sql`, 공급원 설정은 `config/sources
 - Data Spike manifest의 종목 선정은 초기 운영 표본이며, 상장폐지·저유동성 사례 포함 여부는
   실제 5년 수집을 시작하기 전에 별도로 확정해야 합니다.
 - Tiingo 조정 OHLC·조정 거래량은 raw snapshot에만 보존하며 분석 기본 가격은 아직 정하지 않았습니다.
-- FastAPI와 위험 계산 엔진은 아직 구현하지 않았습니다.
+- FastAPI Data Console은 데이터 상태 조회만 지원하며 가격 차트·공시 본문·위험 계산은 아직
+  구현하지 않았습니다.
 - PostgreSQL adapter는 공급원, raw snapshot, 자산 식별자, 공시, KRX·Tiingo 가격,
   Tiingo 기업행동과 격리 기록을 연결합니다.
 - 기본적·기술적·ETF·AI 문서 분석의 세부 기준은 투자자산운용사 자격 체계 매핑 후 확정합니다.

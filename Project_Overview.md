@@ -21,7 +21,7 @@
 | 단일 자산 위험 엔진 | 미구현 |
 | 사용자 위험 한도 게이트 | 미구현 |
 | SEC 수집 CLI | 구현 |
-| FastAPI | 미구현 |
+| FastAPI 읽기 전용 Data Console | 구현 |
 | PostgreSQL 핵심 스키마와 수집 adapter | 초기 구현 |
 | KRX 종목·가격 실제 연결 | 구현 |
 | OpenDART 공시목록 실제 연결 | 구현 |
@@ -48,7 +48,7 @@ flowchart TD
     H --> I["User Decision Journal"]
 ```
 
-현재 코드가 직접 실행하는 경로는 SEC 공시, KRX 종목·가격, OpenDART 공시목록과 Tiingo 미국 EOD 수집이다. SEC와 OpenDART의 공식 목록에서 기존 ticker에 CIK와 corp code를 정확 일치로 연결한다. 모든 응답은 raw snapshot으로 보존하고 PostgreSQL canonical 테이블 및 수집 실행에 계보를 연결한다. 가격 중 품질 검사를 통과하지 못한 행은 canonical에 넣지 않고 격리한다. 위험 계산, FastAPI와 AI 경로는 아직 구현하지 않았다.
+현재 코드가 직접 실행하는 경로는 SEC 공시, KRX 종목·가격, OpenDART 공시목록과 Tiingo 미국 EOD 수집이다. SEC와 OpenDART의 공식 목록에서 기존 ticker에 CIK와 corp code를 정확 일치로 연결한다. 모든 응답은 raw snapshot으로 보존하고 PostgreSQL canonical 테이블 및 수집 실행에 계보를 연결한다. 가격 중 품질 검사를 통과하지 못한 행은 canonical에 넣지 않고 격리한다. FastAPI Data Console은 이 상태를 읽기 전용 HTML과 JSON API로 제공한다. 위험 계산과 AI 경로는 아직 구현하지 않았다.
 
 ## 4. 계층별 책임
 
@@ -123,11 +123,13 @@ Asset_Frame/
 │   └── adr/0001-data-ingestion-boundaries.md
 ├── src/asset_frame/
 │   ├── connectors/
+│   ├── dashboard/
 │   ├── domain/
 │   ├── ingestion/
 │   ├── quality/
 │   ├── sources/
-│   └── storage/
+│   ├── storage/
+│   └── web/
 └── tests/
 ```
 
@@ -137,7 +139,8 @@ Asset_Frame/
 - PostgreSQL은 canonical 데이터와 lineage의 목표 저장소
 - 로컬 raw 디렉터리는 API 응답 원본을 content hash 기반으로 보존
 - 테스트는 fake transport를 사용해 외부 네트워크와 키가 없어도 실행
-- FastAPI와 정량 엔진은 후속 단계에서 현재 service 경계 위에 추가
+- FastAPI Data Console은 읽기 전용 dashboard repository를 통해 PostgreSQL 상태를 제공
+- 정량 엔진은 후속 단계에서 현재 service 경계 위에 추가
 
 ### 로컬
 
@@ -171,7 +174,7 @@ PostgreSQL 초기화 시 Source Registry·수집 실행·Raw Snapshot·자산 �
 1. `config/data-spike.toml`의 초기 20개 표본 검토와 상장폐지·저유동성 사례 확정
 2. 누락된 표본 자산 등록과 CIK·DART 식별자 매핑
 3. 20개 표본의 SEC·KRX·OpenDART·Tiingo 5년 end-to-end Data Spike
-4. Primary/Validation 비교와 quarantine 운영 화면
+4. Data Console에 가격·공시·quarantine 상세 및 Primary/Validation 비교 화면 추가
 5. 투자자산운용사 목차를 분석 도메인·공식·사용자 설명으로 매핑
 6. 기본·기술·ETF·포트폴리오 엔진 구현
 7. 공식 공시 우선 AI 문서 분석과 평가셋 구축

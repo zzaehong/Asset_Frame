@@ -1,5 +1,5 @@
 schema_version = 1
-reviewed_at = "2026-08-21"
+reviewed_at = "2026-08-22"
 
 [[dependencies]]
 distribution = "psycopg"
@@ -7,6 +7,20 @@ kind = "runtime"
 official_docs = "https://www.psycopg.org/psycopg3/docs/"
 changelog = "https://www.psycopg.org/psycopg3/docs/news.html"
 source_repository = "https://github.com/psycopg/psycopg"
+
+[[dependencies]]
+distribution = "fastapi"
+kind = "runtime"
+official_docs = "https://fastapi.tiangolo.com/"
+changelog = "https://fastapi.tiangolo.com/release-notes/"
+source_repository = "https://github.com/fastapi/fastapi"
+
+[[dependencies]]
+distribution = "uvicorn"
+kind = "runtime"
+official_docs = "https://www.uvicorn.org/"
+changelog = "https://www.uvicorn.org/release-notes/"
+source_repository = "https://github.com/Kludex/uvicorn"
 
 [[dependencies]]
 distribution = "pytest"
