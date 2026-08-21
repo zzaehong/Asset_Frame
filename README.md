@@ -11,6 +11,7 @@
 - SEC EDGAR submissions connector와 주입 가능한 HTTP·저장소 경계
 - KRX KOSPI·KOSDAQ 기본정보와 KOSPI·KOSDAQ·ETF 일별 가격 수집 CLI
 - OpenDART 기업별 공시목록 수집과 페이지별 원본 계보
+- Tiingo 미국 주식·ETF 기본정보, EOD 원가격·조정종가와 기업행동 수집
 
 프로젝트의 요구사항과 설계는 [PRD](PRD.md), [프로젝트 개요](Project_Overview.md)에서 확인할 수 있습니다.
 
@@ -51,6 +52,20 @@ uv run asset-frame collect-opendart \
   --end-date 2026-08-21
 ```
 
+자산 유형을 명시하여 Tiingo 기본정보와 EOD 가격을 함께 수집합니다.
+
+```bash
+uv run asset-frame collect-tiingo \
+  --ticker AAPL \
+  --asset-type equity \
+  --start-date 2021-01-01 \
+  --end-date 2026-08-21
+```
+
+Tiingo metadata에는 자산 유형과 통화가 없으므로 `--asset-type`은 추측하지 않고 사용자가
+`equity` 또는 `etf`로 지정합니다. 이 경로는 미국 자산만 대상으로 하며 통화는 USD로 저장합니다.
+OHLCV는 raw 값, `adjusted_close`는 Tiingo의 CRSP 방식 배당·분할 조정 종가입니다.
+
 ```bash
 uv run pytest
 uv run ruff check .
@@ -67,11 +82,13 @@ PostgreSQL schema는 `db/init/001_core.sql`, 공급원 설정은 `config/sources
 
 ## 현재 제한
 
-- Tiingo·ECOS·FRED connector는 아직 구현하지 않았습니다.
+- ECOS·FRED connector는 아직 구현하지 않았습니다.
 - KRX 가격은 수정주가가 아닌 거래소 원가격으로 저장합니다.
-- 현재 구현된 connector와 CLI는 SEC EDGAR submissions, KRX 종목·가격 및 OpenDART 공시목록 수집 경로입니다.
+- 현재 구현된 connector와 CLI는 SEC EDGAR submissions, KRX 종목·가격, OpenDART 공시목록 및 Tiingo 미국 EOD 수집 경로입니다.
+- Tiingo 조정 OHLC·조정 거래량은 raw snapshot에만 보존하며 분석 기본 가격은 아직 정하지 않았습니다.
 - FastAPI와 위험 계산 엔진은 아직 구현하지 않았습니다.
-- PostgreSQL adapter는 공급원, raw snapshot, 자산 식별자, SEC 공시, KRX 가격과 격리 기록을 연결합니다.
+- PostgreSQL adapter는 공급원, raw snapshot, 자산 식별자, 공시, KRX·Tiingo 가격,
+  Tiingo 기업행동과 격리 기록을 연결합니다.
 - 기본적·기술적·ETF·AI 문서 분석의 세부 기준은 투자자산운용사 자격 체계 매핑 후 확정합니다.
 - 이 프로젝트는 투자자문, 수익 보장, 자동매매 도구가 아닙니다.
 

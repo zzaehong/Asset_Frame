@@ -5,6 +5,7 @@ from typing import Protocol
 from asset_frame.domain.models import (
     Asset,
     AssetIdentifier,
+    CorporateAction,
     FilingDocument,
     PriceObservation,
     QuarantinedPrice,
@@ -26,6 +27,8 @@ class IngestionRepository(Protocol):
 
     def save_prices(self, prices: tuple[PriceObservation, ...]) -> None: ...
 
+    def save_corporate_actions(self, actions: tuple[CorporateAction, ...]) -> None: ...
+
     def save_quarantined_prices(self, prices: tuple[QuarantinedPrice, ...]) -> None: ...
 
 
@@ -37,6 +40,7 @@ class MemoryIngestionRepository:
         self.assets: dict[object, Asset] = {}
         self.identifiers: set[AssetIdentifier] = set()
         self.prices: list[PriceObservation] = []
+        self.corporate_actions: list[CorporateAction] = []
         self.quarantined_prices: list[QuarantinedPrice] = []
 
     def upsert_source(self, source: SourceDefinition) -> None:
@@ -57,6 +61,9 @@ class MemoryIngestionRepository:
 
     def save_prices(self, prices: tuple[PriceObservation, ...]) -> None:
         self.prices.extend(prices)
+
+    def save_corporate_actions(self, actions: tuple[CorporateAction, ...]) -> None:
+        self.corporate_actions.extend(actions)
 
     def save_quarantined_prices(self, prices: tuple[QuarantinedPrice, ...]) -> None:
         self.quarantined_prices.extend(prices)

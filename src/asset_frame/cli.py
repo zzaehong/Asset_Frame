@@ -10,9 +10,11 @@ from uuid import UUID
 import psycopg
 
 from asset_frame.connectors.krx import KrxDataset
+from asset_frame.domain.models import AssetType
 from asset_frame.ingestion.krx_service import KrxCollector
 from asset_frame.ingestion.opendart_service import OpenDartDisclosureCollector
 from asset_frame.ingestion.service import SecSubmissionsCollector
+from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.transport import UrllibHttpTransport
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.postgres import PostgresIngestionRepository
@@ -38,6 +40,14 @@ def main() -> None:
     dart_parser.add_argument("--start-date", required=True, type=date.fromisoformat)
     dart_parser.add_argument("--end-date", required=True, type=date.fromisoformat)
     dart_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    tiingo_parser = subparsers.add_parser(
+        "collect-tiingo", help="collect Tiingo metadata and EOD prices"
+    )
+    tiingo_parser.add_argument("--ticker", required=True)
+    tiingo_parser.add_argument("--asset-type", required=True, choices=("equity", "etf"))
+    tiingo_parser.add_argument("--start-date", required=True, type=date.fromisoformat)
+    tiingo_parser.add_argument("--end-date", required=True, type=date.fromisoformat)
+    tiingo_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
     arguments = parser.parse_args()
 
     if arguments.command == "collect-sec":
@@ -48,6 +58,14 @@ def main() -> None:
         _collect_opendart(
             arguments.corp_code,
             arguments.asset_id,
+            arguments.start_date,
+            arguments.end_date,
+            arguments.raw_store,
+        )
+    elif arguments.command == "collect-tiingo":
+        _collect_tiingo(
+            arguments.ticker,
+            arguments.asset_type,
             arguments.start_date,
             arguments.end_date,
             arguments.raw_store,
@@ -144,3 +162,43 @@ def _collect_opendart(
         end_date=end_date,
     )
     print(f"collected {len(filings)} OpenDART disclosures for asset {asset_id}")
+
+
+def _collect_tiingo(
+    ticker: str,
+    asset_type_name: str,
+    start_date: date,
+    end_date: date,
+    raw_store_path: Path,
+) -> None:
+    database_url = _required_environment("DATABASE_URL")
+    api_key = _required_environment("TIINGO_API_KEY")
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "tiingo-eod"
+    )
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    collector = TiingoEodCollector(
+        source=source,
+        transport=UrllibHttpTransport(),
+        raw_store=FileRawStore(raw_store_path),
+        repository=PostgresIngestionRepository(connection_factory),
+    )
+    result = collector.collect(
+        ticker=ticker,
+        asset_type=AssetType(asset_type_name),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    print(
+        f"collected Tiingo {ticker.upper()}: {result.accepted_prices} prices, "
+        f"{result.quarantined_prices} quarantined, "
+        f"{result.corporate_actions} corporate actions; asset {result.asset.id}"
+    )

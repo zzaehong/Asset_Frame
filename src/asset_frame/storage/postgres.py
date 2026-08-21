@@ -9,6 +9,7 @@ from psycopg.types.json import Jsonb
 from asset_frame.domain.models import (
     Asset,
     AssetIdentifier,
+    CorporateAction,
     FilingDocument,
     PriceObservation,
     QuarantinedPrice,
@@ -187,6 +188,35 @@ class PostgresIngestionRepository:
                         price.quality_status.value,
                     )
                     for price in prices
+                ],
+            )
+
+    def save_corporate_actions(self, actions: tuple[CorporateAction, ...]) -> None:
+        if not actions:
+            return
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO corporate_actions (
+                    asset_id, source_id, raw_snapshot_id, action_type, effective_at,
+                    announced_at, amount, currency, ratio_numerator, ratio_denominator, metadata
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                [
+                    (
+                        action.asset_id,
+                        action.source_id,
+                        action.raw_snapshot_id,
+                        action.action_type,
+                        action.effective_at,
+                        action.announced_at,
+                        action.amount,
+                        action.currency,
+                        action.ratio_numerator,
+                        action.ratio_denominator,
+                        Jsonb(action.metadata),
+                    )
+                    for action in actions
                 ],
             )
 

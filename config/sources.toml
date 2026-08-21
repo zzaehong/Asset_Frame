@@ -49,8 +49,8 @@ data_kinds = ["price", "corporate_action"]
 documentation_url = "https://www.tiingo.com/documentation/end-of-day"
 terms_url = "https://www.tiingo.com/about/terms"
 verification_url = "https://www.tiingo.com/"
-enabled = false
-implementation_status = "planned"
+enabled = true
+implementation_status = "available"
 
 [[sources]]
 id = "ecos"
