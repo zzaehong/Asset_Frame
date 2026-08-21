@@ -5,11 +5,18 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
-from asset_frame.domain.models import FetchRequest, FilingDocument, RawSnapshot
+from asset_frame.domain.models import (
+    FetchRequest,
+    FilingDocument,
+    IdentifierType,
+    RawSnapshot,
+    RegulatoryIdentifierRecord,
+)
 
 SEC_SOURCE_ID = "sec-edgar-submissions"
 SEC_SUBMISSIONS_BASE_URL = "https://data.sec.gov/submissions"
 SEC_ARCHIVES_BASE_URL = "https://www.sec.gov/Archives/edgar/data"
+SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
 
 
 class SecPayloadError(ValueError):
@@ -24,6 +31,56 @@ def build_submissions_request(cik: str, user_agent: str) -> FetchRequest:
         url=f"{SEC_SUBMISSIONS_BASE_URL}/CIK{normalized_cik}.json",
         headers={"Accept": "application/json", "User-Agent": user_agent},
     )
+
+
+def build_ticker_mapping_request(user_agent: str) -> FetchRequest:
+    if not user_agent.strip():
+        raise ValueError("SEC User-Agent is required")
+    return FetchRequest(
+        url=SEC_TICKERS_URL,
+        headers={"Accept": "application/json", "User-Agent": user_agent},
+    )
+
+
+def parse_ticker_mapping(body: bytes) -> tuple[RegulatoryIdentifierRecord, ...]:
+    try:
+        payload = json.loads(body)
+        fields = payload["fields"]
+        rows = payload["data"]
+    except (json.JSONDecodeError, KeyError, TypeError) as error:
+        raise SecPayloadError("invalid SEC ticker mapping payload") from error
+    expected_fields = ["cik", "name", "ticker", "exchange"]
+    if fields != expected_fields or not isinstance(rows, list):
+        raise SecPayloadError("SEC ticker mapping schema is unsupported")
+
+    records = []
+    seen: dict[str, str] = {}
+    for row in rows:
+        if not isinstance(row, list) or len(row) != len(expected_fields):
+            raise SecPayloadError("SEC ticker mapping row is invalid")
+        cik, name, ticker, exchange = row
+        if not isinstance(cik, int) or cik <= 0:
+            raise SecPayloadError("SEC ticker mapping CIK is invalid")
+        if not all(isinstance(value, str) and value for value in (name, ticker)):
+            raise SecPayloadError("SEC ticker mapping required text field is invalid")
+        if exchange is not None and not isinstance(exchange, str):
+            raise SecPayloadError("SEC ticker mapping exchange field is invalid")
+        normalized_ticker = ticker.strip().upper()
+        normalized_cik = normalize_cik(str(cik))
+        existing = seen.get(normalized_ticker)
+        if existing is not None and existing != normalized_cik:
+            raise SecPayloadError(f"SEC ticker maps to multiple CIKs: {normalized_ticker}")
+        seen[normalized_ticker] = normalized_cik
+        records.append(
+            RegulatoryIdentifierRecord(
+                ticker=normalized_ticker,
+                name=name,
+                identifier_type=IdentifierType.CIK,
+                identifier_value=normalized_cik,
+                exchange_code=exchange or None,
+            )
+        )
+    return tuple(records)
 
 
 def normalize_cik(cik: str) -> str:

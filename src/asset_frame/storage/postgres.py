@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import AbstractContextManager
+from datetime import datetime
+from uuid import UUID
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
@@ -9,8 +11,10 @@ from psycopg.types.json import Jsonb
 from asset_frame.domain.models import (
     Asset,
     AssetIdentifier,
+    AssetType,
     CorporateAction,
     FilingDocument,
+    IdentifierType,
     PriceObservation,
     QuarantinedPrice,
     RawSnapshot,
@@ -61,18 +65,84 @@ class PostgresIngestionRepository:
                 ),
             )
 
+    def start_ingestion_run(self, *, source_id: str, data_kind: str) -> UUID:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO ingestion_runs (source_id, data_kind)
+                VALUES (%s, %s)
+                RETURNING ingestion_run_id
+                """,
+                (source_id, data_kind),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                raise RuntimeError("failed to create ingestion run")
+            return row[0]
+
+    def complete_ingestion_run(
+        self,
+        run_id: UUID,
+        *,
+        records_received: int,
+        records_accepted: int,
+        records_quarantined: int,
+    ) -> None:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE ingestion_runs
+                SET status = 'succeeded', finished_at = now(),
+                    records_received = %s, records_accepted = %s,
+                    records_quarantined = %s, error_code = NULL, error_message = NULL
+                WHERE ingestion_run_id = %s AND status = 'started'
+                """,
+                (records_received, records_accepted, records_quarantined, run_id),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError("ingestion run is missing or already finished")
+
+    def fail_ingestion_run(self, run_id: UUID, *, error_code: str, error_message: str) -> None:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE ingestion_runs
+                SET status = 'failed', finished_at = now(),
+                    error_code = %s, error_message = %s
+                WHERE ingestion_run_id = %s AND status = 'started'
+                """,
+                (error_code, error_message[:1000], run_id),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError("ingestion run is missing or already finished")
+
+    def latest_successful_run(self, *, source_id: str, data_kind: str) -> datetime | None:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT max(finished_at)
+                FROM ingestion_runs
+                WHERE source_id = %s AND data_kind = %s AND status = 'succeeded'
+                """,
+                (source_id, data_kind),
+            )
+            row = cursor.fetchone()
+            return row[0] if row is not None else None
+
     def save_raw_snapshot(self, snapshot: RawSnapshot) -> None:
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
                 INSERT INTO raw_snapshots (
-                    raw_snapshot_id, source_id, request_url, fetched_at, http_status,
+                    raw_snapshot_id, ingestion_run_id, source_id, request_url,
+                    fetched_at, http_status,
                     content_type, content_length, sha256, storage_path
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (raw_snapshot_id) DO NOTHING
                 """,
                 (
                     snapshot.id,
+                    snapshot.ingestion_run_id,
                     snapshot.source_id,
                     snapshot.request_url,
                     snapshot.fetched_at,
@@ -159,6 +229,113 @@ class PostgresIngestionRepository:
                     for identifier in identifiers
                 ],
             )
+
+    def list_assets(self, *, country_code: str) -> tuple[Asset, ...]:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT asset_id, name, asset_type, country_code, currency
+                FROM assets
+                WHERE country_code = %s
+                ORDER BY asset_id
+                """,
+                (country_code,),
+            )
+            return tuple(
+                Asset(
+                    id=row[0],
+                    name=row[1],
+                    asset_type=AssetType(row[2]),
+                    country_code=row[3],
+                    currency=row[4],
+                )
+                for row in cursor.fetchall()
+            )
+
+    def list_asset_identifiers(
+        self, *, country_code: str, identifier_type: IdentifierType
+    ) -> tuple[AssetIdentifier, ...]:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT ai.asset_id, ai.identifier_type, ai.identifier_value,
+                       ai.valid_from, ai.valid_to
+                FROM asset_identifiers AS ai
+                JOIN assets AS a ON a.asset_id = ai.asset_id
+                WHERE a.country_code = %s
+                  AND ai.identifier_type = %s
+                  AND ai.valid_to IS NULL
+                ORDER BY ai.asset_id, ai.identifier_value
+                """,
+                (country_code, identifier_type.value),
+            )
+            return tuple(
+                AssetIdentifier(
+                    asset_id=row[0],
+                    identifier_type=IdentifierType(row[1]),
+                    value=row[2],
+                    valid_from=row[3],
+                    valid_to=row[4],
+                )
+                for row in cursor.fetchall()
+            )
+
+    def save_asset_identifiers(self, identifiers: tuple[AssetIdentifier, ...]) -> None:
+        if not identifiers:
+            return
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            for identifier in identifiers:
+                cursor.execute(
+                    """
+                    SELECT asset_id
+                    FROM asset_identifiers
+                    WHERE identifier_type = %s
+                      AND identifier_value = %s
+                      AND valid_to IS NULL
+                      AND asset_id <> %s
+                    LIMIT 1
+                    """,
+                    (
+                        identifier.identifier_type.value,
+                        identifier.value,
+                        identifier.asset_id,
+                    ),
+                )
+                if cursor.fetchone() is not None:
+                    raise ValueError("regulatory identifier is already assigned to another asset")
+                cursor.execute(
+                    """
+                    SELECT identifier_value
+                    FROM asset_identifiers
+                    WHERE asset_id = %s
+                      AND identifier_type = %s
+                      AND valid_to IS NULL
+                      AND identifier_value <> %s
+                    LIMIT 1
+                    """,
+                    (
+                        identifier.asset_id,
+                        identifier.identifier_type.value,
+                        identifier.value,
+                    ),
+                )
+                if cursor.fetchone() is not None:
+                    raise ValueError("asset already has a different current regulatory identifier")
+                cursor.execute(
+                    """
+                    INSERT INTO asset_identifiers (
+                        asset_id, identifier_type, identifier_value, valid_from, valid_to
+                    ) VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (asset_id, identifier_type, identifier_value) DO NOTHING
+                    """,
+                    (
+                        identifier.asset_id,
+                        identifier.identifier_type.value,
+                        identifier.value,
+                        identifier.valid_from,
+                        identifier.valid_to,
+                    ),
+                )
 
     def save_prices(self, prices: tuple[PriceObservation, ...]) -> None:
         with self._connection_factory() as connection, connection.cursor() as cursor:

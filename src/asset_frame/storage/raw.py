@@ -20,6 +20,7 @@ class RawStore(Protocol):
         source_id: str,
         request_url: str,
         response: FetchResponse,
+        ingestion_run_id: UUID | None = None,
     ) -> RawSnapshot: ...
 
 
@@ -34,6 +35,7 @@ class FileRawStore:
         source_id: str,
         request_url: str,
         response: FetchResponse,
+        ingestion_run_id: UUID | None = None,
     ) -> RawSnapshot:
         digest = hashlib.sha256(response.body).hexdigest()
         relative_path = Path(source_id) / digest[:2] / f"{digest}.bin"
@@ -53,10 +55,14 @@ class FileRawStore:
             content_length=len(response.body),
             sha256=digest,
             storage_path=str(relative_path),
+            ingestion_run_id=ingestion_run_id,
         )
         metadata = asdict(snapshot)
         metadata["id"] = str(snapshot.id)
         metadata["fetched_at"] = snapshot.fetched_at.isoformat()
+        metadata["ingestion_run_id"] = (
+            str(snapshot.ingestion_run_id) if snapshot.ingestion_run_id else None
+        )
         self._write_once(
             metadata_path,
             json.dumps(metadata, ensure_ascii=False, sort_keys=True).encode("utf-8"),

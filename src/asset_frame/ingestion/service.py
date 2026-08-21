@@ -7,7 +7,13 @@ from asset_frame.connectors.sec import (
     build_submissions_request,
     parse_recent_filings,
 )
-from asset_frame.domain.models import FilingDocument, ImplementationStatus, SourceDefinition
+from asset_frame.domain.models import (
+    DataKind,
+    FilingDocument,
+    ImplementationStatus,
+    SourceDefinition,
+)
+from asset_frame.ingestion.run import IngestionRunSession
 from asset_frame.ingestion.transport import HttpTransport
 from asset_frame.storage.raw import RawStore
 from asset_frame.storage.repository import IngestionRepository
@@ -36,19 +42,26 @@ class SecSubmissionsCollector:
         self._repository = repository
 
     def collect(self, *, cik: str, asset_id: UUID, user_agent: str) -> tuple[FilingDocument, ...]:
-        request = build_submissions_request(cik, user_agent)
-        response = self._transport.fetch(request)
-        if response.status_code != 200:
-            raise IngestionError(f"SEC returned HTTP {response.status_code}")
-
-        snapshot = self._raw_store.save(
-            snapshot_id=uuid4(),
-            source_id=self._source.id,
-            request_url=request.url,
-            response=response,
-        )
-        filings = parse_recent_filings(response.body, asset_id=asset_id, snapshot=snapshot)
         self._repository.upsert_source(self._source)
-        self._repository.save_raw_snapshot(snapshot)
-        self._repository.save_filings(filings)
-        return filings
+        with IngestionRunSession(
+            self._repository,
+            source_id=self._source.id,
+            data_kind=DataKind.FILING.value,
+        ) as run:
+            request = build_submissions_request(cik, user_agent)
+            response = self._transport.fetch(request)
+            if response.status_code != 200:
+                raise IngestionError(f"SEC returned HTTP {response.status_code}")
+
+            snapshot = self._raw_store.save(
+                snapshot_id=uuid4(),
+                source_id=self._source.id,
+                request_url=request.url,
+                response=response,
+                ingestion_run_id=run.id,
+            )
+            filings = parse_recent_filings(response.body, asset_id=asset_id, snapshot=snapshot)
+            self._repository.save_raw_snapshot(snapshot)
+            self._repository.save_filings(filings)
+            run.succeed(records_received=len(filings), records_accepted=len(filings))
+            return filings

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from asset_frame.domain.models import AccessMethod, ImplementationStatus
+from asset_frame.domain.models import AccessMethod, DataKind, ImplementationStatus
 from asset_frame.sources.registry import SourcePolicyError, load_source_registry
 
 
@@ -15,6 +15,19 @@ def test_project_registry_contains_only_official_access_methods() -> None:
         not source.enabled or source.implementation_status is ImplementationStatus.AVAILABLE
         for source in sources
     )
+
+
+def test_available_collectors_declare_their_ingested_data_kinds() -> None:
+    sources = {source.id: source for source in load_source_registry(Path("config/sources.toml"))}
+    expected = {
+        "sec-edgar-submissions": {DataKind.ASSET_IDENTIFIER, DataKind.FILING},
+        "krx-open-api": {DataKind.ASSET_IDENTIFIER, DataKind.PRICE},
+        "opendart": {DataKind.ASSET_IDENTIFIER, DataKind.FILING},
+        "tiingo-eod": {DataKind.PRICE, DataKind.CORPORATE_ACTION},
+    }
+
+    for source_id, required_data_kinds in expected.items():
+        assert required_data_kinds <= set(sources[source_id].data_kinds)
 
 
 def test_registry_rejects_scraping(tmp_path: Path) -> None:

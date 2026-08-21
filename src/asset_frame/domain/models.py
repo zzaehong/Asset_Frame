@@ -35,6 +35,7 @@ class ImplementationStatus(StrEnum):
 
 
 class DataKind(StrEnum):
+    ASSET_IDENTIFIER = "asset_identifier"
     PRICE = "price"
     CORPORATE_ACTION = "corporate_action"
     FINANCIAL_FACT = "financial_fact"
@@ -108,6 +109,7 @@ class RawSnapshot:
     content_length: int
     sha256: str
     storage_path: str
+    ingestion_run_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +128,16 @@ class AssetIdentifier:
     value: str
     valid_from: date | None = None
     valid_to: date | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RegulatoryIdentifierRecord:
+    ticker: str
+    name: str
+    identifier_type: IdentifierType
+    identifier_value: str
+    exchange_code: str | None = None
+    modified_at: date | None = None
 
 
 @dataclass(frozen=True, slots=True)

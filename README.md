@@ -12,6 +12,8 @@
 - KRX KOSPI·KOSDAQ 기본정보와 KOSPI·KOSDAQ·ETF 일별 가격 수집 CLI
 - OpenDART 기업별 공시목록 수집과 페이지별 원본 계보
 - Tiingo 미국 주식·ETF 기본정보, EOD 원가격·조정종가와 기업행동 수집
+- SEC ticker→CIK와 KRX ticker→OpenDART corp code의 공식 목록 기반 정확 일치 매핑
+- 공급원·데이터 종류별 수집 실행 성공/실패/처리 건수와 stale 상태 조회
 
 프로젝트의 요구사항과 설계는 [PRD](PRD.md), [프로젝트 개요](Project_Overview.md)에서 확인할 수 있습니다.
 
@@ -24,9 +26,11 @@ cp .env.example .env
 uv sync --dev --frozen
 ```
 
-PostgreSQL에 대상 자산과 CIK 식별자를 등록한 뒤 SEC submissions를 수집합니다.
+Tiingo 등으로 등록한 미국 ticker를 SEC 공식 회사 목록의 CIK에 연결한 뒤 SEC
+submissions를 수집합니다.
 
 ```bash
+uv run asset-frame collect-sec-identifiers
 uv run asset-frame collect-sec \
   --cik 320193 \
   --asset-id <registered-asset-uuid>
@@ -42,9 +46,11 @@ uv run asset-frame collect-krx --dataset kosdaq_prices --date 2026-08-19
 uv run asset-frame collect-krx --dataset etf_prices --date 2026-08-19
 ```
 
-PostgreSQL에 대상 자산과 OpenDART 고유번호 식별자를 등록한 뒤 기간별 공시목록을 수집합니다.
+KRX로 등록한 국내 ticker를 OpenDART 공식 고유번호 파일의 corp code에 연결한 뒤 기간별
+공시목록을 수집합니다.
 
 ```bash
+uv run asset-frame collect-opendart-identifiers
 uv run asset-frame collect-opendart \
   --corp-code 00126380 \
   --asset-id <registered-asset-uuid> \
@@ -66,6 +72,26 @@ Tiingo metadata에는 자산 유형과 통화가 없으므로 `--asset-type`은 
 `equity` 또는 `etf`로 지정합니다. 이 경로는 미국 자산만 대상으로 하며 통화는 USD로 저장합니다.
 OHLCV는 raw 값, `adjusted_close`는 Tiingo의 CRSP 방식 배당·분할 조정 종가입니다.
 
+수집 상태는 공급원과 데이터 종류별 마지막 성공시각을 기준으로 확인합니다. stale 임계값은
+숨은 기본값을 사용하지 않고 호출자가 시간 단위로 지정합니다.
+
+```bash
+uv run asset-frame source-status \
+  --source-id tiingo-eod \
+  --data-kind price \
+  --max-age-hours 48
+```
+
+`config/data-spike.toml`은 한국·미국 주식과 ETF 각 5개씩 총 20개 표본을 고정합니다. 이 목록은
+투자 추천이 아니라 분할, 배당, 특수 ticker, 인버스, 채권·원자재 ETF 등 수집 경계 사례를
+재현하기 위한 테스트 대상입니다. 다음 명령은 DB 등록과 필수 식별자 준비 상태를 나눠
+보여줍니다. 미국 자산은 CIK, 국내 주식은 DART corp code를 요구하며 국내 ETF에는 적용되지
+않는 DART corp code를 강제하지 않습니다.
+
+```bash
+uv run asset-frame data-spike-status
+```
+
 ```bash
 uv run pytest
 uv run ruff check .
@@ -85,6 +111,10 @@ PostgreSQL schema는 `db/init/001_core.sql`, 공급원 설정은 `config/sources
 - ECOS·FRED connector는 아직 구현하지 않았습니다.
 - KRX 가격은 수정주가가 아닌 거래소 원가격으로 저장합니다.
 - 현재 구현된 connector와 CLI는 SEC EDGAR submissions, KRX 종목·가격, OpenDART 공시목록 및 Tiingo 미국 EOD 수집 경로입니다.
+- 규제기관 식별자 매핑은 ticker의 대소문자를 정규화한 정확 일치만 사용합니다. 서로 다른
+  표기나 우선주 등 공식 목록에서 일치하지 않는 ticker는 추정하지 않고 누락으로 보고합니다.
+- Data Spike manifest의 종목 선정은 초기 운영 표본이며, 상장폐지·저유동성 사례 포함 여부는
+  실제 5년 수집을 시작하기 전에 별도로 확정해야 합니다.
 - Tiingo 조정 OHLC·조정 거래량은 raw snapshot에만 보존하며 분석 기본 가격은 아직 정하지 않았습니다.
 - FastAPI와 위험 계산 엔진은 아직 구현하지 않았습니다.
 - PostgreSQL adapter는 공급원, raw snapshot, 자산 식별자, 공시, KRX·Tiingo 가격,

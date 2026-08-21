@@ -21,6 +21,44 @@ from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.postgres import PostgresIngestionRepository
 
 
+@pytest.fixture
+def postgres_cleanup():  # type: ignore[no-untyped-def]
+    tracked: dict[str, list[object]] = {
+        "asset_ids": [],
+        "snapshot_ids": [],
+        "run_ids": [],
+    }
+    yield tracked
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        return
+    with psycopg.connect(database_url) as connection, connection.cursor() as cursor:
+        if tracked["asset_ids"]:
+            cursor.execute(
+                "DELETE FROM corporate_actions WHERE asset_id = ANY(%s)",
+                (tracked["asset_ids"],),
+            )
+            cursor.execute(
+                "DELETE FROM price_observations WHERE asset_id = ANY(%s)",
+                (tracked["asset_ids"],),
+            )
+            cursor.execute(
+                "DELETE FROM asset_identifiers WHERE asset_id = ANY(%s)",
+                (tracked["asset_ids"],),
+            )
+            cursor.execute("DELETE FROM assets WHERE asset_id = ANY(%s)", (tracked["asset_ids"],))
+        if tracked["snapshot_ids"]:
+            cursor.execute(
+                "DELETE FROM raw_snapshots WHERE raw_snapshot_id = ANY(%s)",
+                (tracked["snapshot_ids"],),
+            )
+        if tracked["run_ids"]:
+            cursor.execute(
+                "DELETE FROM ingestion_runs WHERE ingestion_run_id = ANY(%s)",
+                (tracked["run_ids"],),
+            )
+
+
 @pytest.mark.skipif(not os.getenv("DATABASE_URL"), reason="DATABASE_URL is not configured")
 def test_postgres_schema_and_source_repository() -> None:
     database_url = os.environ["DATABASE_URL"]
@@ -55,7 +93,64 @@ def test_postgres_schema_and_source_repository() -> None:
 
 
 @pytest.mark.skipif(not os.getenv("DATABASE_URL"), reason="DATABASE_URL is not configured")
-def test_postgres_saves_tiingo_price_and_corporate_action() -> None:
+def test_postgres_tracks_ingestion_run_and_snapshot_lineage(postgres_cleanup) -> None:  # type: ignore[no-untyped-def]
+    database_url = os.environ["DATABASE_URL"]
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    source = load_source_registry(Path("config/sources.toml"))[0]
+    repository = PostgresIngestionRepository(connection_factory)
+    repository.upsert_source(source)
+    run_id = repository.start_ingestion_run(source_id=source.id, data_kind="integration_test")
+    snapshot_id = uuid4()
+    postgres_cleanup["run_ids"].append(run_id)
+    postgres_cleanup["snapshot_ids"].append(snapshot_id)
+    repository.save_raw_snapshot(
+        RawSnapshot(
+            snapshot_id,
+            source.id,
+            "https://example.test/integration",
+            datetime.now(UTC),
+            200,
+            "application/json",
+            2,
+            "1" * 64,
+            f"integration/{snapshot_id}.bin",
+            run_id,
+        )
+    )
+    repository.complete_ingestion_run(
+        run_id,
+        records_received=2,
+        records_accepted=1,
+        records_quarantined=1,
+    )
+
+    with psycopg.connect(database_url) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT status, records_received, records_accepted, records_quarantined
+            FROM ingestion_runs WHERE ingestion_run_id = %s
+            """,
+            (run_id,),
+        )
+        assert cursor.fetchone() == ("succeeded", 2, 1, 1)
+        cursor.execute(
+            "SELECT ingestion_run_id FROM raw_snapshots WHERE raw_snapshot_id = %s",
+            (snapshot_id,),
+        )
+        assert cursor.fetchone() == (run_id,)
+    assert (
+        repository.latest_successful_run(source_id=source.id, data_kind="integration_test")
+        is not None
+    )
+
+
+@pytest.mark.skipif(not os.getenv("DATABASE_URL"), reason="DATABASE_URL is not configured")
+def test_postgres_saves_tiingo_price_and_corporate_action(postgres_cleanup) -> None:  # type: ignore[no-untyped-def]
     database_url = os.environ["DATABASE_URL"]
 
     @contextmanager
@@ -72,6 +167,8 @@ def test_postgres_saves_tiingo_price_and_corporate_action() -> None:
     repository.upsert_source(source)
     asset_id = uuid4()
     snapshot_id = uuid4()
+    postgres_cleanup["asset_ids"].append(asset_id)
+    postgres_cleanup["snapshot_ids"].append(snapshot_id)
     fetched_at = datetime(2026, 8, 21, tzinfo=UTC)
     repository.upsert_assets(
         (Asset(asset_id, "Integration Test Asset", AssetType.EQUITY, "US", "USD"),),

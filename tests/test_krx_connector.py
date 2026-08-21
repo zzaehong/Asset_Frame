@@ -137,3 +137,8 @@ def test_collector_quarantines_duplicate_and_wrong_date_rows(tmp_path) -> None:
         issue["code"] for item in repository.quarantined_prices for issue in item.details["issues"]
     }
     assert issue_codes == {"business_date_mismatch", "duplicate_asset_date"}
+    run = next(iter(repository.ingestion_runs.values()))
+    assert run["status"] == "succeeded"
+    assert run["records_received"] == 2
+    assert run["records_accepted"] == 0
+    assert run["records_quarantined"] == 2

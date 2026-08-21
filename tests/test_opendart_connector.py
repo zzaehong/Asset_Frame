@@ -148,3 +148,7 @@ def test_collector_preserves_each_page_and_saves_all_filings(tmp_path: Path) -> 
     assert len(repository.snapshots) == 2
     assert len(repository.filings) == 2
     assert all("secret" not in item.request_url for item in repository.snapshots.values())
+    run_id, run = next(iter(repository.ingestion_runs.items()))
+    assert run["status"] == "succeeded"
+    assert run["records_received"] == 2
+    assert all(item.ingestion_run_id == run_id for item in repository.snapshots.values())

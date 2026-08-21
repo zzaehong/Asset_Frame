@@ -1,17 +1,27 @@
 from __future__ import annotations
 
+import io
 import json
+import zipfile
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
 from urllib.parse import urlencode
 from uuid import UUID
+from xml.etree import ElementTree
 
-from asset_frame.domain.models import FetchRequest, FilingDocument, RawSnapshot
+from asset_frame.domain.models import (
+    FetchRequest,
+    FilingDocument,
+    IdentifierType,
+    RawSnapshot,
+    RegulatoryIdentifierRecord,
+)
 
 OPENDART_SOURCE_ID = "opendart"
 OPENDART_LIST_URL = "https://opendart.fss.or.kr/api/list.json"
 OPENDART_VIEWER_URL = "https://dart.fss.or.kr/dsaf001/main.do"
+OPENDART_CORP_CODE_URL = "https://opendart.fss.or.kr/api/corpCode.xml"
 
 
 class OpenDartPayloadError(ValueError):
@@ -55,6 +65,53 @@ def build_disclosure_request(
         }
     )
     return FetchRequest(url=f"{OPENDART_LIST_URL}?{query}", headers={"Accept": "application/json"})
+
+
+def build_corp_code_request(api_key: str) -> FetchRequest:
+    if not api_key.strip():
+        raise ValueError("OpenDART API key is required")
+    return FetchRequest(
+        url=f"{OPENDART_CORP_CODE_URL}?{urlencode({'crtfc_key': api_key})}",
+        headers={"Accept": "application/zip"},
+    )
+
+
+def parse_corp_code_archive(body: bytes) -> tuple[RegulatoryIdentifierRecord, ...]:
+    try:
+        with zipfile.ZipFile(io.BytesIO(body)) as archive:
+            names = archive.namelist()
+            if len(names) != 1 or names[0].rsplit("/", 1)[-1].upper() != "CORPCODE.XML":
+                raise OpenDartPayloadError("OpenDART corp code archive layout is unsupported")
+            xml_body = archive.read(names[0])
+        root = ElementTree.fromstring(xml_body)
+    except (zipfile.BadZipFile, KeyError, ElementTree.ParseError) as error:
+        raise OpenDartPayloadError("invalid OpenDART corp code archive") from error
+
+    records = []
+    seen: dict[str, str] = {}
+    for item in root.findall("list"):
+        stock_code = _xml_text(item, "stock_code", required=False)
+        if not stock_code:
+            continue
+        if not stock_code.isascii() or not stock_code.isalnum() or len(stock_code) != 6:
+            raise OpenDartPayloadError("OpenDART stock code is invalid")
+        corp_code = _xml_text(item, "corp_code")
+        if not corp_code.isascii() or not corp_code.isdigit() or len(corp_code) != 8:
+            raise OpenDartPayloadError("OpenDART corp code is invalid")
+        existing = seen.get(stock_code)
+        if existing is not None and existing != corp_code:
+            raise OpenDartPayloadError(f"OpenDART ticker maps to multiple corp codes: {stock_code}")
+        seen[stock_code] = corp_code
+        records.append(
+            RegulatoryIdentifierRecord(
+                ticker=stock_code,
+                name=_xml_text(item, "corp_name"),
+                identifier_type=IdentifierType.DART_CORP_CODE,
+                identifier_value=corp_code,
+                modified_at=_compact_date(_xml_text(item, "modify_date")),
+            )
+        )
+    return tuple(records)
 
 
 def parse_disclosure_page(
@@ -154,3 +211,20 @@ def _non_negative_int(payload: dict[str, Any], name: str) -> int:
     if value < 0:
         raise OpenDartPayloadError(f"OpenDART field must not be negative: {name}")
     return value
+
+
+def _xml_text(item: ElementTree.Element, name: str, *, required: bool = True) -> str:
+    child = item.find(name)
+    value = child.text.strip() if child is not None and child.text else ""
+    if required and not value:
+        raise OpenDartPayloadError(f"OpenDART corp code field is missing: {name}")
+    return value
+
+
+def _compact_date(value: str) -> date:
+    if len(value) != 8 or not value.isascii() or not value.isdigit():
+        raise OpenDartPayloadError("OpenDART modify date is invalid")
+    try:
+        return date(int(value[0:4]), int(value[4:6]), int(value[6:8]))
+    except ValueError as error:
+        raise OpenDartPayloadError("OpenDART modify date is invalid") from error

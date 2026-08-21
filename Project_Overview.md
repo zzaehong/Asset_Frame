@@ -26,6 +26,9 @@
 | KRX 종목·가격 실제 연결 | 구현 |
 | OpenDART 공시목록 실제 연결 | 구현 |
 | Tiingo 미국 가격·종목정보 연결 | 구현 |
+| SEC·OpenDART 규제기관 식별자 매핑 | 구현 |
+| 수집 실행 이력과 stale 상태 조회 | 구현 |
+| 20개 Data Spike manifest·준비상태 점검 | 구현 |
 | 기본·기술·ETF 분석 | 자격 체계 매핑 후 구현 |
 | AI 문서 분석·Decision Journal | 후속 단계 |
 
@@ -45,7 +48,7 @@ flowchart TD
     H --> I["User Decision Journal"]
 ```
 
-현재 코드가 직접 실행하는 경로는 SEC 공시, KRX 종목·가격, OpenDART 공시목록과 Tiingo 미국 EOD 수집이다. 모든 응답은 raw snapshot으로 보존하고 PostgreSQL canonical 테이블에 계보를 연결한다. 가격 중 품질 검사를 통과하지 못한 행은 canonical에 넣지 않고 격리한다. 위험 계산, FastAPI와 AI 경로는 아직 구현하지 않았다.
+현재 코드가 직접 실행하는 경로는 SEC 공시, KRX 종목·가격, OpenDART 공시목록과 Tiingo 미국 EOD 수집이다. SEC와 OpenDART의 공식 목록에서 기존 ticker에 CIK와 corp code를 정확 일치로 연결한다. 모든 응답은 raw snapshot으로 보존하고 PostgreSQL canonical 테이블 및 수집 실행에 계보를 연결한다. 가격 중 품질 검사를 통과하지 못한 행은 canonical에 넣지 않고 격리한다. 위험 계산, FastAPI와 AI 경로는 아직 구현하지 않았다.
 
 ## 4. 계층별 책임
 
@@ -150,7 +153,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-PostgreSQL 초기화 시 Source Registry·수집 실행·Raw Snapshot·자산 식별자·가격·기업행동·재무사실·공시·ETF 보유·거시 시계열·Quality Issue 테이블이 생성된다. 현재 repository adapter는 공급원, raw snapshot, 자산 식별자, 공시, KRX·Tiingo 가격, Tiingo 기업행동과 격리 기록을 지원한다.
+PostgreSQL 초기화 시 Source Registry·수집 실행·Raw Snapshot·자산 식별자·가격·기업행동·재무사실·공시·ETF 보유·거시 시계열·Quality Issue 테이블이 생성된다. 현재 repository adapter는 공급원, 성공·실패 수집 실행, raw snapshot 계보, 자산 식별자, 공시, KRX·Tiingo 가격, Tiingo 기업행동과 격리 기록을 지원한다. `source-status`는 호출자가 지정한 허용 경과시간으로 마지막 성공 실행의 stale 여부를 계산한다.
 
 ## 10. 주요 기술 결정
 
@@ -165,9 +168,9 @@ PostgreSQL 초기화 시 Source Registry·수집 실행·Raw Snapshot·자산 �
 
 ## 11. 다음 구현 순서
 
-1. 표본 20개와 경계 사례 선정
-2. 20개 표본의 SEC·KRX·OpenDART·Tiingo end-to-end Data Spike
-3. Source Registry와 ingestion run을 PostgreSQL에 완전히 연결
+1. `config/data-spike.toml`의 초기 20개 표본 검토와 상장폐지·저유동성 사례 확정
+2. 누락된 표본 자산 등록과 CIK·DART 식별자 매핑
+3. 20개 표본의 SEC·KRX·OpenDART·Tiingo 5년 end-to-end Data Spike
 4. Primary/Validation 비교와 quarantine 운영 화면
 5. 투자자산운용사 목차를 분석 도메인·공식·사용자 설명으로 매핑
 6. 기본·기술·ETF·포트폴리오 엔진 구현
