@@ -11,6 +11,7 @@ import psycopg
 
 from asset_frame.connectors.krx import KrxDataset
 from asset_frame.ingestion.krx_service import KrxCollector
+from asset_frame.ingestion.opendart_service import OpenDartDisclosureCollector
 from asset_frame.ingestion.service import SecSubmissionsCollector
 from asset_frame.ingestion.transport import UrllibHttpTransport
 from asset_frame.sources.registry import load_source_registry
@@ -31,12 +32,26 @@ def main() -> None:
     )
     krx_parser.add_argument("--date", required=True, type=date.fromisoformat)
     krx_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    dart_parser = subparsers.add_parser("collect-opendart", help="collect OpenDART disclosures")
+    dart_parser.add_argument("--corp-code", required=True)
+    dart_parser.add_argument("--asset-id", required=True, type=UUID)
+    dart_parser.add_argument("--start-date", required=True, type=date.fromisoformat)
+    dart_parser.add_argument("--end-date", required=True, type=date.fromisoformat)
+    dart_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
     arguments = parser.parse_args()
 
     if arguments.command == "collect-sec":
         _collect_sec(arguments.cik, arguments.asset_id, arguments.raw_store)
     elif arguments.command == "collect-krx":
         _collect_krx(arguments.dataset, arguments.date, arguments.raw_store)
+    elif arguments.command == "collect-opendart":
+        _collect_opendart(
+            arguments.corp_code,
+            arguments.asset_id,
+            arguments.start_date,
+            arguments.end_date,
+            arguments.raw_store,
+        )
 
 
 def _collect_sec(cik: str, asset_id: UUID, raw_store_path: Path) -> None:
@@ -93,3 +108,39 @@ def _collect_krx(dataset_name: str, business_date: date, raw_store_path: Path) -
     dataset = KrxDataset[dataset_name.upper()]
     count = collector.collect(dataset=dataset, business_date=business_date, api_key=api_key)
     print(f"collected {count} KRX {dataset_name} rows for {business_date.isoformat()}")
+
+
+def _collect_opendart(
+    corp_code: str,
+    asset_id: UUID,
+    start_date: date,
+    end_date: date,
+    raw_store_path: Path,
+) -> None:
+    database_url = _required_environment("DATABASE_URL")
+    api_key = _required_environment("OPENDART_API_KEY")
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "opendart"
+    )
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    collector = OpenDartDisclosureCollector(
+        source=source,
+        transport=UrllibHttpTransport(),
+        raw_store=FileRawStore(raw_store_path),
+        repository=PostgresIngestionRepository(connection_factory),
+    )
+    filings = collector.collect(
+        api_key=api_key,
+        corp_code=corp_code,
+        asset_id=asset_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    print(f"collected {len(filings)} OpenDART disclosures for asset {asset_id}")

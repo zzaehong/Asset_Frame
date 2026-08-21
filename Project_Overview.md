@@ -24,7 +24,8 @@
 | FastAPI | 미구현 |
 | PostgreSQL 핵심 스키마와 수집 adapter | 초기 구현 |
 | KRX 종목·가격 실제 연결 | 구현 |
-| OpenDART·Tiingo 실제 연결 | 다음 단계 |
+| OpenDART 공시목록 실제 연결 | 구현 |
+| Tiingo 미국 가격·종목정보 연결 | 다음 단계 |
 | 기본·기술·ETF 분석 | 자격 체계 매핑 후 구현 |
 | AI 문서 분석·Decision Journal | 후속 단계 |
 
@@ -44,7 +45,7 @@ flowchart TD
     H --> I["User Decision Journal"]
 ```
 
-현재 코드가 직접 실행하는 경로는 SEC 공시 수집과 KRX 종목·가격 수집이다. 두 경로 모두 공식 API 응답을 raw snapshot으로 보존하고 PostgreSQL canonical 테이블에 계보를 연결한다. KRX 가격 중 품질 검사를 통과하지 못한 행은 canonical에 넣지 않고 격리한다. 위험 계산, FastAPI와 AI 경로는 아직 구현하지 않았다.
+현재 코드가 직접 실행하는 경로는 SEC 공시, KRX 종목·가격과 OpenDART 공시목록 수집이다. 모든 응답은 raw snapshot으로 보존하고 PostgreSQL canonical 테이블에 계보를 연결한다. KRX 가격 중 품질 검사를 통과하지 못한 행은 canonical에 넣지 않고 격리한다. 위험 계산, FastAPI와 AI 경로는 아직 구현하지 않았다.
 
 ## 4. 계층별 책임
 
@@ -164,7 +165,7 @@ PostgreSQL 초기화 시 Source Registry·수집 실행·Raw Snapshot·자산 �
 ## 11. 다음 구현 순서
 
 1. 표본 20개와 경계 사례 선정
-2. OpenDART·Tiingo 커넥터 및 fixture 계약 테스트
+2. Tiingo 미국 가격·종목정보 커넥터 및 fixture 계약 테스트
 3. Source Registry와 ingestion run을 PostgreSQL에 완전히 연결
 4. 가격 canonicalization과 기업행동 조정 정책 확정
 5. Primary/Validation 비교와 quarantine 운영 화면

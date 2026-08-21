@@ -9,6 +9,7 @@ _SENSITIVE_QUERY_KEYS = {
     "key",
     "token",
     "access_token",
+    "crtfc_key",
     "secret",
 }
 

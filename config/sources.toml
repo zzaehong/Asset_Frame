@@ -32,12 +32,12 @@ authority = "Financial Supervisory Service"
 authority_type = "regulator"
 access_method = "official_api"
 role = "primary"
-data_kinds = ["filing", "financial_fact"]
-documentation_url = "https://opendart.fss.or.kr/guide/main.do"
+data_kinds = ["filing"]
+documentation_url = "https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&apiId=2019001"
 terms_url = "https://opendart.fss.or.kr/intro/terms2.do"
 verification_url = "https://dart.fss.or.kr/"
-enabled = false
-implementation_status = "planned"
+enabled = true
+implementation_status = "available"
 
 [[sources]]
 id = "tiingo-eod"

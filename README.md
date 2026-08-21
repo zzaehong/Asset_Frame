@@ -10,6 +10,7 @@
 - 가격 품질 검사와 공급원 충돌의 `quarantined` 판정
 - SEC EDGAR submissions connector와 주입 가능한 HTTP·저장소 경계
 - KRX KOSPI·KOSDAQ 기본정보와 KOSPI·KOSDAQ·ETF 일별 가격 수집 CLI
+- OpenDART 기업별 공시목록 수집과 페이지별 원본 계보
 
 프로젝트의 요구사항과 설계는 [PRD](PRD.md), [프로젝트 개요](Project_Overview.md)에서 확인할 수 있습니다.
 
@@ -40,6 +41,16 @@ uv run asset-frame collect-krx --dataset kosdaq_prices --date 2026-08-19
 uv run asset-frame collect-krx --dataset etf_prices --date 2026-08-19
 ```
 
+PostgreSQL에 대상 자산과 OpenDART 고유번호 식별자를 등록한 뒤 기간별 공시목록을 수집합니다.
+
+```bash
+uv run asset-frame collect-opendart \
+  --corp-code 00126380 \
+  --asset-id <registered-asset-uuid> \
+  --start-date 2026-01-01 \
+  --end-date 2026-08-21
+```
+
 ```bash
 uv run pytest
 uv run ruff check .
@@ -56,9 +67,9 @@ PostgreSQL schema는 `db/init/001_core.sql`, 공급원 설정은 `config/sources
 
 ## 현재 제한
 
-- OpenDART·Tiingo·ECOS·FRED connector는 아직 구현하지 않았습니다.
+- Tiingo·ECOS·FRED connector는 아직 구현하지 않았습니다.
 - KRX 가격은 수정주가가 아닌 거래소 원가격으로 저장합니다.
-- 현재 구현된 connector와 CLI는 SEC EDGAR submissions 및 KRX 종목·가격 수집 경로입니다.
+- 현재 구현된 connector와 CLI는 SEC EDGAR submissions, KRX 종목·가격 및 OpenDART 공시목록 수집 경로입니다.
 - FastAPI와 위험 계산 엔진은 아직 구현하지 않았습니다.
 - PostgreSQL adapter는 공급원, raw snapshot, 자산 식별자, SEC 공시, KRX 가격과 격리 기록을 연결합니다.
 - 기본적·기술적·ETF·AI 문서 분석의 세부 기준은 투자자산운용사 자격 체계 매핑 후 확정합니다.
