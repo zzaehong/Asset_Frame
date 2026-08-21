@@ -2,17 +2,16 @@
 
 수익을 예측하거나 매수·매도 점수를 만드는 대신, 공식 원천의 근거와 재현 가능한 계산으로 자산의 여러 관점과 위험을 보여주는 개인용 투자 의사결정 지원 도구입니다.
 
-현재 버전은 `v0.1 Data & Risk Foundation`입니다. 다음 수직 슬라이스가 실행됩니다.
+현재는 `v0.1 Data & Risk Foundation`의 데이터 수집 기반을 구현하고 있습니다.
 
-- 허용된 공식 API·공식 배포 파일만 등록하는 Source Registry
-- 비공식 라이브러리와 웹 크롤링을 거부하는 소스 정책
-- 원본 JSON의 불변 스냅샷과 SHA-256 계보 기록
-- 일별 종가 기반 수익률·변동성·하방편차·최대낙폭·회복기간·Historical VaR 계산
-- 사용자가 정한 위험 한도만 검사하는 정책 게이트
-- 공급원 충돌 시 값을 평균하지 않고 `quarantined` 처리
-- 매수/매도 의견 없이 위험·불확실성·데이터 상태를 반환하는 API와 CLI
+- 공식 원천만 허용하는 파일 기반 Source Registry
+- 원본 bytes의 content-addressed 불변 저장과 수집별 metadata·SHA-256 계보
+- PostgreSQL의 자산 식별자, 가격, 기업행동, 재무사실, 공시, ETF 보유, 거시 시계열 모델
+- 가격 품질 검사와 공급원 충돌의 `quarantined` 판정
+- SEC EDGAR submissions connector와 주입 가능한 HTTP·저장소 경계
+- KRX KOSPI·KOSDAQ 기본정보와 KOSPI·KOSDAQ·ETF 일별 가격 수집 CLI
 
-프로젝트의 요구사항과 설계는 [PRD](docs/PRD.md), [프로젝트 개요](docs/PROJECT_OVERVIEW.md)에서 확인할 수 있습니다.
+프로젝트의 요구사항과 설계는 [PRD](PRD.md), [프로젝트 개요](Project_Overview.md)에서 확인할 수 있습니다.
 
 ## 빠른 시작
 
@@ -20,13 +19,26 @@
 
 ```bash
 cp .env.example .env
-uv sync --dev
-uv run investment-decision sources
-uv run investment-decision risk --input examples/risk-analysis-input.json
-uv run uvicorn investment_decision.api.app:app --reload
+uv sync --dev --frozen
 ```
 
-API 문서는 실행 후 `http://127.0.0.1:8000/docs`에서 확인합니다.
+PostgreSQL에 대상 자산과 CIK 식별자를 등록한 뒤 SEC submissions를 수집합니다.
+
+```bash
+uv run asset-frame collect-sec \
+  --cik 320193 \
+  --asset-id <registered-asset-uuid>
+```
+
+승인된 KRX API는 시장 전체의 기준일 snapshot으로 수집합니다.
+
+```bash
+uv run asset-frame collect-krx --dataset kospi_assets --date 2026-08-19
+uv run asset-frame collect-krx --dataset kosdaq_assets --date 2026-08-19
+uv run asset-frame collect-krx --dataset kospi_prices --date 2026-08-19
+uv run asset-frame collect-krx --dataset kosdaq_prices --date 2026-08-19
+uv run asset-frame collect-krx --dataset etf_prices --date 2026-08-19
+```
 
 ```bash
 uv run pytest
@@ -34,17 +46,21 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-Docker가 준비된 환경에서는 다음 명령으로 API와 PostgreSQL 스키마를 함께 실행할 수 있습니다.
+Docker가 준비된 환경에서는 다음 명령으로 PostgreSQL과 초기 스키마를 실행할 수 있습니다.
 
 ```bash
-docker compose up --build
+docker compose up -d --wait
 ```
+
+PostgreSQL schema는 `db/init/001_core.sql`, 공급원 설정은 `config/sources.toml`에 있습니다.
 
 ## 현재 제한
 
-- KRX·OpenDART·Tiingo 등 API 키가 필요한 실제 수집기는 순차 연결 예정입니다.
-- v0.1에서 동작하는 네트워크 커넥터는 키가 필요 없는 SEC EDGAR submissions API입니다.
-- PostgreSQL에는 핵심 데이터 계보 스키마만 먼저 정의했으며 애플리케이션 저장소 연결은 다음 단계입니다.
+- OpenDART·Tiingo·ECOS·FRED connector는 아직 구현하지 않았습니다.
+- KRX 가격은 수정주가가 아닌 거래소 원가격으로 저장합니다.
+- 현재 구현된 connector와 CLI는 SEC EDGAR submissions 및 KRX 종목·가격 수집 경로입니다.
+- FastAPI와 위험 계산 엔진은 아직 구현하지 않았습니다.
+- PostgreSQL adapter는 공급원, raw snapshot, 자산 식별자, SEC 공시, KRX 가격과 격리 기록을 연결합니다.
 - 기본적·기술적·ETF·AI 문서 분석의 세부 기준은 투자자산운용사 자격 체계 매핑 후 확정합니다.
 - 이 프로젝트는 투자자문, 수익 보장, 자동매매 도구가 아닙니다.
 
@@ -56,4 +72,3 @@ docker compose up --build
 4. 데이터 충돌은 평균하지 않고 격리합니다.
 5. 모든 결과에는 기준시각, 입력 계보, 계산 버전, 한계가 따라야 합니다.
 6. 최종 판단은 사용자에게 남겨둡니다.
-

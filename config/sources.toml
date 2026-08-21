@@ -1,0 +1,79 @@
+schema_version = 1
+
+[[sources]]
+id = "sec-edgar-submissions"
+authority = "U.S. Securities and Exchange Commission"
+authority_type = "regulator"
+access_method = "official_api"
+role = "primary"
+data_kinds = ["filing", "financial_fact"]
+documentation_url = "https://www.sec.gov/edgar/sec-api-documentation"
+terms_url = "https://www.sec.gov/about/privacy-information/sec-web-site-privacy-and-security-policy"
+verification_url = "https://www.sec.gov/edgar/search/"
+enabled = true
+implementation_status = "available"
+
+[[sources]]
+id = "krx-open-api"
+authority = "Korea Exchange"
+authority_type = "exchange"
+access_method = "official_api"
+role = "primary"
+data_kinds = ["price"]
+documentation_url = "https://openapi.krx.co.kr/contents/OPP/INFO/OPPINFO001.jsp"
+terms_url = "https://openapi.krx.co.kr/contents/OPP/INFO/OPPINFO003.jsp"
+verification_url = "https://data.krx.co.kr/"
+enabled = true
+implementation_status = "available"
+
+[[sources]]
+id = "opendart"
+authority = "Financial Supervisory Service"
+authority_type = "regulator"
+access_method = "official_api"
+role = "primary"
+data_kinds = ["filing", "financial_fact"]
+documentation_url = "https://opendart.fss.or.kr/guide/main.do"
+terms_url = "https://opendart.fss.or.kr/intro/terms2.do"
+verification_url = "https://dart.fss.or.kr/"
+enabled = false
+implementation_status = "planned"
+
+[[sources]]
+id = "tiingo-eod"
+authority = "Tiingo"
+authority_type = "documented_provider"
+access_method = "official_api"
+role = "primary"
+data_kinds = ["price", "corporate_action"]
+documentation_url = "https://www.tiingo.com/documentation/end-of-day"
+terms_url = "https://www.tiingo.com/about/terms"
+verification_url = "https://www.tiingo.com/"
+enabled = false
+implementation_status = "planned"
+
+[[sources]]
+id = "ecos"
+authority = "Bank of Korea"
+authority_type = "central_bank"
+access_method = "official_api"
+role = "primary"
+data_kinds = ["macro"]
+documentation_url = "https://ecos.bok.or.kr/api/"
+terms_url = "https://ecos.bok.or.kr/#/CustomerService/OpenAPI"
+verification_url = "https://ecos.bok.or.kr/"
+enabled = false
+implementation_status = "planned"
+
+[[sources]]
+id = "fred"
+authority = "Federal Reserve Bank of St. Louis"
+authority_type = "central_bank"
+access_method = "official_api"
+role = "primary"
+data_kinds = ["macro"]
+documentation_url = "https://fred.stlouisfed.org/docs/api/fred/"
+terms_url = "https://fred.stlouisfed.org/legal/"
+verification_url = "https://fred.stlouisfed.org/"
+enabled = false
+implementation_status = "planned"

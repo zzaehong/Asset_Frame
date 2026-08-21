@@ -1,0 +1,23 @@
+schema_version = 1
+reviewed_at = "2026-08-21"
+
+[[dependencies]]
+distribution = "psycopg"
+kind = "runtime"
+official_docs = "https://www.psycopg.org/psycopg3/docs/"
+changelog = "https://www.psycopg.org/psycopg3/docs/news.html"
+source_repository = "https://github.com/psycopg/psycopg"
+
+[[dependencies]]
+distribution = "pytest"
+kind = "development"
+official_docs = "https://docs.pytest.org/en/stable/"
+changelog = "https://docs.pytest.org/en/stable/changelog.html"
+source_repository = "https://github.com/pytest-dev/pytest"
+
+[[dependencies]]
+distribution = "ruff"
+kind = "development"
+official_docs = "https://docs.astral.sh/ruff/"
+changelog = "https://github.com/astral-sh/ruff/releases"
+source_repository = "https://github.com/astral-sh/ruff"

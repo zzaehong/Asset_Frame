@@ -1,0 +1,95 @@
+from __future__ import annotations
+
+import argparse
+import os
+from contextlib import contextmanager
+from datetime import date
+from pathlib import Path
+from uuid import UUID
+
+import psycopg
+
+from asset_frame.connectors.krx import KrxDataset
+from asset_frame.ingestion.krx_service import KrxCollector
+from asset_frame.ingestion.service import SecSubmissionsCollector
+from asset_frame.ingestion.transport import UrllibHttpTransport
+from asset_frame.sources.registry import load_source_registry
+from asset_frame.storage.postgres import PostgresIngestionRepository
+from asset_frame.storage.raw import FileRawStore
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="asset-frame")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    sec_parser = subparsers.add_parser("collect-sec", help="collect SEC submissions")
+    sec_parser.add_argument("--cik", required=True)
+    sec_parser.add_argument("--asset-id", required=True, type=UUID)
+    sec_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    krx_parser = subparsers.add_parser("collect-krx", help="collect an approved KRX dataset")
+    krx_parser.add_argument(
+        "--dataset", required=True, choices=[item.name.lower() for item in KrxDataset]
+    )
+    krx_parser.add_argument("--date", required=True, type=date.fromisoformat)
+    krx_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    arguments = parser.parse_args()
+
+    if arguments.command == "collect-sec":
+        _collect_sec(arguments.cik, arguments.asset_id, arguments.raw_store)
+    elif arguments.command == "collect-krx":
+        _collect_krx(arguments.dataset, arguments.date, arguments.raw_store)
+
+
+def _collect_sec(cik: str, asset_id: UUID, raw_store_path: Path) -> None:
+    database_url = _required_environment("DATABASE_URL")
+    user_agent = _required_environment("SEC_USER_AGENT")
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "sec-edgar-submissions"
+    )
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    collector = SecSubmissionsCollector(
+        source=source,
+        transport=UrllibHttpTransport(),
+        raw_store=FileRawStore(raw_store_path),
+        repository=PostgresIngestionRepository(connection_factory),
+    )
+    filings = collector.collect(cik=cik, asset_id=asset_id, user_agent=user_agent)
+    print(f"collected {len(filings)} SEC filings for asset {asset_id}")
+
+
+def _required_environment(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise SystemExit(f"required environment variable is missing: {name}")
+    return value
+
+
+def _collect_krx(dataset_name: str, business_date: date, raw_store_path: Path) -> None:
+    database_url = _required_environment("DATABASE_URL")
+    api_key = _required_environment("KRX_API_KEY")
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "krx-open-api"
+    )
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    collector = KrxCollector(
+        source=source,
+        transport=UrllibHttpTransport(),
+        raw_store=FileRawStore(raw_store_path),
+        repository=PostgresIngestionRepository(connection_factory),
+    )
+    dataset = KrxDataset[dataset_name.upper()]
+    count = collector.collect(dataset=dataset, business_date=business_date, api_key=api_key)
+    print(f"collected {count} KRX {dataset_name} rows for {business_date.isoformat()}")
