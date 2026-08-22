@@ -41,7 +41,7 @@ def select_major_filings(
 ) -> tuple[FilingDocument, ...]:
     selected = []
     for filing in filings:
-        category = _category(filing, policy)
+        category = filing_category(filing.source_id, filing.form_type, policy)
         if category is None:
             continue
         selected.append(
@@ -57,20 +57,20 @@ def select_major_filings(
     return tuple(selected)
 
 
-def _category(filing: FilingDocument, policy: FilingSelectionPolicy) -> str | None:
-    if filing.source_id == SEC_SOURCE_ID:
-        normalized = filing.form_type.strip().upper()
+def filing_category(source_id: str, form_type: str, policy: FilingSelectionPolicy) -> str | None:
+    if source_id == SEC_SOURCE_ID:
+        normalized = form_type.strip().upper()
         for category, forms in policy.sec_categories:
             if normalized in forms:
                 return category
         return None
-    if filing.source_id == OPENDART_SOURCE_ID:
-        normalized = _DART_PREFIX.sub("", filing.form_type).strip()
+    if source_id == OPENDART_SOURCE_ID:
+        normalized = _DART_PREFIX.sub("", form_type).strip()
         for category, prefixes in policy.opendart_categories:
             if any(normalized.startswith(prefix) for prefix in prefixes):
                 return category
         return None
-    raise ValueError(f"filing selection policy does not support source: {filing.source_id}")
+    raise ValueError(f"filing selection policy does not support source: {source_id}")
 
 
 def _category_table(

@@ -10,6 +10,8 @@ from asset_frame.domain.models import FetchRequest, NewsArticleMention, RawSnaps
 GDELT_SOURCE_ID = "gdelt-doc"
 GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 GDELT_USER_AGENT = "Asset-Frame/0.1 (GDELT DOC metadata collector)"
+MAX_NEWS_LOOKBACK_DAYS = 7
+MAX_NEWS_RECORDS = 50
 
 
 class GdeltPayloadError(ValueError):
@@ -23,10 +25,10 @@ def build_news_request(
         raise ValueError("GDELT query is required")
     if start_at.tzinfo is None or end_at.tzinfo is None or start_at > end_at:
         raise ValueError("GDELT start/end timestamps must be ordered and timezone-aware")
-    if end_at - start_at > timedelta(days=90):
-        raise ValueError("GDELT news window must not exceed 90 days")
-    if not 1 <= max_records <= 250:
-        raise ValueError("GDELT max_records must be between 1 and 250")
+    if end_at - start_at > timedelta(days=MAX_NEWS_LOOKBACK_DAYS):
+        raise ValueError("GDELT news window must not exceed 7 days")
+    if not 1 <= max_records <= MAX_NEWS_RECORDS:
+        raise ValueError("GDELT max_records must be between 1 and 50")
     query_string = urlencode(
         {
             "query": query.strip(),

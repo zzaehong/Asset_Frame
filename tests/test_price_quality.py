@@ -33,6 +33,13 @@ def test_invalid_ohlc_is_quarantined() -> None:
     assert {issue.code for issue in result.issues} >= {"high_below_low", "close_above_high"}
 
 
+def test_incomplete_ohlc_is_quarantined() -> None:
+    result = validate_prices((make_price(open=None),))
+
+    assert result.status is QualityStatus.QUARANTINED
+    assert "incomplete_ohlc" in {issue.code for issue in result.issues}
+
+
 def test_conflicting_sources_are_not_averaged() -> None:
     asset_id = uuid4()
     primary = make_price(asset_id=asset_id, close=Decimal("100"))

@@ -38,6 +38,7 @@ def test_parses_and_filters_active_us_stocks_and_etfs() -> None:
         "RESERVED,NASDAQ,Stock,USD,,\n"
         "NOEXCHANGE,,Stock,USD,2020-01-01,2026-08-21\n"
         "NEWTYPE,NASDAQ,Index,USD,2020-01-01,2026-08-21\n"
+        "ATEST-A,NYSE MKT,Stock,USD,2020-01-01,2026-08-21\n"
     )
     records = parse_supported_tickers(body)
     eligible = eligible_us_tickers(records, as_of_date=date(2026, 8, 21))

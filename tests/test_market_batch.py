@@ -7,7 +7,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from asset_frame.connectors.tiingo import tiingo_asset_id
 from asset_frame.domain.models import Asset, AssetType, FetchResponse
-from asset_frame.ingestion.market_batch import TiingoMarketBatchService, five_year_start
+from asset_frame.ingestion.market_batch import TiingoMarketBatchService, ten_year_start
 from asset_frame.ingestion.universe import UniverseMembership
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.raw import FileRawStore
@@ -108,8 +108,8 @@ def test_prepares_discovery_assets_and_checkpoint_items(tmp_path: Path) -> None:
     assert next(iter(ingestion.ingestion_runs.values()))["status"] == "succeeded"
 
 
-def test_five_year_start_handles_leap_day() -> None:
-    assert five_year_start(date(2024, 2, 29)) == date(2019, 2, 28)
+def test_ten_year_start_handles_leap_day() -> None:
+    assert ten_year_start(date(2024, 2, 29)) == date(2014, 2, 28)
 
 
 def test_prepares_backfill_from_latest_universe(tmp_path: Path) -> None:

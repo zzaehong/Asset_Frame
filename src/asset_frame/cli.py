@@ -18,6 +18,7 @@ from asset_frame.ingestion.data_spike import (
     load_data_spike_manifest,
 )
 from asset_frame.ingestion.environment import ENVIRONMENT_REQUIREMENTS
+from asset_frame.ingestion.filing_policy import load_filing_policy
 from asset_frame.ingestion.freshness import evaluate_freshness
 from asset_frame.ingestion.fundamentals_service import (
     OpenDartFinancialFactsCollector,
@@ -29,9 +30,10 @@ from asset_frame.ingestion.identifier_service import (
 )
 from asset_frame.ingestion.krx_batch import KrxMarketBatchService
 from asset_frame.ingestion.krx_service import KrxCollector
-from asset_frame.ingestion.market_batch import TiingoMarketBatchService, five_year_start
+from asset_frame.ingestion.market_batch import TiingoMarketBatchService, ten_year_start
 from asset_frame.ingestion.news_service import GdeltNewsCollector
 from asset_frame.ingestion.opendart_service import OpenDartDisclosureCollector
+from asset_frame.ingestion.retention import load_retention_policy, years_before
 from asset_frame.ingestion.service import SecSubmissionsCollector
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.transport import RateLimitedRetryTransport, UrllibHttpTransport
@@ -44,6 +46,7 @@ from asset_frame.storage.krx_batch import PostgresKrxBatchRepository
 from asset_frame.storage.migrations import migrate_database
 from asset_frame.storage.postgres import PostgresIngestionRepository
 from asset_frame.storage.raw import FileRawStore
+from asset_frame.storage.retention import PostgresRetentionService, delete_pruned_raw_files
 from asset_frame.storage.universe import PostgresUniverseRepository
 
 
@@ -99,7 +102,7 @@ def main() -> None:
     gdelt_parser.add_argument("--query", required=True)
     gdelt_parser.add_argument("--start-at", required=True, type=datetime.fromisoformat)
     gdelt_parser.add_argument("--end-at", required=True, type=datetime.fromisoformat)
-    gdelt_parser.add_argument("--max-records", type=int, default=75)
+    gdelt_parser.add_argument("--max-records", type=int, default=50)
     gdelt_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
     tiingo_parser = subparsers.add_parser(
         "collect-tiingo", help="collect Tiingo metadata and EOD prices"
@@ -136,6 +139,18 @@ def main() -> None:
     )
     budget_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
     budget_parser.add_argument("--config", type=Path, default=Path("config/analysis-universe.toml"))
+    retention_parser = subparsers.add_parser(
+        "enforce-retention", help="preview or apply the uniform data retention policy"
+    )
+    retention_parser.add_argument("--as-of", required=True, type=date.fromisoformat)
+    retention_parser.add_argument(
+        "--config", type=Path, default=Path("config/retention-policy.toml")
+    )
+    retention_parser.add_argument(
+        "--filing-policy", type=Path, default=Path("config/filing-policy.toml")
+    )
+    retention_parser.add_argument("--apply", action="store_true")
+    retention_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
     discovery_parser = subparsers.add_parser(
         "prepare-tiingo-discovery",
         help="prepare resumable liquidity discovery for active US tickers",
@@ -145,7 +160,7 @@ def main() -> None:
     discovery_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
     backfill_parser = subparsers.add_parser(
         "prepare-tiingo-backfill",
-        help="prepare a resumable five-year job for the latest US analysis universe",
+        help="prepare a resumable ten-year job for the latest US analysis universe",
     )
     backfill_parser.add_argument("--as-of", required=True, type=date.fromisoformat)
     backfill_parser.add_argument("--start-date", type=date.fromisoformat)
@@ -163,7 +178,7 @@ def main() -> None:
     job_status_parser.add_argument("--job-id", required=True, type=UUID)
     krx_backfill_parser = subparsers.add_parser(
         "prepare-krx-backfill",
-        help="prepare a resumable five-year KRX price backfill",
+        help="prepare a resumable ten-year KRX price backfill",
     )
     krx_backfill_parser.add_argument("--as-of", required=True, type=date.fromisoformat)
     krx_backfill_parser.add_argument("--start-date", type=date.fromisoformat)
@@ -199,7 +214,7 @@ def main() -> None:
     prepare_collection_parser.add_argument("--as-of", required=True, type=date.fromisoformat)
     prepare_collection_parser.add_argument("--start-date", type=date.fromisoformat)
     prepare_collection_parser.add_argument("--end-date", type=date.fromisoformat)
-    prepare_collection_parser.add_argument("--max-news-records", type=int, default=75)
+    prepare_collection_parser.add_argument("--max-news-records", type=int, default=50)
     prepare_collection_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
     run_collection_parser = subparsers.add_parser(
         "run-universe-collection",
@@ -276,6 +291,14 @@ def main() -> None:
         )
     elif arguments.command == "data-budget-status":
         _show_data_budget_status(arguments.raw_store, arguments.config)
+    elif arguments.command == "enforce-retention":
+        _enforce_retention(
+            arguments.as_of,
+            arguments.config,
+            arguments.filing_policy,
+            arguments.raw_store,
+            arguments.apply,
+        )
     elif arguments.command == "prepare-tiingo-discovery":
         _prepare_tiingo_discovery(arguments.as_of, arguments.lookback_days, arguments.raw_store)
     elif arguments.command == "prepare-tiingo-backfill":
@@ -730,6 +753,37 @@ def _show_data_budget_status(raw_store_path: Path, config_path: Path) -> None:
     )
 
 
+def _enforce_retention(
+    as_of_date: date,
+    config_path: Path,
+    filing_policy_path: Path,
+    raw_store_path: Path,
+    apply: bool,
+) -> None:
+    database_url = _required_environment("DATABASE_URL")
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    result = PostgresRetentionService(connection_factory).enforce(
+        as_of_date=as_of_date,
+        policy=load_retention_policy(config_path),
+        filing_policy=load_filing_policy(filing_policy_path),
+        apply=apply,
+    )
+    mode = "applied" if apply else "dry-run"
+    raw_files = delete_pruned_raw_files(raw_store_path, result.raw_files) if apply else 0
+    print(
+        f"retention={mode} as_of={as_of_date} test_assets={result.test_assets} "
+        f"prices={result.prices} filings={result.filings} "
+        f"financial_facts={result.financial_facts} news_mentions={result.news_mentions} "
+        f"news_articles={result.news_articles} raw_snapshots={result.raw_snapshots} "
+        f"raw_files={raw_files}"
+    )
+
+
 def _tiingo_batch_service(*, database_url: str, raw_store_path: Path) -> TiingoMarketBatchService:
     source = next(
         source
@@ -791,7 +845,7 @@ def _run_tiingo_job(
 def _prepare_tiingo_backfill(
     as_of_date: date, start_date: date | None, raw_store_path: Path
 ) -> None:
-    selected_start = start_date or five_year_start(as_of_date)
+    selected_start = start_date or ten_year_start(as_of_date)
     if selected_start > as_of_date:
         raise SystemExit("--start-date must not be after --as-of")
     database_url = _required_environment("DATABASE_URL")
@@ -848,7 +902,7 @@ def _krx_batch_service(*, database_url: str, raw_store_path: Path) -> KrxMarketB
 
 
 def _prepare_krx_backfill(as_of_date: date, start_date: date | None, raw_store_path: Path) -> None:
-    selected_start = start_date or five_year_start(as_of_date)
+    selected_start = start_date or ten_year_start(as_of_date)
     if selected_start > as_of_date:
         raise SystemExit("--start-date must not be after --as-of")
     database_url = _required_environment("DATABASE_URL")
@@ -998,16 +1052,22 @@ def _prepare_universe_collection(
     raw_store_path: Path,
 ) -> None:
     job_type = kind.replace("-", "_")
+    retention = load_retention_policy(Path("config/retention-policy.toml"))
     selected_end = end_date or as_of_date
     selected_start = start_date or (
-        selected_end - timedelta(days=30)
+        selected_end - timedelta(days=retention.news_lookback_days - 1)
         if job_type == "gdelt_news"
-        else five_year_start(selected_end)
+        else years_before(selected_end, retention.filing_lookback_years)
     )
     if selected_start > selected_end:
         raise SystemExit("--start-date must not be after --end-date/--as-of")
-    if job_type == "gdelt_news" and max_news_records not in range(1, 251):
-        raise SystemExit("--max-news-records must be between 1 and 250")
+    if (
+        job_type == "gdelt_news"
+        and not 1 <= max_news_records <= retention.news_max_records_per_request
+    ):
+        raise SystemExit(
+            f"--max-news-records must be between 1 and {retention.news_max_records_per_request}"
+        )
     database_url = _required_environment("DATABASE_URL")
     service = _available_collection_service(
         database_url=database_url, raw_store_path=raw_store_path

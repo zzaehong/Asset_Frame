@@ -1,0 +1,22 @@
+schema_version = 1
+
+[news]
+lookback_days = 7
+max_articles_per_asset = 50
+max_records_per_request = 50
+
+[filings]
+lookback_years = 15
+max_documents_per_asset_source = 500
+
+[financial_facts]
+lookback_years = 15
+max_facts_per_asset_source = 1500
+
+[prices]
+lookback_years = 10
+max_observations_per_asset_source = 2600
+require_complete_ohlc = true
+
+[raw_snapshots]
+unreferenced_lookback_days = 30

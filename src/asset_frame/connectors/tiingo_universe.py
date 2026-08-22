@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 from io import BytesIO, TextIOWrapper
@@ -20,6 +21,7 @@ _EXPECTED_COLUMNS = (
 )
 _US_EXCHANGES = frozenset({"NASDAQ", "NYSE", "NYSE ARCA", "BATS", "AMEX", "NYSE MKT", "NYSE NAT"})
 _MAX_UNCOMPRESSED_BYTES = 20 * 1024 * 1024
+_EXCHANGE_TEST_TICKER = re.compile(r"^[ACMNPZ]?TEST(?:-[A-Z])?$")
 
 
 class TiingoUniversePayloadError(ValueError):
@@ -113,6 +115,8 @@ def _parse_row(row: dict[str, str]) -> TiingoSupportedTicker:
 
 
 def _is_collectible_ticker(ticker: str) -> bool:
+    if _EXCHANGE_TEST_TICKER.fullmatch(ticker):
+        return False
     try:
         normalize_ticker(ticker)
     except ValueError:

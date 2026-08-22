@@ -26,6 +26,14 @@ def validate_prices(prices: tuple[PriceObservation, ...]) -> PriceValidationResu
     previous_date: date | None = None
 
     for price in prices:
+        if price.open is None or price.high is None or price.low is None:
+            issues.append(
+                QualityIssue(
+                    "incomplete_ohlc",
+                    "open, high, low, and close are all required",
+                    price.trading_date,
+                )
+            )
         if price.trading_date in seen_dates:
             issues.append(
                 QualityIssue("duplicate_date", "duplicate trading date", price.trading_date)

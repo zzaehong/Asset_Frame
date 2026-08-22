@@ -18,6 +18,7 @@ from asset_frame.domain.models import (
     ImplementationStatus,
     SourceDefinition,
 )
+from asset_frame.ingestion.retention import years_before
 from asset_frame.ingestion.run import IngestionRunSession
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.transport import HttpTransport
@@ -144,6 +145,8 @@ class TiingoMarketBatchService:
         start_date: date,
         end_date: date,
     ) -> UUID:
+        if start_date < years_before(end_date, 10):
+            raise ValueError("price backfill window must not exceed 10 years")
         if self._universe_repository is None:
             raise RuntimeError("universe repository is required to prepare a backfill")
         memberships = self._universe_repository.latest_memberships(
@@ -219,8 +222,5 @@ class TiingoMarketBatchService:
         return MarketBatchResult(len(items), succeeded, failed, records_accepted)
 
 
-def five_year_start(as_of_date: date) -> date:
-    try:
-        return as_of_date.replace(year=as_of_date.year - 5)
-    except ValueError:
-        return as_of_date.replace(year=as_of_date.year - 5, day=28)
+def ten_year_start(as_of_date: date) -> date:
+    return years_before(as_of_date, 10)

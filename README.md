@@ -110,13 +110,13 @@ GDELT의 호출 제한에 맞춰 요청 사이를 최소 5초로 유지하고, H
 uv run asset-frame collect-gdelt-news \
   --asset-id <asset-uuid> --query '"Apple Inc"' \
   --start-at 2026-08-20T00:00:00+00:00 \
-  --end-at 2026-08-21T00:00:00+00:00 --max-records 75
+  --end-at 2026-08-21T00:00:00+00:00 --max-records 50
 ```
 
 가격 coverage를 바탕으로 분석 유니버스를 확정한 뒤에는 공시·재무·최근 뉴스를 자산별
 체크포인트로 수집합니다. SEC 작업은 주요 submissions와 Company Facts를 함께 수집하고,
 OpenDART 작업은 주요 공시와 최근 5개년 연차 연결재무를 수집합니다. 국내 ETF에는 적용되지
-않는 DART corp code를 요구하지 않습니다. 뉴스의 기본 기간은 최근 30일입니다.
+않는 DART corp code를 요구하지 않습니다. 뉴스는 최근 7일만 수집·보존합니다.
 
 ```bash
 uv run asset-frame prepare-universe-collection \
@@ -124,7 +124,7 @@ uv run asset-frame prepare-universe-collection \
 uv run asset-frame prepare-universe-collection \
   --kind opendart-fundamentals --country KR --as-of 2026-08-21
 uv run asset-frame prepare-universe-collection \
-  --kind gdelt-news --country US --as-of 2026-08-21 --max-news-records 75
+  --kind gdelt-news --country US --as-of 2026-08-21 --max-news-records 50
 
 uv run asset-frame run-universe-collection --job-id <job-uuid> --max-items 10
 uv run asset-frame universe-collection-status --job-id <job-uuid>
@@ -181,7 +181,7 @@ uv run asset-frame market-job-status --job-id <job-uuid>
 # discovery 완료 후 유니버스를 선정
 uv run asset-frame build-universe --country US --as-of 2026-08-21
 
-# 최신 선정 유니버스의 5년 backfill job을 준비하고 같은 실행 명령으로 처리
+# 최신 선정 유니버스의 10년 backfill job을 준비하고 같은 실행 명령으로 처리
 uv run asset-frame prepare-tiingo-backfill --as-of 2026-08-21
 uv run asset-frame run-tiingo-job --job-id <backfill-job-uuid> --max-items 100
 ```
@@ -252,6 +252,16 @@ docker compose up -d --wait
 PostgreSQL schema는 `db/init/001_core.sql`부터 번호 순서대로 적용합니다. 기존 Docker
 볼륨에는 데이터를 보존하는 migration 명령을 사용합니다.
 
+데이터 보존 한도는 `config/retention-policy.toml` 한 곳에서 관리합니다. 뉴스는 최근 7일과
+자산당 50건, 공시·주요 재무사실은 최근 15년, 일별 가격은 최근 10년과 자산/출처당
+2,600관측치로 제한합니다. 가격은 open/high/low/close가 모두 있는 행만 허용합니다.
+정리 전에는 dry-run 결과를 확인하고 같은 기준일에 `--apply`를 붙여 적용합니다.
+
+```bash
+uv run asset-frame enforce-retention --as-of 2026-08-22
+uv run asset-frame enforce-retention --as-of 2026-08-22 --apply
+```
+
 ```bash
 uv run asset-frame migrate-database
 ```
@@ -267,7 +277,7 @@ uv run asset-frame migrate-database
 - 규제기관 식별자 매핑은 ticker의 대소문자를 정규화한 정확 일치만 사용합니다. 서로 다른
   표기나 우선주 등 공식 목록에서 일치하지 않는 ticker는 추정하지 않고 누락으로 보고합니다.
 - Data Spike manifest의 종목 선정은 초기 운영 표본이며, 상장폐지·저유동성 사례 포함 여부는
-  실제 5년 수집을 시작하기 전에 별도로 확정해야 합니다.
+  실제 10년 수집을 시작하기 전에 별도로 확정해야 합니다.
 - Tiingo 조정 OHLC·조정 거래량은 raw snapshot에만 보존하며 분석 기본 가격은 아직 정하지 않았습니다.
 - FastAPI Data Console은 데이터 상태 조회만 지원하며 가격 차트·공시 본문·위험 계산은 아직
   구현하지 않았습니다.

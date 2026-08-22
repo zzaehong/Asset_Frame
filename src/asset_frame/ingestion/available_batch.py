@@ -14,6 +14,7 @@ from asset_frame.ingestion.fundamentals_service import (
 )
 from asset_frame.ingestion.news_service import GdeltNewsCollector
 from asset_frame.ingestion.opendart_service import OpenDartDisclosureCollector
+from asset_frame.ingestion.retention import years_before
 from asset_frame.ingestion.service import SecSubmissionsCollector
 from asset_frame.storage.collection_batch import (
     PostgresUniverseCollectionRepository,
@@ -79,8 +80,12 @@ class AvailableUniverseCollectionService:
         source_id, required_country, identifier_type = JOB_SOURCE[job_type]
         if required_country is not None and country_code != required_country:
             raise ValueError(f"{job_type} requires country {required_country}")
-        if job_type == "gdelt_news" and (end_date - start_date).days > 90:
-            raise ValueError("GDELT universe news window must not exceed 90 days")
+        if job_type == "gdelt_news" and (end_date - start_date).days > 7:
+            raise ValueError("GDELT universe news window must not exceed 7 days")
+        if job_type == "gdelt_news" and not 1 <= max_news_records <= 50:
+            raise ValueError("GDELT max news records must be between 1 and 50")
+        if job_type != "gdelt_news" and start_date < years_before(end_date, 15):
+            raise ValueError("fundamentals collection window must not exceed 15 years")
         memberships = self._universe_repository.latest_memberships(
             country_code=country_code, as_of_date=as_of_date
         )

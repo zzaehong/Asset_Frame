@@ -156,7 +156,9 @@ def test_gdelt_recent_news_contract_and_deduplication() -> None:
     assert request.url.startswith("https://api.gdeltproject.org/api/v2/doc/doc?")
     assert len(mentions) == 1
     assert mentions[0].published_at == datetime(2026, 8, 21, 1, 2, 3, tzinfo=UTC)
-    with pytest.raises(ValueError, match="90 days"):
+    with pytest.raises(ValueError, match="7 days"):
         build_news_request(
-            query="Apple", start_at=start, end_at=start + timedelta(days=91), max_records=25
+            query="Apple", start_at=start, end_at=start + timedelta(days=8), max_records=25
         )
+    with pytest.raises(ValueError, match="between 1 and 50"):
+        build_news_request(query="Apple", start_at=start, end_at=end, max_records=51)

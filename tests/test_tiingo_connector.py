@@ -99,6 +99,14 @@ def test_requests_use_official_endpoints_and_authorization_header() -> None:
     assert "secret" not in prices.url
     assert metadata.headers["Authorization"] == "Token secret"
 
+    with pytest.raises(ValueError, match="10 years"):
+        build_prices_request(
+            "AAPL",
+            api_key="secret",
+            start_date=date(2016, 8, 20),
+            end_date=date(2026, 8, 21),
+        )
+
 
 def test_metadata_requires_matching_ticker_and_explicit_asset_type() -> None:
     parsed = parse_metadata(metadata_body(), expected_ticker="AAPL", asset_type=AssetType.EQUITY)

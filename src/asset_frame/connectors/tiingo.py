@@ -70,6 +70,12 @@ def build_prices_request(
 ) -> FetchRequest:
     if start_date > end_date:
         raise ValueError("Tiingo start date must not be after end date")
+    try:
+        earliest = end_date.replace(year=end_date.year - 10)
+    except ValueError:
+        earliest = end_date.replace(year=end_date.year - 10, day=28)
+    if start_date < earliest:
+        raise ValueError("Tiingo price window must not exceed 10 years")
     normalized = normalize_ticker(ticker)
     query = urlencode(
         {

@@ -7,6 +7,7 @@ from uuid import UUID
 from asset_frame.connectors.krx import KRX_SOURCE_ID, KrxDataset
 from asset_frame.domain.models import ImplementationStatus, SourceDefinition
 from asset_frame.ingestion.krx_service import KrxCollector
+from asset_frame.ingestion.retention import years_before
 from asset_frame.storage.krx_batch import KrxBackfillItem, PostgresKrxBatchRepository
 from asset_frame.storage.repository import IngestionRepository
 
@@ -57,6 +58,8 @@ class KrxMarketBatchService:
         self._batch_repository = batch_repository
 
     def prepare(self, *, as_of_date: date, start_date: date, end_date: date) -> UUID:
+        if start_date < years_before(end_date, 10):
+            raise ValueError("price backfill window must not exceed 10 years")
         self._ingestion_repository.upsert_source(self._source)
         return self._batch_repository.prepare_job(
             source_id=self._source.id,
