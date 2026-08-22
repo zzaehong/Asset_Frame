@@ -60,6 +60,7 @@ class TiingoEodCollector:
         api_key: str,
         start_date: date,
         end_date: date,
+        include_corporate_actions: bool = True,
     ) -> TiingoCollectionResult:
         self._repository.upsert_source(self._source)
         with IngestionRunSession(
@@ -137,10 +138,14 @@ class TiingoEodCollector:
                     accepted.append(price)
 
             accepted_dates = {price.trading_date for price in accepted}
-            accepted_actions = tuple(
-                action
-                for action in parsed_prices.corporate_actions
-                if action.effective_at in accepted_dates
+            accepted_actions = (
+                tuple(
+                    action
+                    for action in parsed_prices.corporate_actions
+                    if action.effective_at in accepted_dates
+                )
+                if include_corporate_actions
+                else ()
             )
             self._repository.save_prices(tuple(accepted))
             self._repository.save_corporate_actions(accepted_actions)

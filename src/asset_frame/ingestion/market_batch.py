@@ -198,6 +198,7 @@ class TiingoMarketBatchService:
                     api_key=api_key,
                     start_date=job.start_date,
                     end_date=job.end_date,
+                    include_corporate_actions=job.job_type != "liquidity_discovery",
                 )
             except Exception as error:  # noqa: BLE001 - item failures must not abort the batch
                 self._batch_repository.fail_item(

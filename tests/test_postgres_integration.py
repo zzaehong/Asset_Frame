@@ -187,6 +187,23 @@ def test_postgres_saves_tiingo_price_and_corporate_action(postgres_cleanup) -> N
             "tiingo/test.bin",
         )
     )
+    initial_price = PriceObservation(
+        asset_id,
+        source.id,
+        snapshot_id,
+        date(2026, 8, 20),
+        "USD",
+        Decimal("100"),
+        Decimal("102"),
+        Decimal("99"),
+        Decimal("101"),
+        Decimal("100.5"),
+        Decimal("1000"),
+        fetched_at,
+        "raw_with_crsp_adjusted_close",
+    )
+    repository.save_prices((initial_price,))
+    repository.save_prices((initial_price,))
     repository.save_prices(
         (
             PriceObservation(
@@ -196,10 +213,10 @@ def test_postgres_saves_tiingo_price_and_corporate_action(postgres_cleanup) -> N
                 date(2026, 8, 20),
                 "USD",
                 Decimal("100"),
-                Decimal("102"),
+                Decimal("103"),
                 Decimal("99"),
-                Decimal("101"),
-                Decimal("100.5"),
+                Decimal("102"),
+                Decimal("101.5"),
                 Decimal("1000"),
                 fetched_at,
                 "raw_with_crsp_adjusted_close",
@@ -223,10 +240,17 @@ def test_postgres_saves_tiingo_price_and_corporate_action(postgres_cleanup) -> N
 
     with psycopg.connect(database_url) as connection, connection.cursor() as cursor:
         cursor.execute(
-            "SELECT close, adjusted_close FROM price_observations WHERE asset_id = %s",
+            """
+            SELECT close, adjusted_close, valid_to IS NULL
+            FROM price_observations WHERE asset_id = %s
+            ORDER BY close
+            """,
             (asset_id,),
         )
-        assert cursor.fetchone() == (Decimal("101"), Decimal("100.5"))
+        assert cursor.fetchall() == [
+            (Decimal("101"), Decimal("100.5"), False),
+            (Decimal("102"), Decimal("101.5"), True),
+        ]
         cursor.execute(
             "SELECT action_type, amount FROM corporate_actions WHERE asset_id = %s",
             (asset_id,),

@@ -338,35 +338,66 @@ class PostgresIngestionRepository:
                 )
 
     def save_prices(self, prices: tuple[PriceObservation, ...]) -> None:
+        if not prices:
+            return
         with self._connection_factory() as connection, connection.cursor() as cursor:
-            cursor.executemany(
-                """
-                INSERT INTO price_observations (
-                    asset_id, source_id, raw_snapshot_id, trading_date, currency,
-                    open, high, low, close, adjusted_close, volume, price_basis,
-                    fetched_at, quality_status
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                [
+            for price in prices:
+                canonical_values = (
+                    price.currency,
+                    price.open,
+                    price.high,
+                    price.low,
+                    price.close,
+                    price.adjusted_close,
+                    price.volume,
+                    price.price_basis,
+                    price.quality_status.value,
+                )
+                cursor.execute(
+                    """
+                    SELECT currency, open, high, low, close, adjusted_close, volume,
+                           price_basis, quality_status
+                    FROM price_observations
+                    WHERE asset_id = %s AND source_id = %s AND trading_date = %s
+                      AND valid_to IS NULL
+                    ORDER BY fetched_at DESC
+                    LIMIT 1
+                    FOR UPDATE
+                    """,
+                    (price.asset_id, price.source_id, price.trading_date),
+                )
+                current = cursor.fetchone()
+                if current == canonical_values:
+                    continue
+                if current is not None:
+                    cursor.execute(
+                        """
+                        UPDATE price_observations SET valid_to = now()
+                        WHERE asset_id = %s AND source_id = %s AND trading_date = %s
+                          AND valid_to IS NULL
+                        """,
+                        (price.asset_id, price.source_id, price.trading_date),
+                    )
+                cursor.execute(
+                    """
+                    INSERT INTO price_observations (
+                        asset_id, source_id, raw_snapshot_id, trading_date, currency,
+                        open, high, low, close, adjusted_close, volume, price_basis,
+                        fetched_at, quality_status
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    )
+                    """,
                     (
                         price.asset_id,
                         price.source_id,
                         price.raw_snapshot_id,
                         price.trading_date,
-                        price.currency,
-                        price.open,
-                        price.high,
-                        price.low,
-                        price.close,
-                        price.adjusted_close,
-                        price.volume,
-                        price.price_basis,
+                        *canonical_values[:-1],
                         price.fetched_at,
-                        price.quality_status.value,
-                    )
-                    for price in prices
-                ],
-            )
+                        canonical_values[-1],
+                    ),
+                )
 
     def save_corporate_actions(self, actions: tuple[CorporateAction, ...]) -> None:
         if not actions:
