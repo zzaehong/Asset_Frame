@@ -102,6 +102,9 @@ uv run asset-frame collect-opendart-facts \
 
 키가 필요 없는 GDELT DOC 2.0에서는 최근 뉴스의 제목·URL·매체·언어·국가·시각만 수집합니다.
 기사 본문과 장기 뉴스 원문은 저장하지 않습니다.
+GDELT의 호출 제한에 맞춰 요청 사이를 최소 5초로 유지하고, HTTP 429 및 일시적인 서버 오류는
+최대 4회까지 지수 백오프로 재시도합니다. 최종 실패 시에는 HTTP 상태와 GDELT 응답 안내문이
+수집 작업의 오류에 함께 기록됩니다.
 
 ```bash
 uv run asset-frame collect-gdelt-news \

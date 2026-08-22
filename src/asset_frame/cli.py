@@ -34,7 +34,7 @@ from asset_frame.ingestion.news_service import GdeltNewsCollector
 from asset_frame.ingestion.opendart_service import OpenDartDisclosureCollector
 from asset_frame.ingestion.service import SecSubmissionsCollector
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
-from asset_frame.ingestion.transport import UrllibHttpTransport
+from asset_frame.ingestion.transport import RateLimitedRetryTransport, UrllibHttpTransport
 from asset_frame.ingestion.universe import load_universe_policy, select_analysis_universe
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.batch import PostgresBatchRepository
@@ -438,7 +438,7 @@ def _collect_gdelt_news(
 
     mentions = GdeltNewsCollector(
         source=source,
-        transport=UrllibHttpTransport(),
+        transport=_gdelt_transport(),
         raw_store=FileRawStore(raw_store_path),
         repository=PostgresIngestionRepository(connection_factory),
     ).collect(
@@ -940,6 +940,7 @@ def _available_collection_service(
 
     repository = PostgresIngestionRepository(connection_factory)
     transport = UrllibHttpTransport()
+    gdelt_transport = _gdelt_transport()
     raw_store = FileRawStore(raw_store_path)
     return AvailableUniverseCollectionService(
         ingestion_repository=repository,
@@ -971,10 +972,19 @@ def _available_collection_service(
         ),
         gdelt_news=GdeltNewsCollector(
             source=sources["gdelt-doc"],
-            transport=transport,
+            transport=gdelt_transport,
             raw_store=raw_store,
             repository=repository,
         ),
+    )
+
+
+def _gdelt_transport() -> RateLimitedRetryTransport:
+    return RateLimitedRetryTransport(
+        UrllibHttpTransport(),
+        minimum_interval_seconds=5.0,
+        max_attempts=4,
+        backoff_seconds=5.0,
     )
 
 

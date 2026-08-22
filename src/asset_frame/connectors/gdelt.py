@@ -9,6 +9,7 @@ from asset_frame.domain.models import FetchRequest, NewsArticleMention, RawSnaps
 
 GDELT_SOURCE_ID = "gdelt-doc"
 GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
+GDELT_USER_AGENT = "Asset-Frame/0.1 (GDELT DOC metadata collector)"
 
 
 class GdeltPayloadError(ValueError):
@@ -39,7 +40,7 @@ def build_news_request(
     )
     return FetchRequest(
         url=f"{GDELT_DOC_URL}?{query_string}",
-        headers={"Accept": "application/json"},
+        headers={"Accept": "application/json", "User-Agent": GDELT_USER_AGENT},
         timeout_seconds=60,
     )
 

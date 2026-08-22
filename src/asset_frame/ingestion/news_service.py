@@ -59,7 +59,11 @@ class GdeltNewsCollector:
             )
             response = self._transport.fetch(request)
             if response.status_code != 200:
-                raise RuntimeError(f"GDELT DOC returned HTTP {response.status_code}")
+                detail = response.body.decode("utf-8", errors="replace").strip()
+                if len(detail) > 240:
+                    detail = f"{detail[:237]}..."
+                suffix = f": {detail}" if detail else ""
+                raise RuntimeError(f"GDELT DOC returned HTTP {response.status_code}{suffix}")
             snapshot = self._raw_store.save(
                 snapshot_id=uuid4(),
                 source_id=self._source.id,
