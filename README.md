@@ -154,10 +154,20 @@ uv run asset-frame data-spike-status
 
 ## 분석 유니버스와 저장량 관측
 
-한국과 미국의 분석 대상을 같은 규칙으로 관리하기 위해 최근 60개 유효 거래일의
-`close × volume` 중앙 거래대금을 사용합니다. 국가별 주식 500개와 ETF 최대 150개를
-선정하며, Data Spike의 기존 20개 표본은 각 한도 안에서 항상 포함합니다. 이 순위는 데이터
-수집 범위를 정하는 운영 규칙이며 투자 점수나 추천이 아닙니다.
+목표 유니버스는 한국·미국 ETF 합산 최대 120개, SEC 13F에 근거한 미국 투자자 관심 주식
+최대 200개, KRX 공식 KOSPI 200·KOSDAQ 150 구성종목으로 구성합니다. 미국 ETF와 관심
+주식 중 Tiingo를 호출한 월간 고유 심볼은 400개 이하로 유지합니다. KRX로 수집하는 한국
+ETF와 한국 주식은 이 예산에서 제외합니다.
+
+ETF는 같은 지수·자산군·역할을 가지더라도 국가·거래소·ticker가 다르면 별도 자산으로 모두
+허용합니다. 공통 `exposure_key`는 국가·통화·거래시간·비용·추적차이를 비교하고 포트폴리오
+중복 노출을 분석할 때만 사용하며 편입 제외 조건으로 사용하지 않습니다. 모든 구성원은 ETF
+카탈로그, SEC 13F, KOSPI 200 또는 KOSDAQ 150 중 하나 이상의 편입 근거와 유효기간을
+가져야 합니다. 이 유니버스는 데이터 운영 범위이며 투자 점수나 추천이 아닙니다.
+
+현재 `build-universe` CLI와 `config/analysis-universe.toml`은 국가별 유동성 순위를 사용하는
+v1 구현입니다. 아래 명령은 기존 작업의 재현과 점검용으로만 남아 있으며 v2 유니버스와
+공급자 예산이 구현되기 전에는 신규 전체 시장 수집에 사용하지 않습니다.
 
 `db/init/002_analysis_universe.sql`을 적용한 PostgreSQL에서 다음 명령을 실행합니다.
 
@@ -166,19 +176,20 @@ uv run asset-frame build-universe --country KR --as-of 2026-08-21
 uv run asset-frame build-universe --country US --as-of 2026-08-21
 ```
 
-미국 유니버스의 유동성 입력은 Tiingo가 매일 배포하는 공식 `supported_tickers.zip`에서
-USD·미국 거래소·활성 주식/ETF만 추린 뒤, 재시작 가능한 job으로 최근 가격을 수집해
-준비합니다. PINK·OTC·Mutual Fund·가격 미지원 예약 심볼은 제외합니다.
+기존 미국 유니버스 discovery는 Tiingo의 공식 `supported_tickers.zip` 전체를 대상으로 최근
+가격을 수집합니다. 이 경로는 월간 고유 심볼 400개 정책과 맞지 않으므로 교체 예정이며 신규
+job 준비를 권장하지 않습니다. v2에서는 확정된 미국 ETF와 SEC 13F 관심 주식만 Tiingo
+backfill 대상으로 등록합니다.
 
 ```bash
-# 공개 지원 목록을 보존하고 최근 90일 discovery job을 준비
+# 레거시 재현 전용: 신규 실행 비권장
 uv run asset-frame prepare-tiingo-discovery --as-of 2026-08-21
 
 # 계정 호출 한도에 맞춰 최대 100개씩 반복 실행
 uv run asset-frame run-tiingo-job --job-id <job-uuid> --max-items 100
 uv run asset-frame market-job-status --job-id <job-uuid>
 
-# discovery 완료 후 유니버스를 선정
+# 레거시 유동성 유니버스를 선정
 uv run asset-frame build-universe --country US --as-of 2026-08-21
 
 # 최신 선정 유니버스의 10년 backfill job을 준비하고 같은 실행 명령으로 처리
