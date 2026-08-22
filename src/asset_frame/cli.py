@@ -34,6 +34,7 @@ from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.batch import PostgresBatchRepository
 from asset_frame.storage.budget import BYTES_PER_GIB, evaluate_storage_budget, measure_raw_store
 from asset_frame.storage.krx_batch import PostgresKrxBatchRepository
+from asset_frame.storage.migrations import migrate_database
 from asset_frame.storage.postgres import PostgresIngestionRepository
 from asset_frame.storage.raw import FileRawStore
 from asset_frame.storage.universe import PostgresUniverseRepository
@@ -148,6 +149,10 @@ def main() -> None:
     subparsers.add_parser(
         "environment-status", help="show required configuration without exposing values"
     )
+    migrate_parser = subparsers.add_parser(
+        "migrate-database", help="apply numbered SQL migrations without replacing existing data"
+    )
+    migrate_parser.add_argument("--migrations", type=Path, default=Path("db/init"))
     arguments = parser.parse_args()
 
     if arguments.command == "collect-sec":
@@ -217,6 +222,8 @@ def main() -> None:
         _show_krx_job_status(arguments.job_id)
     elif arguments.command == "environment-status":
         _show_environment_status()
+    elif arguments.command == "migrate-database":
+        _migrate_database(arguments.migrations)
 
 
 def _collect_sec(cik: str, asset_id: UUID, raw_store_path: Path) -> None:
@@ -712,3 +719,16 @@ def _show_environment_status() -> None:
         "variables=GDELT phase=planned configured=not_required "
         "capability=recent global news metadata"
     )
+
+
+def _migrate_database(migrations_path: Path) -> None:
+    database_url = _required_environment("DATABASE_URL")
+    result = migrate_database(database_url, migrations_path)
+    print(
+        f"database migrations applied={len(result.applied)} "
+        f"baselined={len(result.baselined)} already_applied={len(result.already_applied)}"
+    )
+    if result.applied:
+        print(f"applied: {', '.join(result.applied)}")
+    if result.baselined:
+        print(f"baselined existing schema: {', '.join(result.baselined)}")

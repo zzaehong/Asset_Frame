@@ -36,6 +36,8 @@ def test_parses_and_filters_active_us_stocks_and_etfs() -> None:
         "FUND,NMFQS,Mutual Fund,USD,2000-01-01,2026-08-21\n"
         "CN,SHE,Stock,CNY,2000-01-01,2026-08-21\n"
         "RESERVED,NASDAQ,Stock,USD,,\n"
+        "NOEXCHANGE,,Stock,USD,2020-01-01,2026-08-21\n"
+        "NEWTYPE,NASDAQ,Index,USD,2020-01-01,2026-08-21\n"
     )
     records = parse_supported_tickers(body)
     eligible = eligible_us_tickers(records, as_of_date=date(2026, 8, 21))
@@ -51,6 +53,19 @@ def test_rejects_changed_columns_and_invalid_zip() -> None:
         parse_supported_tickers(_archive("ticker,exchange\nAAPL,NASDAQ\n"))
     with pytest.raises(TiingoUniversePayloadError, match="not a ZIP"):
         parse_supported_tickers(b"not a zip")
+
+
+def test_ignores_foreign_style_ticker_without_rejecting_archive() -> None:
+    body = _archive(
+        "ticker,exchange,assetType,priceCurrency,startDate,endDate\n"
+        "02Z0:BE,PINK,Stock,USD,2024-03-28,2026-08-21\n"
+        "AAPL,NASDAQ,Stock,USD,1980-12-12,2026-08-21\n"
+    )
+
+    records = parse_supported_tickers(body)
+    eligible = eligible_us_tickers(records, as_of_date=date(2026, 8, 21))
+
+    assert [item.ticker for item in eligible] == ["AAPL"]
 
 
 def test_rejects_unexpected_archive_member() -> None:

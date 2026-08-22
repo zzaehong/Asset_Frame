@@ -87,28 +87,37 @@ def eligible_us_tickers(
         and record.start_date <= as_of_date
         and record.end_date is not None
         and record.end_date >= earliest_end_date
+        and _is_collectible_ticker(record.ticker)
     ]
     return tuple(sorted(eligible, key=lambda item: item.ticker))
 
 
 def _parse_row(row: dict[str, str]) -> TiingoSupportedTicker:
-    ticker = normalize_ticker(_required(row, "ticker"))
+    ticker = _required(row, "ticker").upper()
+    if not ticker.isascii():
+        raise TiingoUniversePayloadError("Tiingo supported ticker must be ASCII")
     raw_asset_type = _required(row, "assetType")
     asset_type = {
         "Stock": AssetType.EQUITY,
         "ETF": AssetType.ETF,
         "Mutual Fund": None,
     }.get(raw_asset_type)
-    if raw_asset_type not in {"Stock", "ETF", "Mutual Fund"}:
-        raise TiingoUniversePayloadError(f"unsupported Tiingo asset type: {raw_asset_type}")
     return TiingoSupportedTicker(
         ticker=ticker,
-        exchange=_required(row, "exchange"),
+        exchange=row.get("exchange", "").strip(),
         asset_type=asset_type,
-        price_currency=_required(row, "priceCurrency"),
+        price_currency=row.get("priceCurrency", "").strip(),
         start_date=_optional_date(row.get("startDate", ""), "startDate"),
         end_date=_optional_date(row.get("endDate", ""), "endDate"),
     )
+
+
+def _is_collectible_ticker(ticker: str) -> bool:
+    try:
+        normalize_ticker(ticker)
+    except ValueError:
+        return False
+    return True
 
 
 def _required(row: dict[str, str], name: str) -> str:
