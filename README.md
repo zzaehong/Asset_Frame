@@ -107,6 +107,31 @@ uv run asset-frame build-universe --country KR --as-of 2026-08-21
 uv run asset-frame build-universe --country US --as-of 2026-08-21
 ```
 
+미국 유니버스의 유동성 입력은 Tiingo가 매일 배포하는 공식 `supported_tickers.zip`에서
+USD·미국 거래소·활성 주식/ETF만 추린 뒤, 재시작 가능한 job으로 최근 가격을 수집해
+준비합니다. PINK·OTC·Mutual Fund·가격 미지원 예약 심볼은 제외합니다.
+
+```bash
+# 공개 지원 목록을 보존하고 최근 90일 discovery job을 준비
+uv run asset-frame prepare-tiingo-discovery --as-of 2026-08-21
+
+# 계정 호출 한도에 맞춰 최대 100개씩 반복 실행
+uv run asset-frame run-tiingo-job --job-id <job-uuid> --max-items 100
+uv run asset-frame market-job-status --job-id <job-uuid>
+
+# discovery 완료 후 유니버스를 선정
+uv run asset-frame build-universe --country US --as-of 2026-08-21
+
+# 최신 선정 유니버스의 5년 backfill job을 준비하고 같은 실행 명령으로 처리
+uv run asset-frame prepare-tiingo-backfill --as-of 2026-08-21
+uv run asset-frame run-tiingo-job --job-id <backfill-job-uuid> --max-items 100
+```
+
+실패한 item은 다른 item을 중단시키지 않습니다. 원인을 확인한 뒤
+`run-tiingo-job --retry-failed`로 실패 item만 다시 claim할 수 있으며, 실행 중 중단된 item은
+30분 뒤 자동으로 pending 상태로 되돌립니다. 후보 목록의 ticker placeholder는 기존 자산의
+정식 회사명을 덮어쓰지 않습니다.
+
 raw store와 PostgreSQL의 저장량은 다음 명령으로 확인합니다. 기본 10GB는 초기 운영 경고
 기준일 뿐 수집을 중단하는 hard limit가 아닙니다. 실제 데이터 가치와 로컬 여유 공간을 확인해
 `config/analysis-universe.toml`에서 조정합니다.

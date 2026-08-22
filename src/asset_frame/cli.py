@@ -22,12 +22,14 @@ from asset_frame.ingestion.identifier_service import (
     RegulatoryIdentifierCollector,
 )
 from asset_frame.ingestion.krx_service import KrxCollector
+from asset_frame.ingestion.market_batch import TiingoMarketBatchService, five_year_start
 from asset_frame.ingestion.opendart_service import OpenDartDisclosureCollector
 from asset_frame.ingestion.service import SecSubmissionsCollector
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.transport import UrllibHttpTransport
 from asset_frame.ingestion.universe import load_universe_policy, select_analysis_universe
 from asset_frame.sources.registry import load_source_registry
+from asset_frame.storage.batch import PostgresBatchRepository
 from asset_frame.storage.budget import BYTES_PER_GIB, evaluate_storage_budget, measure_raw_store
 from asset_frame.storage.postgres import PostgresIngestionRepository
 from asset_frame.storage.raw import FileRawStore
@@ -97,6 +99,31 @@ def main() -> None:
     )
     budget_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
     budget_parser.add_argument("--config", type=Path, default=Path("config/analysis-universe.toml"))
+    discovery_parser = subparsers.add_parser(
+        "prepare-tiingo-discovery",
+        help="prepare resumable liquidity discovery for active US tickers",
+    )
+    discovery_parser.add_argument("--as-of", required=True, type=date.fromisoformat)
+    discovery_parser.add_argument("--lookback-days", type=int, default=90)
+    discovery_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    backfill_parser = subparsers.add_parser(
+        "prepare-tiingo-backfill",
+        help="prepare a resumable five-year job for the latest US analysis universe",
+    )
+    backfill_parser.add_argument("--as-of", required=True, type=date.fromisoformat)
+    backfill_parser.add_argument("--start-date", type=date.fromisoformat)
+    backfill_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    batch_parser = subparsers.add_parser(
+        "run-tiingo-job", help="run a bounded number of items from a prepared Tiingo job"
+    )
+    batch_parser.add_argument("--job-id", required=True, type=UUID)
+    batch_parser.add_argument("--max-items", type=int, default=100)
+    batch_parser.add_argument("--retry-failed", action="store_true")
+    batch_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    job_status_parser = subparsers.add_parser(
+        "market-job-status", help="show progress for a resumable market data job"
+    )
+    job_status_parser.add_argument("--job-id", required=True, type=UUID)
     arguments = parser.parse_args()
 
     if arguments.command == "collect-sec":
@@ -140,6 +167,19 @@ def main() -> None:
         )
     elif arguments.command == "data-budget-status":
         _show_data_budget_status(arguments.raw_store, arguments.config)
+    elif arguments.command == "prepare-tiingo-discovery":
+        _prepare_tiingo_discovery(arguments.as_of, arguments.lookback_days, arguments.raw_store)
+    elif arguments.command == "prepare-tiingo-backfill":
+        _prepare_tiingo_backfill(arguments.as_of, arguments.start_date, arguments.raw_store)
+    elif arguments.command == "run-tiingo-job":
+        _run_tiingo_job(
+            arguments.job_id,
+            arguments.max_items,
+            arguments.retry_failed,
+            arguments.raw_store,
+        )
+    elif arguments.command == "market-job-status":
+        _show_market_job_status(arguments.job_id)
 
 
 def _collect_sec(cik: str, asset_id: UUID, raw_store_path: Path) -> None:
@@ -449,4 +489,94 @@ def _show_data_budget_status(raw_store_path: Path, config_path: Path) -> None:
         f"raw_gb={raw_gb:.2f} database_gb={database_text} total_gb={total_gb:.2f} "
         f"warning_threshold_gb={policy.storage_warning_gb} "
         f"warning={str(status.warning).lower()} collection_blocked=false"
+    )
+
+
+def _tiingo_batch_service(*, database_url: str, raw_store_path: Path) -> TiingoMarketBatchService:
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "tiingo-eod"
+    )
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    return TiingoMarketBatchService(
+        source=source,
+        transport=UrllibHttpTransport(),
+        raw_store=FileRawStore(raw_store_path),
+        ingestion_repository=PostgresIngestionRepository(connection_factory),
+        batch_repository=PostgresBatchRepository(connection_factory),
+        universe_repository=PostgresUniverseRepository(connection_factory),
+    )
+
+
+def _prepare_tiingo_discovery(as_of_date: date, lookback_days: int, raw_store_path: Path) -> None:
+    if lookback_days <= 0:
+        raise SystemExit("--lookback-days must be positive")
+    database_url = _required_environment("DATABASE_URL")
+    service = _tiingo_batch_service(database_url=database_url, raw_store_path=raw_store_path)
+    job_id = service.prepare_discovery(
+        as_of_date=as_of_date,
+        start_date=as_of_date - timedelta(days=lookback_days),
+        end_date=as_of_date,
+    )
+    print(f"prepared Tiingo liquidity discovery job={job_id} as_of={as_of_date}")
+
+
+def _run_tiingo_job(
+    job_id: UUID,
+    max_items: int,
+    retry_failed: bool,
+    raw_store_path: Path,
+) -> None:
+    if max_items <= 0:
+        raise SystemExit("--max-items must be positive")
+    database_url = _required_environment("DATABASE_URL")
+    api_key = _required_environment("TIINGO_API_KEY")
+    service = _tiingo_batch_service(database_url=database_url, raw_store_path=raw_store_path)
+    result = service.run(
+        job_id=job_id,
+        api_key=api_key,
+        max_items=max_items,
+        retry_failed=retry_failed,
+    )
+    print(
+        f"Tiingo job={job_id} attempted={result.attempted} succeeded={result.succeeded} "
+        f"failed={result.failed} records_accepted={result.records_accepted}"
+    )
+
+
+def _prepare_tiingo_backfill(
+    as_of_date: date, start_date: date | None, raw_store_path: Path
+) -> None:
+    selected_start = start_date or five_year_start(as_of_date)
+    if selected_start > as_of_date:
+        raise SystemExit("--start-date must not be after --as-of")
+    database_url = _required_environment("DATABASE_URL")
+    service = _tiingo_batch_service(database_url=database_url, raw_store_path=raw_store_path)
+    job_id = service.prepare_universe_backfill(
+        as_of_date=as_of_date,
+        start_date=selected_start,
+        end_date=as_of_date,
+    )
+    print(f"prepared Tiingo universe backfill job={job_id} start={selected_start} end={as_of_date}")
+
+
+def _show_market_job_status(job_id: UUID) -> None:
+    database_url = _required_environment("DATABASE_URL")
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    progress = PostgresBatchRepository(connection_factory).job_progress(job_id)
+    print(
+        f"job={job_id} type={progress.job.job_type} status={progress.job.status} "
+        f"total={progress.total} pending={progress.pending} running={progress.running} "
+        f"succeeded={progress.succeeded} failed={progress.failed}"
     )

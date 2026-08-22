@@ -6,6 +6,7 @@ from uuid import UUID
 from asset_frame.domain.models import AssetType
 from asset_frame.ingestion.universe import (
     LiquidityCandidate,
+    UniverseMembership,
     UniversePolicy,
     UniverseSelection,
 )
@@ -143,3 +144,41 @@ class PostgresUniverseRepository:
                 ],
             )
             return run_id
+
+    def latest_memberships(
+        self, *, country_code: str, as_of_date: date
+    ) -> tuple[UniverseMembership, ...]:
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT membership.asset_id, membership.ticker, membership.asset_type,
+                       membership.selected_rank, membership.median_dollar_volume,
+                       membership.observation_count, membership.pinned,
+                       membership.selection_reason
+                FROM analysis_universe_memberships AS membership
+                JOIN analysis_universe_runs AS run
+                  ON run.analysis_universe_run_id = membership.analysis_universe_run_id
+                WHERE run.analysis_universe_run_id = (
+                    SELECT analysis_universe_run_id
+                    FROM analysis_universe_runs
+                    WHERE country_code = %s AND as_of_date <= %s
+                    ORDER BY as_of_date DESC, created_at DESC
+                    LIMIT 1
+                )
+                ORDER BY membership.asset_type, membership.selected_rank
+                """,
+                (country_code, as_of_date),
+            )
+            return tuple(
+                UniverseMembership(
+                    asset_id=row[0],
+                    ticker=row[1],
+                    asset_type=AssetType(row[2]),
+                    selected_rank=row[3],
+                    median_dollar_volume=row[4],
+                    observation_count=row[5],
+                    pinned=row[6],
+                    selection_reason=row[7],
+                )
+                for row in cursor.fetchall()
+            )
