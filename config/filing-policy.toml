@@ -1,0 +1,13 @@
+schema_version = 1
+policy_id = "major-filings-v1"
+
+[sec]
+periodic = ["10-K", "10-K/A", "10-Q", "10-Q/A", "20-F", "20-F/A", "40-F", "40-F/A"]
+event = ["8-K", "8-K/A", "6-K", "6-K/A"]
+governance = ["DEF 14A", "DEFA14A"]
+fund = ["NPORT-P", "NPORT-P/A", "N-CEN", "N-CEN/A", "N-CSR", "N-CSRS", "N-1A", "485APOS", "485BPOS"]
+
+[opendart]
+periodic = ["사업보고서", "반기보고서", "분기보고서", "감사보고서"]
+event = ["주요사항보고서"]
+capital_market = ["증권신고서", "투자설명서", "공개매수신고서"]

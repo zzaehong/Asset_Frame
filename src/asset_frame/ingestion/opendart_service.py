@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from uuid import UUID, uuid4
 
 from asset_frame.connectors.opendart import (
@@ -13,6 +14,11 @@ from asset_frame.domain.models import (
     FilingDocument,
     ImplementationStatus,
     SourceDefinition,
+)
+from asset_frame.ingestion.filing_policy import (
+    FilingSelectionPolicy,
+    load_filing_policy,
+    select_major_filings,
 )
 from asset_frame.ingestion.run import IngestionRunSession
 from asset_frame.ingestion.transport import HttpTransport
@@ -28,6 +34,7 @@ class OpenDartDisclosureCollector:
         transport: HttpTransport,
         raw_store: RawStore,
         repository: IngestionRepository,
+        filing_policy: FilingSelectionPolicy | None = None,
     ) -> None:
         if source.id != OPENDART_SOURCE_ID:
             raise ValueError("OpenDART collector requires the OpenDART source definition")
@@ -37,6 +44,7 @@ class OpenDartDisclosureCollector:
         self._transport = transport
         self._raw_store = raw_store
         self._repository = repository
+        self._filing_policy = filing_policy or load_filing_policy(Path("config/filing-policy.toml"))
 
     def collect(
         self,
@@ -54,6 +62,7 @@ class OpenDartDisclosureCollector:
             data_kind=DataKind.FILING.value,
         ) as run:
             filings: list[FilingDocument] = []
+            records_received = 0
             page_no = 1
             while True:
                 request = build_disclosure_request(
@@ -82,10 +91,12 @@ class OpenDartDisclosureCollector:
                 )
                 if parsed.total_pages > 0 and parsed.page_no != page_no:
                     raise RuntimeError("OpenDART response page number does not match request")
-                self._repository.save_filings(parsed.filings)
-                filings.extend(parsed.filings)
+                records_received += len(parsed.filings)
+                selected = select_major_filings(parsed.filings, self._filing_policy)
+                self._repository.save_filings(selected)
+                filings.extend(selected)
                 if parsed.total_pages == 0 or page_no >= parsed.total_pages:
                     break
                 page_no += 1
-            run.succeed(records_received=len(filings), records_accepted=len(filings))
+            run.succeed(records_received=records_received, records_accepted=len(filings))
             return tuple(filings)

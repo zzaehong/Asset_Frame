@@ -70,6 +70,12 @@ uv run asset-frame collect-opendart \
   --end-date 2026-08-21
 ```
 
+공시목록 원본 응답은 계보를 위해 보존하지만 canonical 공시에는
+`config/filing-policy.toml`의 `major-filings-v1`만 저장합니다. SEC는 정기보고서·8-K/6-K·주요
+주주총회·펀드 보고서를, OpenDART는 정기·감사·주요사항·핵심 자본시장 보고서를 포함합니다.
+임원 지분변동처럼 초기 분석 범위 밖의 고빈도 보고서는 제외하며, 수집 실행에는 전체 수신
+건수와 선별 수락 건수를 따로 남깁니다.
+
 자산 유형을 명시하여 Tiingo 기본정보와 EOD 가격을 함께 수집합니다.
 
 ```bash
