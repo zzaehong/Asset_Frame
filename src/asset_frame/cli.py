@@ -4,6 +4,7 @@ import argparse
 import os
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
@@ -25,9 +26,12 @@ from asset_frame.ingestion.opendart_service import OpenDartDisclosureCollector
 from asset_frame.ingestion.service import SecSubmissionsCollector
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.transport import UrllibHttpTransport
+from asset_frame.ingestion.universe import load_universe_policy, select_analysis_universe
 from asset_frame.sources.registry import load_source_registry
+from asset_frame.storage.budget import BYTES_PER_GIB, evaluate_storage_budget, measure_raw_store
 from asset_frame.storage.postgres import PostgresIngestionRepository
 from asset_frame.storage.raw import FileRawStore
+from asset_frame.storage.universe import PostgresUniverseRepository
 
 
 def main() -> None:
@@ -78,6 +82,21 @@ def main() -> None:
         "data-spike-status", help="check registration and regulatory identifiers for 20 assets"
     )
     spike_parser.add_argument("--manifest", type=Path, default=Path("config/data-spike.toml"))
+    universe_parser = subparsers.add_parser(
+        "build-universe", help="select the reproducible KR or US analysis universe"
+    )
+    universe_parser.add_argument("--country", required=True, choices=("KR", "US"))
+    universe_parser.add_argument("--as-of", required=True, type=date.fromisoformat)
+    universe_parser.add_argument(
+        "--config", type=Path, default=Path("config/analysis-universe.toml")
+    )
+    universe_parser.add_argument("--manifest", type=Path, default=Path("config/data-spike.toml"))
+    budget_parser = subparsers.add_parser(
+        "data-budget-status",
+        help="show raw and PostgreSQL storage usage without blocking collection",
+    )
+    budget_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    budget_parser.add_argument("--config", type=Path, default=Path("config/analysis-universe.toml"))
     arguments = parser.parse_args()
 
     if arguments.command == "collect-sec":
@@ -112,6 +131,15 @@ def main() -> None:
         )
     elif arguments.command == "data-spike-status":
         _show_data_spike_status(arguments.manifest)
+    elif arguments.command == "build-universe":
+        _build_universe(
+            arguments.country,
+            arguments.as_of,
+            arguments.config,
+            arguments.manifest,
+        )
+    elif arguments.command == "data-budget-status":
+        _show_data_budget_status(arguments.raw_store, arguments.config)
 
 
 def _collect_sec(cik: str, asset_id: UUID, raw_store_path: Path) -> None:
@@ -351,3 +379,74 @@ def _show_data_spike_status(manifest_path: Path) -> None:
         print(f"missing required identifiers: {', '.join(readiness.missing_required_identifiers)}")
     if readiness.asset_type_mismatches:
         print(f"asset type mismatches: {', '.join(readiness.asset_type_mismatches)}")
+
+
+def _build_universe(
+    country_code: str,
+    as_of_date: date,
+    config_path: Path,
+    manifest_path: Path,
+) -> None:
+    database_url = _required_environment("DATABASE_URL")
+    policy = load_universe_policy(config_path)
+    pinned_tickers = frozenset(
+        asset.ticker.upper()
+        for asset in load_data_spike_manifest(manifest_path)
+        if asset.country_code == country_code
+    )
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    repository = PostgresUniverseRepository(connection_factory)
+    candidates = repository.liquidity_candidates(
+        country_code=country_code,
+        as_of_date=as_of_date,
+        lookback_observations=policy.lookback_observations,
+        pinned_tickers=pinned_tickers,
+    )
+    selection = select_analysis_universe(
+        country_code=country_code,
+        as_of_date=as_of_date,
+        candidates=candidates,
+        policy=policy,
+    )
+    run_id = repository.save_selection(selection, policy)
+    equities = sum(item.asset_type.value == "equity" for item in selection.memberships)
+    etfs = sum(item.asset_type.value == "etf" for item in selection.memberships)
+    print(
+        f"analysis universe run={run_id} country={country_code} "
+        f"equities={equities}/{policy.equity_limit} etfs={etfs}/{policy.etf_limit} "
+        f"input_hash={selection.input_hash}"
+    )
+
+
+def _show_data_budget_status(raw_store_path: Path, config_path: Path) -> None:
+    policy = load_universe_policy(config_path)
+    database_bytes: int | None = None
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        with psycopg.connect(database_url) as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT pg_database_size(current_database())")
+            row = cursor.fetchone()
+            database_bytes = int(row[0]) if row is not None else None
+    status = evaluate_storage_budget(
+        raw_store_bytes=measure_raw_store(raw_store_path),
+        database_bytes=database_bytes,
+        warning_gb=policy.storage_warning_gb,
+    )
+    raw_gb = Decimal(status.raw_store_bytes) / BYTES_PER_GIB
+    database_gb = (
+        Decimal(status.database_bytes) / BYTES_PER_GIB
+        if status.database_bytes is not None
+        else None
+    )
+    total_gb = Decimal(status.total_bytes) / BYTES_PER_GIB
+    database_text = f"{database_gb:.2f}" if database_gb is not None else "unknown"
+    print(
+        f"raw_gb={raw_gb:.2f} database_gb={database_text} total_gb={total_gb:.2f} "
+        f"warning_threshold_gb={policy.storage_warning_gb} "
+        f"warning={str(status.warning).lower()} collection_blocked=false"
+    )

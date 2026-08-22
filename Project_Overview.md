@@ -171,14 +171,14 @@ PostgreSQL 초기화 시 Source Registry·수집 실행·Raw Snapshot·자산 �
 
 ## 11. 다음 구현 순서
 
-1. `config/data-spike.toml`의 초기 20개 표본 검토와 상장폐지·저유동성 사례 확정
-2. 누락된 표본 자산 등록과 CIK·DART 식별자 매핑
-3. 20개 표본의 SEC·KRX·OpenDART·Tiingo 5년 end-to-end Data Spike
-4. Data Console에 quarantine 상세 및 Primary/Validation 비교 화면 추가
-5. 투자자산운용사 목차를 분석 도메인·공식·사용자 설명으로 매핑
-6. 기본·기술·ETF·포트폴리오 엔진 구현
-7. 공식 공시 우선 AI 문서 분석과 평가셋 구축
-8. 조건부 보고서와 Decision Journal 구현
+1. 한국·미국 각각 주식 500개와 ETF 최대 150개의 재현 가능한 분석 유니버스 확정
+2. 선정 유니버스의 최근 5년 가격·기업행동 backfill과 coverage 검증
+3. 주요 정기·사건 공시, 재무사실, ETF 보유내역과 한미 거시 시계열 수집
+4. 최근 뉴스 메타데이터의 제한된 backfill과 일 단위 증분 수집
+5. Data Console에 유니버스·coverage·quarantine·공급원 비교 화면 추가
+6. 투자자산운용사 목차를 분석 도메인·공식·사용자 설명으로 매핑
+7. 기본·기술·ETF·포트폴리오 엔진 구현
+8. 공식 공시 우선 AI 문서 분석, 조건부 보고서와 Decision Journal 구현
 
 ## 12. 변경 원칙
 

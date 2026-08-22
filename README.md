@@ -93,6 +93,32 @@ uv run asset-frame source-status \
 uv run asset-frame data-spike-status
 ```
 
+## 분석 유니버스와 저장량 관측
+
+한국과 미국의 분석 대상을 같은 규칙으로 관리하기 위해 최근 60개 유효 거래일의
+`close × volume` 중앙 거래대금을 사용합니다. 국가별 주식 500개와 ETF 최대 150개를
+선정하며, Data Spike의 기존 20개 표본은 각 한도 안에서 항상 포함합니다. 이 순위는 데이터
+수집 범위를 정하는 운영 규칙이며 투자 점수나 추천이 아닙니다.
+
+`db/init/002_analysis_universe.sql`을 적용한 PostgreSQL에서 다음 명령을 실행합니다.
+
+```bash
+uv run asset-frame build-universe --country KR --as-of 2026-08-21
+uv run asset-frame build-universe --country US --as-of 2026-08-21
+```
+
+raw store와 PostgreSQL의 저장량은 다음 명령으로 확인합니다. 기본 10GB는 초기 운영 경고
+기준일 뿐 수집을 중단하는 hard limit가 아닙니다. 실제 데이터 가치와 로컬 여유 공간을 확인해
+`config/analysis-universe.toml`에서 조정합니다.
+
+```bash
+uv run asset-frame data-budget-status
+```
+
+향후 뉴스 수집은 최근의 제목·요약·매체·시각·원문 URL 같은 API 메타데이터만 짧게
+보존하고 기사 본문은 수집하지 않습니다. 공시는 정기 재무보고와 분석에 필요한 주요 사건
+공시를 우선하며 모든 공시 유형의 본문을 무차별 저장하지 않습니다.
+
 ## 로컬 Data Console
 
 `.env`의 `DATABASE_URL`을 주입한 뒤 다음 명령으로 읽기 전용 대시보드를 실행합니다.

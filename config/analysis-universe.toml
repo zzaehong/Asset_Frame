@@ -1,0 +1,10 @@
+version = 1
+
+[policy]
+equity_limit = 500
+etf_limit = 150
+lookback_observations = 60
+minimum_observations = 40
+
+# This is an operational warning, not a hard collection limit.
+storage_warning_gb = 10
