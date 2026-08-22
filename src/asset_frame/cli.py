@@ -12,6 +12,7 @@ import psycopg
 
 from asset_frame.connectors.krx import KrxDataset
 from asset_frame.domain.models import AssetType, DataKind, IdentifierType
+from asset_frame.ingestion.available_batch import AvailableUniverseCollectionService
 from asset_frame.ingestion.data_spike import (
     evaluate_data_spike_readiness,
     load_data_spike_manifest,
@@ -38,6 +39,7 @@ from asset_frame.ingestion.universe import load_universe_policy, select_analysis
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.batch import PostgresBatchRepository
 from asset_frame.storage.budget import BYTES_PER_GIB, evaluate_storage_budget, measure_raw_store
+from asset_frame.storage.collection_batch import PostgresUniverseCollectionRepository
 from asset_frame.storage.krx_batch import PostgresKrxBatchRepository
 from asset_frame.storage.migrations import migrate_database
 from asset_frame.storage.postgres import PostgresIngestionRepository
@@ -184,6 +186,33 @@ def main() -> None:
         "migrate-database", help="apply numbered SQL migrations without replacing existing data"
     )
     migrate_parser.add_argument("--migrations", type=Path, default=Path("db/init"))
+    prepare_collection_parser = subparsers.add_parser(
+        "prepare-universe-collection",
+        help="prepare resumable fundamentals or recent-news collection for a universe",
+    )
+    prepare_collection_parser.add_argument(
+        "--kind",
+        required=True,
+        choices=("sec-fundamentals", "opendart-fundamentals", "gdelt-news"),
+    )
+    prepare_collection_parser.add_argument("--country", required=True, choices=("KR", "US"))
+    prepare_collection_parser.add_argument("--as-of", required=True, type=date.fromisoformat)
+    prepare_collection_parser.add_argument("--start-date", type=date.fromisoformat)
+    prepare_collection_parser.add_argument("--end-date", type=date.fromisoformat)
+    prepare_collection_parser.add_argument("--max-news-records", type=int, default=75)
+    prepare_collection_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    run_collection_parser = subparsers.add_parser(
+        "run-universe-collection",
+        help="run a bounded number of assets from a universe collection job",
+    )
+    run_collection_parser.add_argument("--job-id", required=True, type=UUID)
+    run_collection_parser.add_argument("--max-items", type=int, default=10)
+    run_collection_parser.add_argument("--retry-failed", action="store_true")
+    run_collection_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    collection_status_parser = subparsers.add_parser(
+        "universe-collection-status", help="show universe collection job progress"
+    )
+    collection_status_parser.add_argument("--job-id", required=True, type=UUID)
     arguments = parser.parse_args()
 
     if arguments.command == "collect-sec":
@@ -275,6 +304,25 @@ def main() -> None:
         _show_environment_status()
     elif arguments.command == "migrate-database":
         _migrate_database(arguments.migrations)
+    elif arguments.command == "prepare-universe-collection":
+        _prepare_universe_collection(
+            arguments.kind,
+            arguments.country,
+            arguments.as_of,
+            arguments.start_date,
+            arguments.end_date,
+            arguments.max_news_records,
+            arguments.raw_store,
+        )
+    elif arguments.command == "run-universe-collection":
+        _run_universe_collection(
+            arguments.job_id,
+            arguments.max_items,
+            arguments.retry_failed,
+            arguments.raw_store,
+        )
+    elif arguments.command == "universe-collection-status":
+        _show_universe_collection_status(arguments.job_id)
 
 
 def _collect_sec(cik: str, asset_id: UUID, raw_store_path: Path) -> None:
@@ -878,3 +926,145 @@ def _migrate_database(migrations_path: Path) -> None:
         print(f"applied: {', '.join(result.applied)}")
     if result.baselined:
         print(f"baselined existing schema: {', '.join(result.baselined)}")
+
+
+def _available_collection_service(
+    *, database_url: str, raw_store_path: Path
+) -> AvailableUniverseCollectionService:
+    sources = {source.id: source for source in load_source_registry(Path("config/sources.toml"))}
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    repository = PostgresIngestionRepository(connection_factory)
+    transport = UrllibHttpTransport()
+    raw_store = FileRawStore(raw_store_path)
+    return AvailableUniverseCollectionService(
+        ingestion_repository=repository,
+        universe_repository=PostgresUniverseRepository(connection_factory),
+        batch_repository=PostgresUniverseCollectionRepository(connection_factory),
+        sec_filings=SecSubmissionsCollector(
+            source=sources["sec-edgar-submissions"],
+            transport=transport,
+            raw_store=raw_store,
+            repository=repository,
+        ),
+        sec_facts=SecCompanyFactsCollector(
+            source=sources["sec-edgar-submissions"],
+            transport=transport,
+            raw_store=raw_store,
+            repository=repository,
+        ),
+        opendart_filings=OpenDartDisclosureCollector(
+            source=sources["opendart"],
+            transport=transport,
+            raw_store=raw_store,
+            repository=repository,
+        ),
+        opendart_facts=OpenDartFinancialFactsCollector(
+            source=sources["opendart"],
+            transport=transport,
+            raw_store=raw_store,
+            repository=repository,
+        ),
+        gdelt_news=GdeltNewsCollector(
+            source=sources["gdelt-doc"],
+            transport=transport,
+            raw_store=raw_store,
+            repository=repository,
+        ),
+    )
+
+
+def _prepare_universe_collection(
+    kind: str,
+    country_code: str,
+    as_of_date: date,
+    start_date: date | None,
+    end_date: date | None,
+    max_news_records: int,
+    raw_store_path: Path,
+) -> None:
+    job_type = kind.replace("-", "_")
+    selected_end = end_date or as_of_date
+    selected_start = start_date or (
+        selected_end - timedelta(days=30)
+        if job_type == "gdelt_news"
+        else five_year_start(selected_end)
+    )
+    if selected_start > selected_end:
+        raise SystemExit("--start-date must not be after --end-date/--as-of")
+    if job_type == "gdelt_news" and max_news_records not in range(1, 251):
+        raise SystemExit("--max-news-records must be between 1 and 250")
+    database_url = _required_environment("DATABASE_URL")
+    service = _available_collection_service(
+        database_url=database_url, raw_store_path=raw_store_path
+    )
+    job_id = service.prepare(
+        job_type=job_type,
+        country_code=country_code,
+        as_of_date=as_of_date,
+        start_date=selected_start,
+        end_date=selected_end,
+        max_news_records=max_news_records,
+    )
+    print(
+        f"prepared universe collection job={job_id} type={job_type} country={country_code} "
+        f"start={selected_start} end={selected_end}"
+    )
+
+
+def _run_universe_collection(
+    job_id: UUID, max_items: int, retry_failed: bool, raw_store_path: Path
+) -> None:
+    if max_items <= 0:
+        raise SystemExit("--max-items must be positive")
+    database_url = _required_environment("DATABASE_URL")
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    job = PostgresUniverseCollectionRepository(connection_factory).get_job(job_id)
+    sec_user_agent = (
+        _required_environment("SEC_USER_AGENT") if job.job_type == "sec_fundamentals" else None
+    )
+    opendart_api_key = (
+        _required_environment("OPENDART_API_KEY")
+        if job.job_type == "opendart_fundamentals"
+        else None
+    )
+    service = _available_collection_service(
+        database_url=database_url, raw_store_path=raw_store_path
+    )
+    result = service.run(
+        job_id=job_id,
+        max_items=max_items,
+        retry_failed=retry_failed,
+        sec_user_agent=sec_user_agent,
+        opendart_api_key=opendart_api_key,
+    )
+    print(
+        f"universe collection job={job_id} attempted={result.attempted} "
+        f"succeeded={result.succeeded} no_data={result.no_data} failed={result.failed} "
+        f"records_accepted={result.records_accepted}"
+    )
+
+
+def _show_universe_collection_status(job_id: UUID) -> None:
+    database_url = _required_environment("DATABASE_URL")
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    progress = PostgresUniverseCollectionRepository(connection_factory).job_progress(job_id)
+    print(
+        f"job={job_id} type={progress.job.job_type} status={progress.job.status} "
+        f"total={progress.total} pending={progress.pending} running={progress.running} "
+        f"succeeded={progress.succeeded} no_data={progress.no_data} failed={progress.failed}"
+    )

@@ -12,6 +12,7 @@ _SENTINELS = {
     "003_market_data_jobs.sql": "market_data_jobs",
     "004_krx_backfill_jobs.sql": "krx_backfill_jobs",
     "005_fundamentals_and_news.sql": "news_articles",
+    "006_universe_collection_jobs.sql": "universe_collection_jobs",
 }
 
 

@@ -110,6 +110,25 @@ uv run asset-frame collect-gdelt-news \
   --end-at 2026-08-21T00:00:00+00:00 --max-records 75
 ```
 
+가격 coverage를 바탕으로 분석 유니버스를 확정한 뒤에는 공시·재무·최근 뉴스를 자산별
+체크포인트로 수집합니다. SEC 작업은 주요 submissions와 Company Facts를 함께 수집하고,
+OpenDART 작업은 주요 공시와 최근 5개년 연차 연결재무를 수집합니다. 국내 ETF에는 적용되지
+않는 DART corp code를 요구하지 않습니다. 뉴스의 기본 기간은 최근 30일입니다.
+
+```bash
+uv run asset-frame prepare-universe-collection \
+  --kind sec-fundamentals --country US --as-of 2026-08-21
+uv run asset-frame prepare-universe-collection \
+  --kind opendart-fundamentals --country KR --as-of 2026-08-21
+uv run asset-frame prepare-universe-collection \
+  --kind gdelt-news --country US --as-of 2026-08-21 --max-news-records 75
+
+uv run asset-frame run-universe-collection --job-id <job-uuid> --max-items 10
+uv run asset-frame universe-collection-status --job-id <job-uuid>
+uv run asset-frame run-universe-collection \
+  --job-id <job-uuid> --max-items 10 --retry-failed
+```
+
 수집 상태는 공급원과 데이터 종류별 마지막 성공시각을 기준으로 확인합니다. stale 임계값은
 숨은 기본값을 사용하지 않고 호출자가 시간 단위로 지정합니다.
 

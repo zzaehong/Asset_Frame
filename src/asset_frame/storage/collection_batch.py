@@ -4,29 +4,33 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from uuid import UUID
 
-from asset_frame.connectors.krx import KrxDataset
 from asset_frame.storage.postgres import ConnectionFactory
 
 
 @dataclass(frozen=True, slots=True)
-class KrxBackfillItem:
-    business_date: date
-    dataset: KrxDataset
+class UniverseCollectionItem:
+    asset_id: UUID
+    ticker: str
+    external_identifier: str | None = None
+    search_query: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class KrxBackfillJob:
+class UniverseCollectionJob:
     id: UUID
     source_id: str
+    job_type: str
+    country_code: str
     as_of_date: date
     start_date: date
     end_date: date
+    max_news_records: int
     status: str
 
 
 @dataclass(frozen=True, slots=True)
-class KrxBackfillProgress:
-    job: KrxBackfillJob
+class UniverseCollectionProgress:
+    job: UniverseCollectionJob
     total: int
     pending: int
     running: int
@@ -35,7 +39,7 @@ class KrxBackfillProgress:
     failed: int
 
 
-class PostgresKrxBatchRepository:
+class PostgresUniverseCollectionRepository:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._connection_factory = connection_factory
 
@@ -43,64 +47,94 @@ class PostgresKrxBatchRepository:
         self,
         *,
         source_id: str,
+        job_type: str,
+        country_code: str,
         as_of_date: date,
         start_date: date,
         end_date: date,
-        items: tuple[KrxBackfillItem, ...],
+        max_news_records: int,
+        items: tuple[UniverseCollectionItem, ...],
     ) -> UUID:
         if start_date > end_date:
-            raise ValueError("KRX backfill start date must not exceed end date")
+            raise ValueError("universe collection start date must not exceed end date")
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO krx_backfill_jobs (source_id, as_of_date, start_date, end_date)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (source_id, as_of_date, start_date, end_date)
-                DO UPDATE SET updated_at = now()
-                RETURNING krx_backfill_job_id
+                INSERT INTO universe_collection_jobs (
+                    source_id, job_type, country_code, as_of_date, start_date, end_date,
+                    max_news_records
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (
+                    source_id, job_type, country_code, as_of_date, start_date, end_date,
+                    max_news_records
+                ) DO UPDATE SET updated_at = now()
+                RETURNING universe_collection_job_id
                 """,
-                (source_id, as_of_date, start_date, end_date),
+                (
+                    source_id,
+                    job_type,
+                    country_code,
+                    as_of_date,
+                    start_date,
+                    end_date,
+                    max_news_records,
+                ),
             )
             row = cursor.fetchone()
             if row is None:
-                raise RuntimeError("failed to prepare KRX backfill job")
+                raise RuntimeError("failed to prepare universe collection job")
             job_id = row[0]
             cursor.executemany(
                 """
-                INSERT INTO krx_backfill_items (
-                    krx_backfill_job_id, business_date, dataset
-                ) VALUES (%s, %s, %s)
-                ON CONFLICT (krx_backfill_job_id, business_date, dataset) DO NOTHING
+                INSERT INTO universe_collection_items (
+                    universe_collection_job_id, asset_id, ticker,
+                    external_identifier, search_query
+                ) VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (universe_collection_job_id, asset_id) DO UPDATE SET
+                    ticker = EXCLUDED.ticker,
+                    external_identifier = EXCLUDED.external_identifier,
+                    search_query = EXCLUDED.search_query,
+                    updated_at = now()
                 """,
-                [(job_id, item.business_date, item.dataset.name.lower()) for item in items],
+                [
+                    (
+                        job_id,
+                        item.asset_id,
+                        item.ticker,
+                        item.external_identifier,
+                        item.search_query,
+                    )
+                    for item in items
+                ],
             )
             cursor.execute(
                 """
-                UPDATE krx_backfill_jobs SET total_items = (
-                    SELECT count(*) FROM krx_backfill_items
-                    WHERE krx_backfill_job_id = %s
+                UPDATE universe_collection_jobs SET total_items = (
+                    SELECT count(*) FROM universe_collection_items
+                    WHERE universe_collection_job_id = %s
                 ), updated_at = now()
-                WHERE krx_backfill_job_id = %s
+                WHERE universe_collection_job_id = %s
                 """,
                 (job_id, job_id),
             )
             return job_id
 
-    def get_job(self, job_id: UUID) -> KrxBackfillJob:
+    def get_job(self, job_id: UUID) -> UniverseCollectionJob:
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT krx_backfill_job_id, source_id, as_of_date, start_date, end_date, status
-                FROM krx_backfill_jobs WHERE krx_backfill_job_id = %s
+                SELECT universe_collection_job_id, source_id, job_type, country_code,
+                       as_of_date, start_date, end_date, max_news_records, status
+                FROM universe_collection_jobs WHERE universe_collection_job_id = %s
                 """,
                 (job_id,),
             )
             row = cursor.fetchone()
             if row is None:
-                raise ValueError("KRX backfill job was not found")
-            return KrxBackfillJob(*row)
+                raise ValueError("universe collection job was not found")
+            return UniverseCollectionJob(*row)
 
-    def job_progress(self, job_id: UUID) -> KrxBackfillProgress:
+    def job_progress(self, job_id: UUID) -> UniverseCollectionProgress:
         job = self.get_job(job_id)
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
@@ -111,14 +145,14 @@ class PostgresKrxBatchRepository:
                        count(*) FILTER (WHERE status = 'succeeded')::integer,
                        count(*) FILTER (WHERE status = 'no_data')::integer,
                        count(*) FILTER (WHERE status = 'failed')::integer
-                FROM krx_backfill_items WHERE krx_backfill_job_id = %s
+                FROM universe_collection_items WHERE universe_collection_job_id = %s
                 """,
                 (job_id,),
             )
             row = cursor.fetchone()
             if row is None:
-                raise RuntimeError("failed to read KRX backfill progress")
-            return KrxBackfillProgress(job, *row)
+                raise RuntimeError("failed to read universe collection progress")
+            return UniverseCollectionProgress(job, *row)
 
     def claim_items(
         self,
@@ -127,17 +161,17 @@ class PostgresKrxBatchRepository:
         limit: int,
         retry_failed: bool,
         stale_after: timedelta = timedelta(minutes=30),
-    ) -> tuple[KrxBackfillItem, ...]:
+    ) -> tuple[UniverseCollectionItem, ...]:
         if limit <= 0:
             raise ValueError("claim limit must be positive")
         statuses = ["pending", "failed"] if retry_failed else ["pending"]
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
-                UPDATE krx_backfill_items
+                UPDATE universe_collection_items
                 SET status = 'pending', updated_at = now(),
                     last_error = 'requeued after stale running lease'
-                WHERE krx_backfill_job_id = %s AND status = 'running'
+                WHERE universe_collection_job_id = %s AND status = 'running'
                   AND updated_at < now() - %s
                 """,
                 (job_id, stale_after),
@@ -145,42 +179,44 @@ class PostgresKrxBatchRepository:
             cursor.execute(
                 """
                 WITH claimed AS (
-                    SELECT krx_backfill_job_id, business_date, dataset
-                    FROM krx_backfill_items
-                    WHERE krx_backfill_job_id = %s AND status = ANY(%s)
-                    ORDER BY business_date DESC, dataset
+                    SELECT universe_collection_job_id, asset_id
+                    FROM universe_collection_items
+                    WHERE universe_collection_job_id = %s AND status = ANY(%s)
+                    ORDER BY ticker, asset_id
                     FOR UPDATE SKIP LOCKED LIMIT %s
                 )
-                UPDATE krx_backfill_items AS item
+                UPDATE universe_collection_items AS item
                 SET status = 'running', attempts = attempts + 1,
                     last_error = NULL, updated_at = now()
                 FROM claimed
-                WHERE item.krx_backfill_job_id = claimed.krx_backfill_job_id
-                  AND item.business_date = claimed.business_date
-                  AND item.dataset = claimed.dataset
-                RETURNING item.business_date, item.dataset
+                WHERE item.universe_collection_job_id = claimed.universe_collection_job_id
+                  AND item.asset_id = claimed.asset_id
+                RETURNING item.asset_id, item.ticker,
+                          item.external_identifier, item.search_query
                 """,
                 (job_id, statuses, limit),
             )
             rows = cursor.fetchall()
             cursor.execute(
-                "UPDATE krx_backfill_jobs SET status = 'running', updated_at = now() "
-                "WHERE krx_backfill_job_id = %s AND status = 'pending'",
+                "UPDATE universe_collection_jobs SET status = 'running', updated_at = now() "
+                "WHERE universe_collection_job_id = %s AND status = 'pending'",
                 (job_id,),
             )
-            return tuple(KrxBackfillItem(row[0], KrxDataset[row[1].upper()]) for row in rows)
+            return tuple(UniverseCollectionItem(*row) for row in rows)
 
-    def complete_item(self, *, job_id: UUID, item: KrxBackfillItem, records_accepted: int) -> None:
+    def complete_item(
+        self, *, job_id: UUID, item: UniverseCollectionItem, records_accepted: int
+    ) -> None:
         status = "succeeded" if records_accepted else "no_data"
         self._finish_item(job_id, item, status, records_accepted, None)
 
-    def fail_item(self, *, job_id: UUID, item: KrxBackfillItem, error_message: str) -> None:
+    def fail_item(self, *, job_id: UUID, item: UniverseCollectionItem, error_message: str) -> None:
         self._finish_item(job_id, item, "failed", 0, error_message[:1000])
 
     def _finish_item(
         self,
         job_id: UUID,
-        item: KrxBackfillItem,
+        item: UniverseCollectionItem,
         status: str,
         records_accepted: int,
         error_message: str | None,
@@ -188,22 +224,14 @@ class PostgresKrxBatchRepository:
         with self._connection_factory() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
-                UPDATE krx_backfill_items
+                UPDATE universe_collection_items
                 SET status = %s, records_accepted = %s, last_error = %s, updated_at = now()
-                WHERE krx_backfill_job_id = %s AND business_date = %s
-                  AND dataset = %s AND status = 'running'
+                WHERE universe_collection_job_id = %s AND asset_id = %s AND status = 'running'
                 """,
-                (
-                    status,
-                    records_accepted,
-                    error_message,
-                    job_id,
-                    item.business_date,
-                    item.dataset.name.lower(),
-                ),
+                (status, records_accepted, error_message, job_id, item.asset_id),
             )
             if cursor.rowcount != 1:
-                raise RuntimeError("KRX backfill item is not running")
+                raise RuntimeError("universe collection item is not running")
 
     def refresh_job_status(self, job_id: UUID) -> None:
         with self._connection_factory() as connection, connection.cursor() as cursor:
@@ -215,9 +243,9 @@ class PostgresKrxBatchRepository:
                            count(*) FILTER (WHERE status = 'failed')::integer AS failed,
                            count(*) FILTER (WHERE status IN ('pending', 'running'))::integer
                                AS remaining
-                    FROM krx_backfill_items WHERE krx_backfill_job_id = %s
+                    FROM universe_collection_items WHERE universe_collection_job_id = %s
                 )
-                UPDATE krx_backfill_jobs AS job
+                UPDATE universe_collection_jobs AS job
                 SET succeeded_items = counts.succeeded, no_data_items = counts.no_data,
                     failed_items = counts.failed,
                     status = CASE
@@ -226,7 +254,7 @@ class PostgresKrxBatchRepository:
                         ELSE 'completed'
                     END,
                     updated_at = now()
-                FROM counts WHERE job.krx_backfill_job_id = %s
+                FROM counts WHERE job.universe_collection_job_id = %s
                 """,
                 (job_id, job_id),
             )
