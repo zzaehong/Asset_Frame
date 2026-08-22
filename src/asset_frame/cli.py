@@ -38,6 +38,7 @@ from asset_frame.ingestion.service import SecSubmissionsCollector
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.transport import RateLimitedRetryTransport, UrllibHttpTransport
 from asset_frame.ingestion.universe import load_universe_policy, select_analysis_universe
+from asset_frame.ingestion.universe_v2 import load_universe_v2_policy
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.batch import PostgresBatchRepository
 from asset_frame.storage.budget import BYTES_PER_GIB, evaluate_storage_budget, measure_raw_store
@@ -48,6 +49,7 @@ from asset_frame.storage.postgres import PostgresIngestionRepository
 from asset_frame.storage.raw import FileRawStore
 from asset_frame.storage.retention import PostgresRetentionService, delete_pruned_raw_files
 from asset_frame.storage.universe import PostgresUniverseRepository
+from asset_frame.storage.universe_v2 import PostgresUniverseV2Repository
 
 
 def main() -> None:
@@ -796,6 +798,7 @@ def _tiingo_batch_service(*, database_url: str, raw_store_path: Path) -> TiingoM
         with psycopg.connect(database_url) as connection:
             yield connection
 
+    universe_v2_policy = load_universe_v2_policy(Path("config/analysis-universe.toml"))
     return TiingoMarketBatchService(
         source=source,
         transport=UrllibHttpTransport(),
@@ -803,6 +806,8 @@ def _tiingo_batch_service(*, database_url: str, raw_store_path: Path) -> TiingoM
         ingestion_repository=PostgresIngestionRepository(connection_factory),
         batch_repository=PostgresBatchRepository(connection_factory),
         universe_repository=PostgresUniverseRepository(connection_factory),
+        symbol_budget_repository=PostgresUniverseV2Repository(connection_factory),
+        monthly_unique_symbol_limit=universe_v2_policy.tiingo_monthly_unique_symbol_limit,
     )
 
 

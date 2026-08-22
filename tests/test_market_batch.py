@@ -10,8 +10,10 @@ from asset_frame.domain.models import Asset, AssetType, FetchResponse
 from asset_frame.ingestion.market_batch import TiingoMarketBatchService, ten_year_start
 from asset_frame.ingestion.universe import UniverseMembership
 from asset_frame.sources.registry import load_source_registry
+from asset_frame.storage.batch import MarketDataJob, MarketDataJobItem
 from asset_frame.storage.raw import FileRawStore
 from asset_frame.storage.repository import MemoryIngestionRepository
+from asset_frame.storage.universe_v2 import SymbolReservation
 
 
 class StaticTransport:
@@ -22,6 +24,11 @@ class StaticTransport:
         return self.response
 
 
+class UnexpectedTransport:
+    def fetch(self, request):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"transport must not be called for {request.url}")
+
+
 class RecordingBatchRepository:
     def __init__(self) -> None:
         self.job_id = UUID(int=99)
@@ -30,6 +37,46 @@ class RecordingBatchRepository:
     def prepare_job(self, **kwargs):  # type: ignore[no-untyped-def]
         self.prepared = kwargs
         return self.job_id
+
+
+class RunnableBatchRepository:
+    def __init__(self) -> None:
+        self.failed = []
+        self.refreshed = False
+
+    def get_job(self, job_id):  # type: ignore[no-untyped-def]
+        return MarketDataJob(
+            job_id,
+            "tiingo-eod",
+            "universe_backfill",
+            "US",
+            date(2026, 8, 21),
+            date(2026, 8, 20),
+            date(2026, 8, 21),
+            "pending",
+        )
+
+    def claim_items(self, **kwargs):  # type: ignore[no-untyped-def]
+        return (MarketDataJobItem("AAPL", AssetType.EQUITY),)
+
+    def fail_item(self, **kwargs):  # type: ignore[no-untyped-def]
+        self.failed.append(kwargs)
+
+    def refresh_job_status(self, job_id):  # type: ignore[no-untyped-def]
+        self.refreshed = True
+
+
+class RejectingSymbolBudget:
+    def reserve_monthly_symbol(self, **kwargs):  # type: ignore[no-untyped-def]
+        return SymbolReservation(
+            source_id="tiingo-eod",
+            usage_month=date(2026, 8, 1),
+            symbol="AAPL",
+            accepted=False,
+            already_reserved=False,
+            unique_symbol_count=400,
+            unique_symbol_limit=400,
+        )
 
 
 class StaticUniverseRepository:
@@ -137,3 +184,33 @@ def test_prepares_backfill_from_latest_universe(tmp_path: Path) -> None:
     assert job_id == UUID(int=99)
     assert batches.prepared["job_type"] == "universe_backfill"
     assert [item.ticker for item in batches.prepared["items"]] == ["AAPL"]
+
+
+def test_tiingo_batch_rejects_new_symbol_before_transport_when_budget_is_full(
+    tmp_path: Path,
+) -> None:
+    source = next(
+        item
+        for item in load_source_registry(Path("config/sources.toml"))
+        if item.id == "tiingo-eod"
+    )
+    batches = RunnableBatchRepository()
+    service = TiingoMarketBatchService(
+        source=source,
+        transport=UnexpectedTransport(),
+        raw_store=FileRawStore(tmp_path),
+        ingestion_repository=MemoryIngestionRepository(),
+        batch_repository=batches,  # type: ignore[arg-type]
+        symbol_budget_repository=RejectingSymbolBudget(),  # type: ignore[arg-type]
+        monthly_unique_symbol_limit=400,
+    )
+
+    result = service.run(job_id=UUID(int=99), api_key="unused", max_items=1, retry_failed=False)
+
+    assert result.attempted == 1
+    assert result.succeeded == 0
+    assert result.failed == 1
+    assert batches.failed[0]["error_message"] == (
+        "Tiingo monthly unique symbol limit reached: 400/400"
+    )
+    assert batches.refreshed is True

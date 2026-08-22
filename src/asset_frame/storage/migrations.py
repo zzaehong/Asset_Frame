@@ -14,6 +14,7 @@ _SENTINELS = {
     "005_fundamentals_and_news.sql": "news_articles",
     "006_universe_collection_jobs.sql": "universe_collection_jobs",
     "007_complete_ohlc.sql": None,
+    "008_evidence_universe.sql": "analysis_universe_evidence",
 }
 
 

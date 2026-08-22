@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 
 from asset_frame.connectors.tiingo import TIINGO_SOURCE_ID, tiingo_asset_id
@@ -26,6 +26,7 @@ from asset_frame.storage.batch import MarketDataJobItem, PostgresBatchRepository
 from asset_frame.storage.raw import RawStore
 from asset_frame.storage.repository import IngestionRepository
 from asset_frame.storage.universe import PostgresUniverseRepository
+from asset_frame.storage.universe_v2 import PostgresUniverseV2Repository
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +47,8 @@ class TiingoMarketBatchService:
         ingestion_repository: IngestionRepository,
         batch_repository: PostgresBatchRepository,
         universe_repository: PostgresUniverseRepository | None = None,
+        symbol_budget_repository: PostgresUniverseV2Repository | None = None,
+        monthly_unique_symbol_limit: int = 400,
     ) -> None:
         if source.id != TIINGO_SOURCE_ID:
             raise ValueError("Tiingo batch service requires the Tiingo EOD source definition")
@@ -57,6 +60,10 @@ class TiingoMarketBatchService:
         self._ingestion_repository = ingestion_repository
         self._batch_repository = batch_repository
         self._universe_repository = universe_repository
+        self._symbol_budget_repository = symbol_budget_repository
+        if monthly_unique_symbol_limit <= 0:
+            raise ValueError("monthly_unique_symbol_limit must be positive")
+        self._monthly_unique_symbol_limit = monthly_unique_symbol_limit
 
     def prepare_discovery(
         self,
@@ -194,6 +201,25 @@ class TiingoMarketBatchService:
         failed = 0
         records_accepted = 0
         for item in items:
+            if self._symbol_budget_repository is not None:
+                reservation = self._symbol_budget_repository.reserve_monthly_symbol(
+                    source_id=self._source.id,
+                    symbol=item.ticker,
+                    used_at=datetime.now(UTC),
+                    unique_symbol_limit=self._monthly_unique_symbol_limit,
+                )
+                if not reservation.accepted:
+                    self._batch_repository.fail_item(
+                        job_id=job_id,
+                        ticker=item.ticker,
+                        error_message=(
+                            "Tiingo monthly unique symbol limit reached: "
+                            f"{reservation.unique_symbol_count}/"
+                            f"{reservation.unique_symbol_limit}"
+                        ),
+                    )
+                    failed += 1
+                    continue
             try:
                 result = collector.collect(
                     ticker=item.ticker,

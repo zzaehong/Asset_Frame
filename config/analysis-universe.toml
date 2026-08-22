@@ -1,4 +1,4 @@
-version = 1
+version = 2
 
 [policy]
 equity_limit = 500
@@ -8,3 +8,15 @@ minimum_observations = 40
 
 # This is an operational warning, not a hard collection limit.
 storage_warning_gb = 10
+
+# Target policy for the evidence-based universe. The legacy [policy] table remains
+# available until build-universe is replaced by the v2 evidence collectors.
+[universe_v2]
+policy_version = 2
+etf_limit = 120
+investor_equity_limit = 200
+tiingo_monthly_unique_symbol_limit = 400
+cooling_quarters = 2
+allowed_countries = ["KR", "US"]
+krx_equity_evidence = ["krx_kospi_200", "krx_kosdaq_150"]
+allow_duplicate_exposures = true
