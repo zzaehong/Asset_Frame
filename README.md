@@ -47,6 +47,17 @@ uv run asset-frame collect-krx --dataset kosdaq_prices --date 2026-08-19
 uv run asset-frame collect-krx --dataset etf_prices --date 2026-08-19
 ```
 
+한국 시장의 장기 가격은 평일별 KOSPI·KOSDAQ·ETF snapshot을 재시작 가능한 작업으로
+준비합니다. 거래소 휴일의 빈 응답은 오류가 아닌 `no_data`로 분리하고, 실제 실패만 선택적으로
+재시도합니다.
+
+```bash
+uv run asset-frame prepare-krx-backfill --as-of 2026-08-21
+uv run asset-frame run-krx-job --job-id <job-uuid> --max-items 30
+uv run asset-frame krx-job-status --job-id <job-uuid>
+uv run asset-frame run-krx-job --job-id <job-uuid> --max-items 30 --retry-failed
+```
+
 KRX로 등록한 국내 ticker를 OpenDART 공식 고유번호 파일의 corp code에 연결한 뒤 기간별
 공시목록을 수집합니다.
 
@@ -144,6 +155,14 @@ uv run asset-frame data-budget-status
 보존하고 기사 본문은 수집하지 않습니다. 공시는 정기 재무보고와 분석에 필요한 주요 사건
 공시를 우선하며 모든 공시 유형의 본문을 무차별 저장하지 않습니다.
 
+외부 키를 나중에 주입해도 구현과 fixture 검증은 계속할 수 있습니다. 필요한 환경변수와
+미설정 시 차단되는 작업은 [환경변수 안내](docs/environment-requirements.md)에 정리되어 있으며,
+실제 값을 노출하지 않고 현재 설정 여부만 확인할 수 있습니다.
+
+```bash
+uv run asset-frame environment-status
+```
+
 ## 로컬 Data Console
 
 `.env`의 `DATABASE_URL`을 주입한 뒤 다음 명령으로 읽기 전용 대시보드를 실행합니다.
@@ -182,7 +201,8 @@ Docker가 준비된 환경에서는 다음 명령으로 PostgreSQL과 초기 스
 docker compose up -d --wait
 ```
 
-PostgreSQL schema는 `db/init/001_core.sql`, 공급원 설정은 `config/sources.toml`에 있습니다.
+PostgreSQL schema는 `db/init/001_core.sql`부터 번호 순서대로 적용하며, 공급원 설정은
+`config/sources.toml`에 있습니다.
 
 ## 현재 제한
 

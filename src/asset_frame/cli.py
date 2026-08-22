@@ -16,11 +16,13 @@ from asset_frame.ingestion.data_spike import (
     evaluate_data_spike_readiness,
     load_data_spike_manifest,
 )
+from asset_frame.ingestion.environment import ENVIRONMENT_REQUIREMENTS
 from asset_frame.ingestion.freshness import evaluate_freshness
 from asset_frame.ingestion.identifier_service import (
     IdentifierMappingResult,
     RegulatoryIdentifierCollector,
 )
+from asset_frame.ingestion.krx_batch import KrxMarketBatchService
 from asset_frame.ingestion.krx_service import KrxCollector
 from asset_frame.ingestion.market_batch import TiingoMarketBatchService, five_year_start
 from asset_frame.ingestion.opendart_service import OpenDartDisclosureCollector
@@ -31,6 +33,7 @@ from asset_frame.ingestion.universe import load_universe_policy, select_analysis
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.batch import PostgresBatchRepository
 from asset_frame.storage.budget import BYTES_PER_GIB, evaluate_storage_budget, measure_raw_store
+from asset_frame.storage.krx_batch import PostgresKrxBatchRepository
 from asset_frame.storage.postgres import PostgresIngestionRepository
 from asset_frame.storage.raw import FileRawStore
 from asset_frame.storage.universe import PostgresUniverseRepository
@@ -124,6 +127,27 @@ def main() -> None:
         "market-job-status", help="show progress for a resumable market data job"
     )
     job_status_parser.add_argument("--job-id", required=True, type=UUID)
+    krx_backfill_parser = subparsers.add_parser(
+        "prepare-krx-backfill",
+        help="prepare a resumable five-year KRX price backfill",
+    )
+    krx_backfill_parser.add_argument("--as-of", required=True, type=date.fromisoformat)
+    krx_backfill_parser.add_argument("--start-date", type=date.fromisoformat)
+    krx_backfill_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    krx_run_parser = subparsers.add_parser(
+        "run-krx-job", help="run a bounded number of dates and markets from a KRX job"
+    )
+    krx_run_parser.add_argument("--job-id", required=True, type=UUID)
+    krx_run_parser.add_argument("--max-items", type=int, default=30)
+    krx_run_parser.add_argument("--retry-failed", action="store_true")
+    krx_run_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    krx_status_parser = subparsers.add_parser(
+        "krx-job-status", help="show progress for a resumable KRX backfill job"
+    )
+    krx_status_parser.add_argument("--job-id", required=True, type=UUID)
+    subparsers.add_parser(
+        "environment-status", help="show required configuration without exposing values"
+    )
     arguments = parser.parse_args()
 
     if arguments.command == "collect-sec":
@@ -180,6 +204,19 @@ def main() -> None:
         )
     elif arguments.command == "market-job-status":
         _show_market_job_status(arguments.job_id)
+    elif arguments.command == "prepare-krx-backfill":
+        _prepare_krx_backfill(arguments.as_of, arguments.start_date, arguments.raw_store)
+    elif arguments.command == "run-krx-job":
+        _run_krx_job(
+            arguments.job_id,
+            arguments.max_items,
+            arguments.retry_failed,
+            arguments.raw_store,
+        )
+    elif arguments.command == "krx-job-status":
+        _show_krx_job_status(arguments.job_id)
+    elif arguments.command == "environment-status":
+        _show_environment_status()
 
 
 def _collect_sec(cik: str, asset_id: UUID, raw_store_path: Path) -> None:
@@ -579,4 +616,99 @@ def _show_market_job_status(job_id: UUID) -> None:
         f"job={job_id} type={progress.job.job_type} status={progress.job.status} "
         f"total={progress.total} pending={progress.pending} running={progress.running} "
         f"succeeded={progress.succeeded} failed={progress.failed}"
+    )
+
+
+def _krx_batch_service(*, database_url: str, raw_store_path: Path) -> KrxMarketBatchService:
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "krx-open-api"
+    )
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    ingestion_repository = PostgresIngestionRepository(connection_factory)
+    collector = KrxCollector(
+        source=source,
+        transport=UrllibHttpTransport(),
+        raw_store=FileRawStore(raw_store_path),
+        repository=ingestion_repository,
+    )
+    return KrxMarketBatchService(
+        source=source,
+        collector=collector,
+        ingestion_repository=ingestion_repository,
+        batch_repository=PostgresKrxBatchRepository(connection_factory),
+    )
+
+
+def _prepare_krx_backfill(as_of_date: date, start_date: date | None, raw_store_path: Path) -> None:
+    selected_start = start_date or five_year_start(as_of_date)
+    if selected_start > as_of_date:
+        raise SystemExit("--start-date must not be after --as-of")
+    database_url = _required_environment("DATABASE_URL")
+    service = _krx_batch_service(database_url=database_url, raw_store_path=raw_store_path)
+    job_id = service.prepare(
+        as_of_date=as_of_date,
+        start_date=selected_start,
+        end_date=as_of_date,
+    )
+    print(f"prepared KRX backfill job={job_id} start={selected_start} end={as_of_date}")
+
+
+def _run_krx_job(
+    job_id: UUID,
+    max_items: int,
+    retry_failed: bool,
+    raw_store_path: Path,
+) -> None:
+    if max_items <= 0:
+        raise SystemExit("--max-items must be positive")
+    database_url = _required_environment("DATABASE_URL")
+    api_key = _required_environment("KRX_API_KEY")
+    service = _krx_batch_service(database_url=database_url, raw_store_path=raw_store_path)
+    result = service.run(
+        job_id=job_id,
+        api_key=api_key,
+        max_items=max_items,
+        retry_failed=retry_failed,
+    )
+    print(
+        f"KRX job={job_id} attempted={result.attempted} succeeded={result.succeeded} "
+        f"no_data={result.no_data} failed={result.failed} "
+        f"records_accepted={result.records_accepted}"
+    )
+
+
+def _show_krx_job_status(job_id: UUID) -> None:
+    database_url = _required_environment("DATABASE_URL")
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    progress = PostgresKrxBatchRepository(connection_factory).job_progress(job_id)
+    print(
+        f"job={job_id} status={progress.job.status} total={progress.total} "
+        f"pending={progress.pending} running={progress.running} "
+        f"succeeded={progress.succeeded} no_data={progress.no_data} failed={progress.failed}"
+    )
+
+
+def _show_environment_status() -> None:
+    for requirement in ENVIRONMENT_REQUIREMENTS:
+        names = "+".join(requirement.names)
+        configured = str(requirement.configured()).lower()
+        print(
+            f"variables={names} phase={requirement.phase} configured={configured} "
+            f"capability={requirement.capability}"
+        )
+    print(
+        "variables=GDELT phase=planned configured=not_required "
+        "capability=recent global news metadata"
     )
