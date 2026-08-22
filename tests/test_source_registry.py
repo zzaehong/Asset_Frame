@@ -20,10 +20,19 @@ def test_project_registry_contains_only_official_access_methods() -> None:
 def test_available_collectors_declare_their_ingested_data_kinds() -> None:
     sources = {source.id: source for source in load_source_registry(Path("config/sources.toml"))}
     expected = {
-        "sec-edgar-submissions": {DataKind.ASSET_IDENTIFIER, DataKind.FILING},
+        "sec-edgar-submissions": {
+            DataKind.ASSET_IDENTIFIER,
+            DataKind.FILING,
+            DataKind.FINANCIAL_FACT,
+        },
         "krx-open-api": {DataKind.ASSET_IDENTIFIER, DataKind.PRICE},
-        "opendart": {DataKind.ASSET_IDENTIFIER, DataKind.FILING},
+        "opendart": {
+            DataKind.ASSET_IDENTIFIER,
+            DataKind.FILING,
+            DataKind.FINANCIAL_FACT,
+        },
         "tiingo-eod": {DataKind.PRICE, DataKind.CORPORATE_ACTION},
+        "gdelt-doc": {DataKind.NEWS},
     }
 
     for source_id, required_data_kinds in expected.items():

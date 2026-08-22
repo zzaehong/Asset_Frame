@@ -90,6 +90,26 @@ Tiingo metadata에는 자산 유형과 통화가 없으므로 `--asset-type`은 
 `equity` 또는 `etf`로 지정합니다. 이 경로는 미국 자산만 대상으로 하며 통화는 USD로 저장합니다.
 OHLCV는 raw 값, `adjusted_close`는 Tiingo의 CRSP 방식 배당·분할 조정 종가입니다.
 
+SEC Company Facts와 OpenDART 전체 재무제표 API에서는
+`config/financial-facts.toml`에 명시한 주요 계정만 canonical fact로 저장합니다.
+
+```bash
+uv run asset-frame collect-sec-facts --cik 0000320193 --asset-id <asset-uuid>
+uv run asset-frame collect-opendart-facts \
+  --corp-code 00126380 --asset-id <asset-uuid> \
+  --business-year 2025 --report-code 11011 --fs-div CFS
+```
+
+키가 필요 없는 GDELT DOC 2.0에서는 최근 뉴스의 제목·URL·매체·언어·국가·시각만 수집합니다.
+기사 본문과 장기 뉴스 원문은 저장하지 않습니다.
+
+```bash
+uv run asset-frame collect-gdelt-news \
+  --asset-id <asset-uuid> --query '"Apple Inc"' \
+  --start-at 2026-08-20T00:00:00+00:00 \
+  --end-at 2026-08-21T00:00:00+00:00 --max-records 75
+```
+
 수집 상태는 공급원과 데이터 종류별 마지막 성공시각을 기준으로 확인합니다. stale 임계값은
 숨은 기본값을 사용하지 않고 호출자가 시간 단위로 지정합니다.
 
@@ -207,14 +227,21 @@ Docker가 준비된 환경에서는 다음 명령으로 PostgreSQL과 초기 스
 docker compose up -d --wait
 ```
 
-PostgreSQL schema는 `db/init/001_core.sql`부터 번호 순서대로 적용하며, 공급원 설정은
-`config/sources.toml`에 있습니다.
+PostgreSQL schema는 `db/init/001_core.sql`부터 번호 순서대로 적용합니다. 기존 Docker
+볼륨에는 데이터를 보존하는 migration 명령을 사용합니다.
+
+```bash
+uv run asset-frame migrate-database
+```
+
+공급원 설정은 `config/sources.toml`에 있습니다.
 
 ## 현재 제한
 
 - ECOS·FRED connector는 아직 구현하지 않았습니다.
 - KRX 가격은 수정주가가 아닌 거래소 원가격으로 저장합니다.
-- 현재 구현된 connector와 CLI는 SEC EDGAR submissions, KRX 종목·가격, OpenDART 공시목록 및 Tiingo 미국 EOD 수집 경로입니다.
+- 현재 구현된 connector와 CLI는 SEC EDGAR submissions·Company Facts, KRX 종목·가격,
+  OpenDART 공시목록·주요 재무사실, Tiingo 미국 EOD와 GDELT 최근 뉴스 메타데이터입니다.
 - 규제기관 식별자 매핑은 ticker의 대소문자를 정규화한 정확 일치만 사용합니다. 서로 다른
   표기나 우선주 등 공식 목록에서 일치하지 않는 ticker는 추정하지 않고 누락으로 보고합니다.
 - Data Spike manifest의 종목 선정은 초기 운영 표본이며, 상장폐지·저유동성 사례 포함 여부는

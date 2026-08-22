@@ -1,0 +1,20 @@
+schema_version = 1
+policy_id = "major-financial-facts-v1"
+
+sec_concepts = [
+    "Assets", "Liabilities", "StockholdersEquity",
+    "CashAndCashEquivalentsAtCarryingValue", "Revenues", "SalesRevenueNet",
+    "RevenueFromContractWithCustomerExcludingAssessedTax", "OperatingIncomeLoss",
+    "NetIncomeLoss", "NetCashProvidedByUsedInOperatingActivities",
+    "PaymentsToAcquirePropertyPlantAndEquipment", "CommonStockSharesOutstanding",
+    "EarningsPerShareDiluted", "PaymentsOfDividends",
+]
+
+opendart_concepts = [
+    "ifrs-full_Assets", "ifrs-full_Liabilities", "ifrs-full_Equity",
+    "ifrs-full_CashAndCashEquivalents", "ifrs-full_Revenue",
+    "ifrs-full_OperatingProfitLoss", "ifrs-full_ProfitLoss",
+    "ifrs-full_CashFlowsFromUsedInOperatingActivities",
+    "ifrs-full_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+    "dart_OperatingIncomeLoss",
+]

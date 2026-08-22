@@ -42,6 +42,7 @@ class DataKind(StrEnum):
     FILING = "filing"
     ETF_HOLDING = "etf_holding"
     MACRO = "macro"
+    NEWS = "news"
 
 
 class IngestionStatus(StrEnum):
@@ -235,6 +236,22 @@ class MacroObservation:
     published_at: datetime | None
     revised_at: datetime | None
     fetched_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class NewsArticleMention:
+    asset_id: UUID
+    source_id: str
+    raw_snapshot_id: UUID
+    article_url: str
+    title: str
+    source_domain: str | None
+    language: str | None
+    source_country: str | None
+    published_at: datetime
+    fetched_at: datetime
+    matched_query: str
+    id: UUID = field(default_factory=uuid4)
 
 
 @dataclass(frozen=True, slots=True)

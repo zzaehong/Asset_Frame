@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from datetime import datetime
+from hashlib import sha256
 from uuid import UUID
 
 from psycopg import Connection
@@ -14,7 +16,9 @@ from asset_frame.domain.models import (
     AssetType,
     CorporateAction,
     FilingDocument,
+    FinancialFact,
     IdentifierType,
+    NewsArticleMention,
     PriceObservation,
     QuarantinedPrice,
     RawSnapshot,
@@ -428,6 +432,88 @@ class PostgresIngestionRepository:
                 ],
             )
 
+    def save_financial_facts(self, facts: tuple[FinancialFact, ...]) -> None:
+        if not facts:
+            return
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO financial_facts (
+                    asset_id, source_id, raw_snapshot_id, taxonomy, concept, unit, value,
+                    period_start, period_end, filed_at, published_at, revised_at,
+                    accession_number, dimensions, fact_key
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (source_id, asset_id, fact_key)
+                    WHERE fact_key IS NOT NULL DO NOTHING
+                """,
+                [
+                    (
+                        fact.asset_id,
+                        fact.source_id,
+                        fact.raw_snapshot_id,
+                        fact.taxonomy,
+                        fact.concept,
+                        fact.unit,
+                        fact.value,
+                        fact.period_start,
+                        fact.period_end,
+                        fact.filed_at,
+                        fact.published_at,
+                        fact.revised_at,
+                        fact.accession_number,
+                        Jsonb(fact.dimensions),
+                        _financial_fact_key(fact),
+                    )
+                    for fact in facts
+                ],
+            )
+
+    def save_news_mentions(self, mentions: tuple[NewsArticleMention, ...]) -> None:
+        if not mentions:
+            return
+        with self._connection_factory() as connection, connection.cursor() as cursor:
+            for mention in mentions:
+                cursor.execute(
+                    """
+                    INSERT INTO news_articles (
+                        news_article_id, source_id, raw_snapshot_id, article_url, title,
+                        source_domain, language, source_country, published_at, fetched_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (source_id, article_url) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        source_domain = EXCLUDED.source_domain,
+                        language = EXCLUDED.language,
+                        source_country = EXCLUDED.source_country,
+                        published_at = EXCLUDED.published_at,
+                        fetched_at = EXCLUDED.fetched_at
+                    RETURNING news_article_id
+                    """,
+                    (
+                        mention.id,
+                        mention.source_id,
+                        mention.raw_snapshot_id,
+                        mention.article_url,
+                        mention.title,
+                        mention.source_domain,
+                        mention.language,
+                        mention.source_country,
+                        mention.published_at,
+                        mention.fetched_at,
+                    ),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    raise RuntimeError("failed to save news article")
+                cursor.execute(
+                    """
+                    INSERT INTO news_asset_mentions (news_article_id, asset_id, matched_query)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (news_article_id, asset_id) DO UPDATE SET
+                        matched_query = EXCLUDED.matched_query
+                    """,
+                    (row[0], mention.asset_id, mention.matched_query),
+                )
+
     def save_quarantined_prices(self, prices: tuple[QuarantinedPrice, ...]) -> None:
         if not prices:
             return
@@ -448,3 +534,18 @@ class PostgresIngestionRepository:
                     for item in prices
                 ],
             )
+
+
+def _financial_fact_key(fact: FinancialFact) -> str:
+    values = (
+        fact.taxonomy,
+        fact.concept,
+        fact.unit,
+        str(fact.value),
+        str(fact.period_start),
+        str(fact.period_end),
+        fact.filed_at.isoformat(),
+        fact.accession_number or "",
+        json.dumps(fact.dimensions, sort_keys=True, separators=(",", ":")),
+    )
+    return sha256("\x1f".join(values).encode()).hexdigest()

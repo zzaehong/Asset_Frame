@@ -32,9 +32,9 @@ def test_postgres_batch_job_can_resume_failed_items() -> None:
         source_id=source.id,
         job_type="liquidity_discovery",
         country_code="US",
-        as_of_date=date(2026, 8, 21),
-        start_date=date(2026, 5, 23),
-        end_date=date(2026, 8, 21),
+        as_of_date=date(2099, 8, 21),
+        start_date=date(2099, 5, 23),
+        end_date=date(2099, 8, 21),
         items=(
             MarketDataJobItem("AAPL", AssetType.EQUITY, "NASDAQ"),
             MarketDataJobItem("SPY", AssetType.ETF, "NYSE ARCA"),

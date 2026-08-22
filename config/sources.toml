@@ -32,7 +32,7 @@ authority = "Financial Supervisory Service"
 authority_type = "regulator"
 access_method = "official_api"
 role = "primary"
-data_kinds = ["asset_identifier", "filing"]
+data_kinds = ["asset_identifier", "filing", "financial_fact"]
 documentation_url = "https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&apiId=2019001"
 terms_url = "https://opendart.fss.or.kr/intro/terms2.do"
 verification_url = "https://dart.fss.or.kr/"
@@ -77,3 +77,16 @@ terms_url = "https://fred.stlouisfed.org/legal/"
 verification_url = "https://fred.stlouisfed.org/"
 enabled = false
 implementation_status = "planned"
+
+[[sources]]
+id = "gdelt-doc"
+authority = "The GDELT Project"
+authority_type = "documented_provider"
+access_method = "official_api"
+role = "primary"
+data_kinds = ["news"]
+documentation_url = "https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/"
+terms_url = "https://www.gdeltproject.org/about.html"
+verification_url = "https://api.gdeltproject.org/api/v2/doc/doc"
+enabled = true
+implementation_status = "available"

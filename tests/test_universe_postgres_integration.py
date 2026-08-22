@@ -41,7 +41,7 @@ def test_postgres_selects_and_saves_analysis_universe() -> None:
     ingestion.upsert_source(source)
     asset_ids = (uuid4(), uuid4())
     snapshot_id = uuid4()
-    as_of = date(2026, 8, 21)
+    as_of = date(1900, 1, 2)
     fetched_at = datetime(2026, 8, 21, tzinfo=UTC)
     ingestion.upsert_assets(
         tuple(

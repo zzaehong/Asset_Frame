@@ -4,7 +4,8 @@ import io
 import json
 import zipfile
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 from urllib.parse import urlencode
 from uuid import UUID
@@ -13,6 +14,7 @@ from xml.etree import ElementTree
 from asset_frame.domain.models import (
     FetchRequest,
     FilingDocument,
+    FinancialFact,
     IdentifierType,
     RawSnapshot,
     RegulatoryIdentifierRecord,
@@ -22,6 +24,13 @@ OPENDART_SOURCE_ID = "opendart"
 OPENDART_LIST_URL = "https://opendart.fss.or.kr/api/list.json"
 OPENDART_VIEWER_URL = "https://dart.fss.or.kr/dsaf001/main.do"
 OPENDART_CORP_CODE_URL = "https://opendart.fss.or.kr/api/corpCode.xml"
+OPENDART_FINANCIALS_URL = "https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json"
+_REPORT_PERIOD_END = {
+    "11013": (3, 31),
+    "11012": (6, 30),
+    "11014": (9, 30),
+    "11011": (12, 31),
+}
 
 
 class OpenDartPayloadError(ValueError):
@@ -74,6 +83,115 @@ def build_corp_code_request(api_key: str) -> FetchRequest:
         url=f"{OPENDART_CORP_CODE_URL}?{urlencode({'crtfc_key': api_key})}",
         headers={"Accept": "application/zip"},
     )
+
+
+def build_financial_facts_request(
+    *, api_key: str, corp_code: str, business_year: int, report_code: str, fs_div: str
+) -> FetchRequest:
+    if not api_key.strip():
+        raise ValueError("OpenDART API key is required")
+    if not corp_code.isascii() or not corp_code.isdigit() or len(corp_code) != 8:
+        raise ValueError("OpenDART corp_code must contain exactly 8 ASCII digits")
+    if business_year < 2015 or business_year > date.today().year:
+        raise ValueError("OpenDART business year is outside the supported range")
+    if report_code not in _REPORT_PERIOD_END:
+        raise ValueError("OpenDART report code is unsupported")
+    if fs_div not in {"CFS", "OFS"}:
+        raise ValueError("OpenDART fs_div must be CFS or OFS")
+    query = urlencode(
+        {
+            "crtfc_key": api_key,
+            "corp_code": corp_code,
+            "bsns_year": business_year,
+            "reprt_code": report_code,
+            "fs_div": fs_div,
+        }
+    )
+    return FetchRequest(
+        url=f"{OPENDART_FINANCIALS_URL}?{query}",
+        headers={"Accept": "application/json"},
+    )
+
+
+def parse_financial_facts(
+    body: bytes,
+    *,
+    asset_id: UUID,
+    snapshot: RawSnapshot,
+    expected_corp_code: str,
+    business_year: int,
+    report_code: str,
+    fs_div: str,
+    allowed_concepts: frozenset[str],
+) -> tuple[FinancialFact, ...]:
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise OpenDartPayloadError("invalid OpenDART financial facts payload") from error
+    if payload.get("status") == "013":
+        return ()
+    if payload.get("status") != "000" or not isinstance(payload.get("list"), list):
+        raise OpenDartPayloadError(
+            f"OpenDART financial facts API error {payload.get('status')}: {payload.get('message')}"
+        )
+    month, day = _REPORT_PERIOD_END[report_code]
+    period_end = date(business_year, month, day)
+    facts = []
+    for row in payload["list"]:
+        if not isinstance(row, dict) or row.get("corp_code") != expected_corp_code:
+            raise OpenDartPayloadError("OpenDART financial fact corp_code does not match request")
+        concept = _required_string(row, "account_id")
+        if concept not in allowed_concepts:
+            continue
+        amount = _dart_amount(row.get("thstrm_amount"))
+        if amount is None:
+            continue
+        receipt_number = _required_string(row, "rcept_no")
+        try:
+            filed_date = date(
+                int(receipt_number[:4]), int(receipt_number[4:6]), int(receipt_number[6:8])
+            )
+        except (ValueError, IndexError) as error:
+            raise OpenDartPayloadError(
+                "OpenDART financial fact receipt number is invalid"
+            ) from error
+        facts.append(
+            FinancialFact(
+                asset_id=asset_id,
+                source_id=OPENDART_SOURCE_ID,
+                raw_snapshot_id=snapshot.id,
+                taxonomy="dart-ifrs",
+                concept=concept,
+                unit=_optional_string(row, "currency") or "KRW",
+                value=amount,
+                period_start=None if row.get("sj_div") == "BS" else date(business_year, 1, 1),
+                period_end=period_end,
+                filed_at=datetime.combine(filed_date, datetime.min.time(), UTC),
+                published_at=None,
+                revised_at=None,
+                accession_number=receipt_number,
+                dimensions={
+                    "fs_div": fs_div,
+                    "statement": str(row.get("sj_div", "")),
+                    "report_code": report_code,
+                    "business_year": str(business_year),
+                    "account_name": str(row.get("account_nm", "")),
+                },
+            )
+        )
+    return tuple(facts)
+
+
+def _dart_amount(value: object) -> Decimal | None:
+    if value in (None, "", "-"):
+        return None
+    try:
+        normalized = str(value).replace(",", "").strip()
+        if normalized.startswith("(") and normalized.endswith(")"):
+            normalized = f"-{normalized[1:-1]}"
+        return Decimal(normalized)
+    except InvalidOperation as error:
+        raise OpenDartPayloadError("OpenDART financial fact amount is invalid") from error
 
 
 def parse_corp_code_archive(body: bytes) -> tuple[RegulatoryIdentifierRecord, ...]:

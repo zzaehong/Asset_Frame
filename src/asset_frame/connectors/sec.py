@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import UTC, date, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
 from asset_frame.domain.models import (
     FetchRequest,
     FilingDocument,
+    FinancialFact,
     IdentifierType,
     RawSnapshot,
     RegulatoryIdentifierRecord,
@@ -18,6 +20,7 @@ SEC_SUBMISSIONS_BASE_URL = "https://data.sec.gov/submissions"
 SEC_ARCHIVES_BASE_URL = "https://www.sec.gov/Archives/edgar/data"
 SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
 SEC_MUTUAL_FUND_TICKERS_URL = "https://www.sec.gov/files/company_tickers_mf.json"
+SEC_COMPANY_FACTS_BASE_URL = "https://data.sec.gov/api/xbrl/companyfacts"
 
 
 class SecPayloadError(ValueError):
@@ -49,6 +52,98 @@ def build_mutual_fund_ticker_mapping_request(user_agent: str) -> FetchRequest:
     return FetchRequest(
         url=SEC_MUTUAL_FUND_TICKERS_URL,
         headers={"Accept": "application/json", "User-Agent": user_agent},
+    )
+
+
+def build_company_facts_request(cik: str, user_agent: str) -> FetchRequest:
+    if not user_agent.strip():
+        raise ValueError("SEC User-Agent is required")
+    return FetchRequest(
+        url=f"{SEC_COMPANY_FACTS_BASE_URL}/CIK{normalize_cik(cik)}.json",
+        headers={"Accept": "application/json", "User-Agent": user_agent},
+    )
+
+
+def parse_company_facts(
+    body: bytes,
+    *,
+    asset_id: UUID,
+    snapshot: RawSnapshot,
+    expected_cik: str,
+    allowed_concepts: frozenset[str],
+) -> tuple[FinancialFact, ...]:
+    try:
+        payload = json.loads(body)
+        cik = normalize_cik(str(payload["cik"]))
+        taxonomies = payload["facts"]
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+        raise SecPayloadError("invalid SEC company facts payload") from error
+    if cik != normalize_cik(expected_cik) or not isinstance(taxonomies, dict):
+        raise SecPayloadError("SEC company facts CIK or facts do not match request")
+    facts = []
+    for taxonomy, concepts in taxonomies.items():
+        if not isinstance(taxonomy, str) or not isinstance(concepts, dict):
+            raise SecPayloadError("SEC company facts taxonomy is invalid")
+        for concept, definition in concepts.items():
+            if concept not in allowed_concepts:
+                continue
+            if not isinstance(definition, dict) or not isinstance(definition.get("units"), dict):
+                raise SecPayloadError("SEC company fact definition is invalid")
+            for unit, observations in definition["units"].items():
+                if not isinstance(unit, str) or not isinstance(observations, list):
+                    raise SecPayloadError("SEC company fact units are invalid")
+                for row in observations:
+                    fact = _sec_fact(row, asset_id, snapshot, taxonomy, concept, unit)
+                    if fact is not None:
+                        facts.append(fact)
+    return tuple(facts)
+
+
+def _sec_fact(
+    row: object,
+    asset_id: UUID,
+    snapshot: RawSnapshot,
+    taxonomy: str,
+    concept: str,
+    unit: str,
+) -> FinancialFact | None:
+    if not isinstance(row, dict):
+        raise SecPayloadError("SEC company fact observation is invalid")
+    form = row.get("form")
+    if not isinstance(form, str) or form.upper().removesuffix("/A") not in {
+        "10-K",
+        "10-Q",
+        "20-F",
+        "40-F",
+        "8-K",
+        "6-K",
+    }:
+        return None
+    try:
+        value = Decimal(str(row["val"]))
+        period_end = date.fromisoformat(row["end"])
+        period_start = date.fromisoformat(row["start"]) if row.get("start") else None
+        filed_at = datetime.combine(date.fromisoformat(row["filed"]), datetime.min.time(), UTC)
+    except (KeyError, TypeError, ValueError, InvalidOperation) as error:
+        raise SecPayloadError("SEC company fact observation fields are invalid") from error
+    dimensions = {
+        name: str(row[name]) for name in ("fy", "fp", "form", "frame") if row.get(name) is not None
+    }
+    return FinancialFact(
+        asset_id=asset_id,
+        source_id=SEC_SOURCE_ID,
+        raw_snapshot_id=snapshot.id,
+        taxonomy=taxonomy,
+        concept=concept,
+        unit=unit,
+        value=value,
+        period_start=period_start,
+        period_end=period_end,
+        filed_at=filed_at,
+        published_at=None,
+        revised_at=None,
+        accession_number=str(row["accn"]) if row.get("accn") else None,
+        dimensions=dimensions,
     )
 
 

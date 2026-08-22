@@ -18,6 +18,10 @@ from asset_frame.ingestion.data_spike import (
 )
 from asset_frame.ingestion.environment import ENVIRONMENT_REQUIREMENTS
 from asset_frame.ingestion.freshness import evaluate_freshness
+from asset_frame.ingestion.fundamentals_service import (
+    OpenDartFinancialFactsCollector,
+    SecCompanyFactsCollector,
+)
 from asset_frame.ingestion.identifier_service import (
     IdentifierMappingResult,
     RegulatoryIdentifierCollector,
@@ -25,6 +29,7 @@ from asset_frame.ingestion.identifier_service import (
 from asset_frame.ingestion.krx_batch import KrxMarketBatchService
 from asset_frame.ingestion.krx_service import KrxCollector
 from asset_frame.ingestion.market_batch import TiingoMarketBatchService, five_year_start
+from asset_frame.ingestion.news_service import GdeltNewsCollector
 from asset_frame.ingestion.opendart_service import OpenDartDisclosureCollector
 from asset_frame.ingestion.service import SecSubmissionsCollector
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
@@ -51,6 +56,12 @@ def main() -> None:
         "collect-sec-identifiers", help="map existing US ticker assets to SEC CIKs"
     )
     sec_ids_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    sec_facts_parser = subparsers.add_parser(
+        "collect-sec-facts", help="collect selected SEC company facts"
+    )
+    sec_facts_parser.add_argument("--cik", required=True)
+    sec_facts_parser.add_argument("--asset-id", required=True, type=UUID)
+    sec_facts_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
     krx_parser = subparsers.add_parser("collect-krx", help="collect an approved KRX dataset")
     krx_parser.add_argument(
         "--dataset", required=True, choices=[item.name.lower() for item in KrxDataset]
@@ -68,6 +79,26 @@ def main() -> None:
         help="map existing Korean ticker assets to OpenDART corp codes",
     )
     dart_ids_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    dart_facts_parser = subparsers.add_parser(
+        "collect-opendart-facts", help="collect selected OpenDART financial facts"
+    )
+    dart_facts_parser.add_argument("--corp-code", required=True)
+    dart_facts_parser.add_argument("--asset-id", required=True, type=UUID)
+    dart_facts_parser.add_argument("--business-year", required=True, type=int)
+    dart_facts_parser.add_argument(
+        "--report-code", required=True, choices=("11011", "11012", "11013", "11014")
+    )
+    dart_facts_parser.add_argument("--fs-div", choices=("CFS", "OFS"), default="CFS")
+    dart_facts_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
+    gdelt_parser = subparsers.add_parser(
+        "collect-gdelt-news", help="collect recent GDELT article metadata without article bodies"
+    )
+    gdelt_parser.add_argument("--asset-id", required=True, type=UUID)
+    gdelt_parser.add_argument("--query", required=True)
+    gdelt_parser.add_argument("--start-at", required=True, type=datetime.fromisoformat)
+    gdelt_parser.add_argument("--end-at", required=True, type=datetime.fromisoformat)
+    gdelt_parser.add_argument("--max-records", type=int, default=75)
+    gdelt_parser.add_argument("--raw-store", type=Path, default=Path("var/raw"))
     tiingo_parser = subparsers.add_parser(
         "collect-tiingo", help="collect Tiingo metadata and EOD prices"
     )
@@ -159,6 +190,8 @@ def main() -> None:
         _collect_sec(arguments.cik, arguments.asset_id, arguments.raw_store)
     elif arguments.command == "collect-sec-identifiers":
         _collect_sec_identifiers(arguments.raw_store)
+    elif arguments.command == "collect-sec-facts":
+        _collect_sec_facts(arguments.cik, arguments.asset_id, arguments.raw_store)
     elif arguments.command == "collect-krx":
         _collect_krx(arguments.dataset, arguments.date, arguments.raw_store)
     elif arguments.command == "collect-opendart":
@@ -171,6 +204,24 @@ def main() -> None:
         )
     elif arguments.command == "collect-opendart-identifiers":
         _collect_opendart_identifiers(arguments.raw_store)
+    elif arguments.command == "collect-opendart-facts":
+        _collect_opendart_facts(
+            arguments.corp_code,
+            arguments.asset_id,
+            arguments.business_year,
+            arguments.report_code,
+            arguments.fs_div,
+            arguments.raw_store,
+        )
+    elif arguments.command == "collect-gdelt-news":
+        _collect_gdelt_news(
+            arguments.asset_id,
+            arguments.query,
+            arguments.start_at,
+            arguments.end_at,
+            arguments.max_records,
+            arguments.raw_store,
+        )
     elif arguments.command == "collect-tiingo":
         _collect_tiingo(
             arguments.ticker,
@@ -255,6 +306,101 @@ def _required_environment(name: str) -> str:
     if not value:
         raise SystemExit(f"required environment variable is missing: {name}")
     return value
+
+
+def _collect_sec_facts(cik: str, asset_id: UUID, raw_store_path: Path) -> None:
+    database_url = _required_environment("DATABASE_URL")
+    user_agent = _required_environment("SEC_USER_AGENT")
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "sec-edgar-submissions"
+    )
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    facts = SecCompanyFactsCollector(
+        source=source,
+        transport=UrllibHttpTransport(),
+        raw_store=FileRawStore(raw_store_path),
+        repository=PostgresIngestionRepository(connection_factory),
+    ).collect(cik=cik, asset_id=asset_id, user_agent=user_agent)
+    print(f"collected {len(facts)} selected SEC financial facts for asset {asset_id}")
+
+
+def _collect_opendart_facts(
+    corp_code: str,
+    asset_id: UUID,
+    business_year: int,
+    report_code: str,
+    fs_div: str,
+    raw_store_path: Path,
+) -> None:
+    database_url = _required_environment("DATABASE_URL")
+    api_key = _required_environment("OPENDART_API_KEY")
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "opendart"
+    )
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    facts = OpenDartFinancialFactsCollector(
+        source=source,
+        transport=UrllibHttpTransport(),
+        raw_store=FileRawStore(raw_store_path),
+        repository=PostgresIngestionRepository(connection_factory),
+    ).collect(
+        api_key=api_key,
+        corp_code=corp_code,
+        asset_id=asset_id,
+        business_year=business_year,
+        report_code=report_code,
+        fs_div=fs_div,
+    )
+    print(f"collected {len(facts)} selected OpenDART financial facts for asset {asset_id}")
+
+
+def _collect_gdelt_news(
+    asset_id: UUID,
+    query: str,
+    start_at: datetime,
+    end_at: datetime,
+    max_records: int,
+    raw_store_path: Path,
+) -> None:
+    database_url = _required_environment("DATABASE_URL")
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "gdelt-doc"
+    )
+
+    @contextmanager
+    def connection_factory():  # type: ignore[no-untyped-def]
+        with psycopg.connect(database_url) as connection:
+            yield connection
+
+    mentions = GdeltNewsCollector(
+        source=source,
+        transport=UrllibHttpTransport(),
+        raw_store=FileRawStore(raw_store_path),
+        repository=PostgresIngestionRepository(connection_factory),
+    ).collect(
+        asset_id=asset_id,
+        query=query,
+        start_at=start_at,
+        end_at=end_at,
+        max_records=max_records,
+    )
+    print(f"collected {len(mentions)} GDELT news metadata rows for asset {asset_id}")
 
 
 def _collect_krx(dataset_name: str, business_date: date, raw_store_path: Path) -> None:
@@ -716,7 +862,7 @@ def _show_environment_status() -> None:
             f"capability={requirement.capability}"
         )
     print(
-        "variables=GDELT phase=planned configured=not_required "
+        "variables=GDELT phase=current configured=not_required "
         "capability=recent global news metadata"
     )
 

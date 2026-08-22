@@ -9,7 +9,9 @@ from asset_frame.domain.models import (
     AssetIdentifier,
     CorporateAction,
     FilingDocument,
+    FinancialFact,
     IdentifierType,
+    NewsArticleMention,
     PriceObservation,
     QuarantinedPrice,
     RawSnapshot,
@@ -55,6 +57,10 @@ class IngestionRepository(Protocol):
 
     def save_corporate_actions(self, actions: tuple[CorporateAction, ...]) -> None: ...
 
+    def save_financial_facts(self, facts: tuple[FinancialFact, ...]) -> None: ...
+
+    def save_news_mentions(self, mentions: tuple[NewsArticleMention, ...]) -> None: ...
+
     def save_quarantined_prices(self, prices: tuple[QuarantinedPrice, ...]) -> None: ...
 
 
@@ -68,6 +74,8 @@ class MemoryIngestionRepository:
         self.identifiers: set[AssetIdentifier] = set()
         self.prices: list[PriceObservation] = []
         self.corporate_actions: list[CorporateAction] = []
+        self.financial_facts: list[FinancialFact] = []
+        self.news_mentions: list[NewsArticleMention] = []
         self.quarantined_prices: list[QuarantinedPrice] = []
 
     def upsert_source(self, source: SourceDefinition) -> None:
@@ -172,6 +180,12 @@ class MemoryIngestionRepository:
 
     def save_corporate_actions(self, actions: tuple[CorporateAction, ...]) -> None:
         self.corporate_actions.extend(actions)
+
+    def save_financial_facts(self, facts: tuple[FinancialFact, ...]) -> None:
+        self.financial_facts.extend(facts)
+
+    def save_news_mentions(self, mentions: tuple[NewsArticleMention, ...]) -> None:
+        self.news_mentions.extend(mentions)
 
     def save_quarantined_prices(self, prices: tuple[QuarantinedPrice, ...]) -> None:
         self.quarantined_prices.extend(prices)
