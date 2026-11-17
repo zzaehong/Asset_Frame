@@ -2,11 +2,11 @@
 
 ## 1. Project Overview
 
-이 프로젝트는 한국·미국 주식과 ETF를 대상으로 하는 개인용 투자 의사결정 지원 도구다.
+이 프로젝트는 세계 거시경제(성장·물가·신용·유동성)를 읽고, 그 결과로 개인 포트폴리오를 생성·리밸런싱·재구성하는 개인용 도구다. 사용자는 1명(저장소 소유자), 투자 대상은 미국·한국 상장 ETF 합계 10~20개다.
 
-목표는 수익을 예측하거나 매수·매도 결론을 대신 내리는 것이 아니다. 공식 원천에서 확인할 수 있는 사실과 재현 가능한 계산을 바탕으로 자산을 여러 관점에서 보여주고, 사용자가 위험·불확실성·판단 변경 조건을 인식하고 관리하도록 돕는다.
+마켓 타이밍은 "언제 오를지 예측"이 아니라 "국면 인식 → 위험 노출 조절"(추세추종·변동성 타기팅)이다.
 
-현재 구현 기준선은 `v0.1 Data & Risk Foundation`이다.
+현재 기준선은 `v0.2` 피벗([ADR-0004](docs/adr/0004-pivot-to-macro-portfolio.md))이다. 구현된 것은 데이터 층(Tiingo·KRX 가격 수집, SQLite 저장)뿐이다.
 
 ---
 
@@ -14,36 +14,44 @@
 
 변경 전 다음 문서를 순서대로 확인한다.
 
-1. `docs/PRD.md` — 제품 요구사항, 범위, 수용 기준
-2. `docs/PROJECT_OVERVIEW.md` — 현재 구조, 구현 상태, 다음 개발 순서
-3. `docs/adr/` — 이미 채택된 중요 기술·제품 결정과 근거
-4. `README.md` — 설치, 실행, 사용 방법
-5. `AGENTS.md` — AI agent의 개발 및 작업 규칙
+1. `PRD.md` — 제품 요구사항, 범위, 수용 기준, 다음 마일스톤
+2. `docs/adr/` — 이미 채택된 중요 기술·제품 결정과 근거
+3. `README.md` — 구현된 기능, 설치, 실행 방법, 로드맵
+4. `AGENTS.md` — AI agent의 개발 및 작업 규칙
 
 `docs/dependency-sources.toml`은 Python dependency와 주요 개발 도구의 공식 문서, 변경 이력, 공식 소스 저장소를 관리하는 기계 판독 가능한 registry다.
 
-`docs/PRD.md`는 제품 요구사항의 Source of Truth다. 중요한 설계 결정은 `docs/adr/`에 기록한다.
+`PRD.md`는 제품 요구사항의 Source of Truth다. 중요한 설계 결정은 `docs/adr/`에 기록한다.
 
 문서, 현재 구현, 사용자의 최신 지시 사이에 충돌이 있으면 임의로 하나를 선택하지 않는다. 충돌 위치와 영향을 설명하고 사용자에게 확인한다. 동일한 내용을 여러 문서에 중복 기록하지 않는다.
 
 ---
 
-## 3. Non-negotiable Product Principles
+## 3. Product Principles
 
-다음 원칙은 별도의 제품 결정 없이 변경하지 않는다.
+ADR-0004 기준이다. 다음 원칙은 별도의 ADR 없이 변경하지 않는다.
 
-- 이 제품은 투자 추천기가 아니라 위험 인식과 판단 기록을 돕는 도구다.
-- 매수·매도·보유 점수, 목표주가, 수익 보장 표현을 만들지 않는다.
+- 시스템은 목표 비중과 리밸런싱 제안을 출력할 수 있다.
+- 모든 출력에는 근거 지표, 데이터 기준시점, 계산 버전, 백테스트상 한계를 붙인다.
+- 실제 주문은 사용자가 한다. 자동매매를 만들지 않고 어떤 프로세스에도 주문 권한을 주지 않는다.
 - 자동 수집은 공식 API, 규제기관 벌크 데이터, 제공자가 명시적으로 배포한 공식 파일로 제한한다.
 - HTML 크롤링, 웹 스크래핑, 브라우저 자동화 수집, 비공식·역공학 API를 사용하지 않는다.
 - `yfinance`, `pykrx`, `FinanceDataReader` 등 비공식 금융 데이터 라이브러리를 사용하지 않는다.
 - 검증 URL은 사용자 확인용 링크이며 해당 페이지를 자동 수집하지 않는다.
-- 사용자가 보는 사실과 계산은 원천, 수집시각, 원본 해시, 계산 버전으로 추적 가능해야 한다.
+- 수치 계산은 결정론적 코드가 담당한다.
+- point-in-time: 저장된 관측값을 덮어쓰지 않고 새 버전을 추가한다. 거시 지표는 ALFRED vintage를 사용한다.
 - 공급원 충돌값은 평균하지 않고 `quarantined`로 격리한다.
-- 수치 계산은 결정론적 코드가 담당하고 AI는 허용된 문서의 의미 구조화만 담당한다.
-- AI 결과는 원문 URL과 근거 구간이 없으면 확정 사실로 취급하지 않고 `unknown`을 사용한다.
-- 사용자 투자정책에 대한 검사는 사용자가 명시한 한도만 사용한다. 숨은 임계치나 가중치를 추가하지 않는다.
-- 분석 규칙을 추가할 때 투자자산운용사 자격 체계의 근거, 제품상의 해석, 계산 공식을 함께 기록한다.
+- 백테스트 시도 횟수를 기록하고 Deflated Sharpe Ratio로 평가한다.
+
+### 범위 통제
+
+- 한 작업에서 새 데이터 소스나 새 계층은 하나만 추가한다.
+- 사용처가 없는 수집기·테이블은 만들지 않는다. 사용처가 같은 작업 안에 없으면 만들지 않는다.
+
+### 문서-코드 일치
+
+- README에 "구현됨"으로 적는 항목은 테스트로 확인된 것만 허용한다. 항목마다 확인하는 테스트 파일을 적는다.
+- 계획된 기능은 README의 "로드맵" 절에만 적는다.
 
 ---
 
@@ -56,10 +64,8 @@
 - Target Python: 3.13
 - Compatibility Python: 3.12
 - Package manager: `uv`
-- Container: Docker Desktop + WSL Integration, Docker Compose
 - Project layout: `src/` + `tests/`
-- API: FastAPI
-- Target canonical store: PostgreSQL
+- Canonical store: SQLite (표준 라이브러리 `sqlite3`, `DATABASE_PATH`)
 - Raw store: 불변 로컬 파일 스냅샷
 
 명령은 특별한 이유가 없으면 WSL의 프로젝트 루트에서 실행한다.
@@ -68,8 +74,6 @@
 - `.venv`는 `uv`로 관리한다.
 - dependency는 `pyproject.toml`, 정확한 해결 버전은 `uv.lock`으로 관리한다.
 - secret은 `.env` 또는 적절한 secret manager에서만 주입한다.
-- Docker가 필요한 검증은 먼저 `docker version`과 `docker compose version`으로 연결 상태를 확인한다.
-- 실행 환경에 Docker가 없다고 해서 사용자의 Docker 환경도 없다고 단정하지 않는다. 검증하지 못한 범위만 정확히 보고한다.
 
 기본 준비 명령:
 
@@ -108,8 +112,8 @@ uv sync --dev --frozen
    ```
 
 2. `rg --files`와 `rg`로 관련 문서, 코드, 테스트를 찾는다.
-3. `docs/PRD.md`의 관련 요구사항과 수용 기준을 확인한다.
-4. `docs/PROJECT_OVERVIEW.md`와 관련 ADR을 확인한다.
+3. `PRD.md`의 관련 요구사항과 수용 기준을 확인한다.
+4. 관련 ADR을 확인한다.
 5. 기존 테스트와 coding convention을 확인한다.
 6. dependency 작업이면 `pyproject.toml`, `uv.lock`, `docs/dependency-sources.toml`, 현재 dependency tree를 확인한다.
 
@@ -156,21 +160,13 @@ uv sync --dev --frozen
    uv run ruff format --check .
    ```
 
-4. 변경 범위에 따라 CLI/API smoke test를 실행한다.
+4. 변경 범위에 따라 CLI smoke test를 실행한다.
 
    ```bash
-   uv run investment-decision sources
-   uv run investment-decision risk --input examples/risk-analysis-input.json
+   uv run asset-frame sources
    ```
 
-5. Docker 구성을 변경했다면 가능한 환경에서 다음을 확인한다.
-
-   ```bash
-   docker compose config
-   docker compose up --build
-   ```
-
-6. 실행하지 못한 검증은 통과한 것처럼 표현하지 않고 이유와 남은 위험을 보고한다.
+5. 실행하지 못한 검증은 통과한 것처럼 표현하지 않고 이유와 남은 위험을 보고한다.
 
 ---
 
@@ -313,14 +309,7 @@ uv run ruff format --check .
 - 같은 입력, 파라미터, 계산 버전은 같은 결과를 반환해야 한다.
 - 사실, 계산 결과, 가정, 사용자 정책을 서로 다른 필드로 유지한다.
 - 적은 표본과 알려지지 않은 가격 기준 등 한계를 결과에 표시한다.
-- 기술지표를 보편적인 매수·매도 규칙으로 변환하지 않는다.
-
-### AI document analysis
-
-- 허용된 공시, IR, 공식 문서와 API가 제공한 뉴스 메타데이터만 사용한다.
-- JSON schema, 원문 URL, 근거 구간, 모델·프롬프트 버전을 기록한다.
-- AI에게 재무비율, 시장가격, 목표주가, 최종 결정을 계산하게 하지 않는다.
-- 모델이 표현한 자신감을 데이터 신뢰도로 사용하지 않는다.
+- 추세·변동성 신호는 위험 노출 조절에만 쓰고, 신호마다 근거 지표와 파라미터를 출력에 남긴다.
 
 ---
 
@@ -402,7 +391,7 @@ AI agent는 단순 코드 생성기가 아니라 비판적이고 객관적인 �
 ## 12. Documentation Rules
 
 - 기존 문서를 먼저 확인하고 중복 문서를 만들지 않는다.
-- 제품 요구사항 변경은 `docs/PRD.md`에 반영한다.
+- 제품 요구사항 변경은 `PRD.md`에 반영한다.
 - 중요 architecture와 trade-off 변경은 `docs/adr/`에 기록한다.
 - 설치·실행·사용 방법 변경은 `README.md`에 반영한다.
 - 프로젝트를 통해 얻은 일반 지식과 개인적 통찰을 프로젝트 문서에 섞지 않는다.
