@@ -315,35 +315,7 @@ uv run ruff format --check .
 
 ## 9. Git Rules
 
-commit은 논리적으로 의미 있는 작업 단위로 작성한다.
-
-예:
-
-```text
-feat: add SEC submissions ingestion
-fix: quarantine conflicting close prices
-refactor: isolate source policy validation
-test: add maximum drawdown edge cases
-docs: define dependency accuracy protocol
-```
-
-사용자의 명시적인 요청 없이 다음 작업을 수행하지 않는다.
-
-- `git push`
-- branch 삭제
-- history rewrite
-- force push
-- 기존 commit 수정
-
-다음 destructive command도 명시적인 요청 없이 실행하지 않는다.
-
-```bash
-git reset --hard
-git clean -fd
-git push --force
-```
-
-기존 작업 트리가 dirty하면 사용자의 변경을 보존한다. 관련 없는 변경을 되돌리거나 commit에 섞지 않는다.
+모든 Git 작업은 [`docs/git_flow.md`](docs/git_flow.md)를 따른다. 브랜치 전략, 한글 커밋 메시지, 병합 승인, push·PR 제한은 그 문서에만 기록한다.
 
 ---
 
