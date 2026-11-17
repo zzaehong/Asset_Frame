@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "asset-frame"
 version = "0.2.0"
-description = "Macro regime-aware personal ETF portfolio tool"
+description = "Personal investment tool: official-source price data foundation"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = []

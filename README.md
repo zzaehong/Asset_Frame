@@ -1,13 +1,8 @@
 # Asset_Frame
 
-세계 거시경제(성장·물가·신용·유동성)를 읽고, 그 결과로 개인 ETF 포트폴리오를 생성·리밸런싱·
-재구성하는 개인용 도구입니다. 대상은 미국·한국 상장 ETF 10~20개, 사용자는 1명입니다.
-
-마켓 타이밍은 "언제 오를지 예측"이 아니라 "국면 인식 → 위험 노출 조절"입니다. 시스템은 목표
-비중과 리밸런싱 제안을 내지만, 실제 주문은 사용자가 합니다(자동매매 없음).
-
-요구사항은 [PRD](PRD.md), 피벗 결정은 [ADR-0004](docs/adr/0004-pivot-to-macro-portfolio.md)에
-있습니다.
+1명(저장소 소유자)이 쓰는 개인용 투자 도구입니다. 제품 목표와 설계는 **재정의 중**이며,
+지금은 공식 원천의 ETF·주식 가격을 수집해 저장하는 데이터 층만 있습니다. 상태와 데이터 원칙은
+[PRD](PRD.md)에 있습니다.
 
 ## 구현됨
 
@@ -42,7 +37,7 @@ uv run asset-frame sources
 | `RAW_STORE_PATH` | 원본 응답 저장 경로 | `var/raw` |
 | `TIINGO_API_KEY` | `ingest-tiingo` | 없음(필수) |
 | `KRX_API_KEY` | `ingest-krx` | 없음(필수) |
-| `FRED_API_KEY`, `ECOS_API_KEY` | 거시 커넥터(계획) | 사용 안 함 |
+| `FRED_API_KEY`, `ECOS_API_KEY` | 현재 사용하는 코드 없음 | 사용 안 함 |
 
 환경변수는 셸에서 주입합니다. CLI는 `.env`를 자동으로 읽지 않습니다.
 
@@ -78,17 +73,6 @@ uv run pytest            # 네트워크·API 키 없이 실행됨
 uv run ruff check .
 uv run ruff format --check .
 ```
-
-## 로드맵
-
-아직 **구현되지 않은** 항목입니다. 순서와 수용 기준은 [PRD](PRD.md)에 있습니다.
-
-1. walking skeleton: FRED 시계열 5개 + ETF 6~8개 → 국면 판정 → 비중 → HTML 리포트(500줄 이내)
-2. FRED/ALFRED vintage 커넥터, ECOS 커넥터
-3. 거시 국면 엔진(성장·물가·신용·유동성)
-4. 포트폴리오 구성: 리스크 패리티/HRP + 국면·추세 기반 전술 조정, 변동성 타기팅
-5. 밴드 기준 리밸런싱(세금·비용·환율 반영)
-6. walk-forward 백테스트(시도 횟수 기록, Deflated Sharpe Ratio), 월간 HTML 리포트
 
 ## 제한
 
