@@ -4,15 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "asset-frame"
-version = "0.1.0"
-description = "Risk-first investment decision data foundation"
+version = "0.2.0"
+description = "Personal investment tool: official-source price data foundation"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
-dependencies = [
-    "fastapi>=0.141.1,<1",
-    "psycopg[binary]>=3.3,<4",
-    "uvicorn>=0.46,<0.47",
-]
+dependencies = []
 
 [project.scripts]
 asset-frame = "asset_frame.cli:main"

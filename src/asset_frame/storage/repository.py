@@ -8,7 +8,6 @@ from asset_frame.domain.models import (
     Asset,
     AssetIdentifier,
     CorporateAction,
-    FilingDocument,
     IdentifierType,
     PriceObservation,
     QuarantinedPrice,
@@ -33,11 +32,7 @@ class IngestionRepository(Protocol):
 
     def fail_ingestion_run(self, run_id: UUID, *, error_code: str, error_message: str) -> None: ...
 
-    def latest_successful_run(self, *, source_id: str, data_kind: str) -> datetime | None: ...
-
     def save_raw_snapshot(self, snapshot: RawSnapshot) -> None: ...
-
-    def save_filings(self, filings: tuple[FilingDocument, ...]) -> None: ...
 
     def upsert_assets(
         self, assets: tuple[Asset, ...], identifiers: tuple[AssetIdentifier, ...]
@@ -48,8 +43,6 @@ class IngestionRepository(Protocol):
     def list_asset_identifiers(
         self, *, country_code: str, identifier_type: IdentifierType
     ) -> tuple[AssetIdentifier, ...]: ...
-
-    def save_asset_identifiers(self, identifiers: tuple[AssetIdentifier, ...]) -> None: ...
 
     def save_prices(self, prices: tuple[PriceObservation, ...]) -> None: ...
 
@@ -63,7 +56,6 @@ class MemoryIngestionRepository:
         self.sources: dict[str, SourceDefinition] = {}
         self.ingestion_runs: dict[UUID, dict[str, object]] = {}
         self.snapshots: dict[object, RawSnapshot] = {}
-        self.filings: dict[tuple[str, str], FilingDocument] = {}
         self.assets: dict[object, Asset] = {}
         self.identifiers: set[AssetIdentifier] = set()
         self.prices: list[PriceObservation] = []
@@ -109,23 +101,8 @@ class MemoryIngestionRepository:
             error_message=error_message,
         )
 
-    def latest_successful_run(self, *, source_id: str, data_kind: str) -> datetime | None:
-        matches: list[datetime] = [
-            finished_at
-            for run in self.ingestion_runs.values()
-            if isinstance((finished_at := run.get("finished_at")), datetime)
-            if run["source_id"] == source_id
-            and run["data_kind"] == data_kind
-            and run["status"] == "succeeded"
-        ]
-        return max(matches, default=None)
-
     def save_raw_snapshot(self, snapshot: RawSnapshot) -> None:
         self.snapshots.setdefault(snapshot.id, snapshot)
-
-    def save_filings(self, filings: tuple[FilingDocument, ...]) -> None:
-        for filing in filings:
-            self.filings[(filing.source_id, filing.accession_number)] = filing
 
     def upsert_assets(
         self, assets: tuple[Asset, ...], identifiers: tuple[AssetIdentifier, ...]
@@ -147,25 +124,6 @@ class MemoryIngestionRepository:
             for identifier in self.identifiers
             if identifier.asset_id in asset_ids and identifier.identifier_type is identifier_type
         )
-
-    def save_asset_identifiers(self, identifiers: tuple[AssetIdentifier, ...]) -> None:
-        for identifier in identifiers:
-            for existing in self.identifiers:
-                if existing.valid_to is not None:
-                    continue
-                if (
-                    existing.identifier_type is identifier.identifier_type
-                    and existing.value == identifier.value
-                    and existing.asset_id != identifier.asset_id
-                ):
-                    raise ValueError("regulatory identifier is already assigned to another asset")
-                if (
-                    existing.asset_id == identifier.asset_id
-                    and existing.identifier_type is identifier.identifier_type
-                    and existing.value != identifier.value
-                ):
-                    raise ValueError("asset already has a different current regulatory identifier")
-            self.identifiers.add(identifier)
 
     def save_prices(self, prices: tuple[PriceObservation, ...]) -> None:
         self.prices.extend(prices)

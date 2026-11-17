@@ -1,19 +1,6 @@
 schema_version = 1
 
 [[sources]]
-id = "sec-edgar-submissions"
-authority = "U.S. Securities and Exchange Commission"
-authority_type = "regulator"
-access_method = "official_api"
-role = "primary"
-data_kinds = ["asset_identifier", "filing", "financial_fact"]
-documentation_url = "https://www.sec.gov/edgar/sec-api-documentation"
-terms_url = "https://www.sec.gov/about/privacy-information/sec-web-site-privacy-and-security-policy"
-verification_url = "https://www.sec.gov/edgar/search/"
-enabled = true
-implementation_status = "available"
-
-[[sources]]
 id = "krx-open-api"
 authority = "Korea Exchange"
 authority_type = "exchange"
@@ -27,25 +14,12 @@ enabled = true
 implementation_status = "available"
 
 [[sources]]
-id = "opendart"
-authority = "Financial Supervisory Service"
-authority_type = "regulator"
-access_method = "official_api"
-role = "primary"
-data_kinds = ["asset_identifier", "filing"]
-documentation_url = "https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&apiId=2019001"
-terms_url = "https://opendart.fss.or.kr/intro/terms2.do"
-verification_url = "https://dart.fss.or.kr/"
-enabled = true
-implementation_status = "available"
-
-[[sources]]
 id = "tiingo-eod"
 authority = "Tiingo"
 authority_type = "documented_provider"
 access_method = "official_api"
 role = "primary"
-data_kinds = ["price", "corporate_action"]
+data_kinds = ["asset_identifier", "price", "corporate_action"]
 documentation_url = "https://www.tiingo.com/documentation/end-of-day"
 terms_url = "https://www.tiingo.com/about/terms"
 verification_url = "https://www.tiingo.com/"

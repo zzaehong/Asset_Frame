@@ -99,6 +99,14 @@ def test_requests_use_official_endpoints_and_authorization_header() -> None:
     assert "secret" not in prices.url
     assert metadata.headers["Authorization"] == "Token secret"
 
+    with pytest.raises(ValueError, match="10 years"):
+        build_prices_request(
+            "AAPL",
+            api_key="secret",
+            start_date=date(2016, 8, 20),
+            end_date=date(2026, 8, 21),
+        )
+
 
 def test_metadata_requires_matching_ticker_and_explicit_asset_type() -> None:
     parsed = parse_metadata(metadata_body(), expected_ticker="AAPL", asset_type=AssetType.EQUITY)
@@ -201,6 +209,34 @@ def test_collector_saves_metadata_prices_actions_and_two_snapshots(tmp_path: Pat
     assert len(repository.prices) == 2
     assert len(repository.corporate_actions) == 2
     assert all("secret" not in item.request_url for item in repository.snapshots.values())
+
+
+def test_discovery_collection_skips_corporate_actions(tmp_path: Path) -> None:
+    source = next(
+        source
+        for source in load_source_registry(Path("config/sources.toml"))
+        if source.id == "tiingo-eod"
+    )
+    repository = MemoryIngestionRepository()
+    collector = TiingoEodCollector(
+        source=source,
+        transport=FakeTransport([metadata_body(), prices_body()]),
+        raw_store=FileRawStore(tmp_path),
+        repository=repository,
+    )
+
+    result = collector.collect(
+        ticker="AAPL",
+        asset_type=AssetType.EQUITY,
+        api_key="secret",
+        start_date=date(2026, 8, 19),
+        end_date=date(2026, 8, 20),
+        include_corporate_actions=False,
+    )
+
+    assert result.accepted_prices == 2
+    assert result.corporate_actions == 0
+    assert repository.corporate_actions == []
 
 
 def test_collector_quarantines_all_duplicate_dates_and_related_actions(tmp_path: Path) -> None:
