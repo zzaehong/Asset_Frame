@@ -1,4 +1,0 @@
-ALTER TABLE price_observations
-    ALTER COLUMN open SET NOT NULL,
-    ALTER COLUMN high SET NOT NULL,
-    ALTER COLUMN low SET NOT NULL;

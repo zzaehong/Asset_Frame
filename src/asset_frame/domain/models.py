@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 
 class AccessMethod(StrEnum):
@@ -38,11 +38,7 @@ class DataKind(StrEnum):
     ASSET_IDENTIFIER = "asset_identifier"
     PRICE = "price"
     CORPORATE_ACTION = "corporate_action"
-    FINANCIAL_FACT = "financial_fact"
-    FILING = "filing"
-    ETF_HOLDING = "etf_holding"
     MACRO = "macro"
-    NEWS = "news"
 
 
 class IngestionStatus(StrEnum):
@@ -64,8 +60,6 @@ class AssetType(StrEnum):
 class IdentifierType(StrEnum):
     TICKER = "ticker"
     ISIN = "isin"
-    CIK = "cik"
-    DART_CORP_CODE = "dart_corp_code"
     EXCHANGE_CODE = "exchange_code"
 
 
@@ -132,32 +126,6 @@ class AssetIdentifier:
 
 
 @dataclass(frozen=True, slots=True)
-class RegulatoryIdentifierRecord:
-    ticker: str
-    name: str | None
-    identifier_type: IdentifierType
-    identifier_value: str
-    exchange_code: str | None = None
-    modified_at: date | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class FilingDocument:
-    asset_id: UUID
-    source_id: str
-    raw_snapshot_id: UUID
-    accession_number: str
-    form_type: str
-    filed_at: date
-    published_at: datetime | None
-    report_period: date | None
-    primary_document: str | None
-    document_url: str
-    metadata: dict[str, Any] = field(default_factory=dict)
-    id: UUID = field(default_factory=uuid4)
-
-
-@dataclass(frozen=True, slots=True)
 class PriceObservation:
     asset_id: UUID
     source_id: str
@@ -188,70 +156,6 @@ class CorporateAction:
     ratio_numerator: Decimal | None = None
     ratio_denominator: Decimal | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
-class FinancialFact:
-    asset_id: UUID
-    source_id: str
-    raw_snapshot_id: UUID
-    taxonomy: str
-    concept: str
-    unit: str
-    value: Decimal
-    period_start: date | None
-    period_end: date
-    filed_at: datetime
-    published_at: datetime | None
-    revised_at: datetime | None
-    accession_number: str | None
-    dimensions: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
-class EtfHolding:
-    etf_asset_id: UUID
-    component_asset_id: UUID | None
-    source_id: str
-    raw_snapshot_id: UUID
-    as_of_date: date
-    component_name: str
-    component_identifier: str | None
-    weight: Decimal | None
-    quantity: Decimal | None
-    market_value: Decimal | None
-    currency: str | None
-    published_at: datetime | None
-
-
-@dataclass(frozen=True, slots=True)
-class MacroObservation:
-    source_id: str
-    raw_snapshot_id: UUID
-    series_id: str
-    observation_date: date
-    value: Decimal | None
-    unit: str
-    frequency: str
-    published_at: datetime | None
-    revised_at: datetime | None
-    fetched_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
-class NewsArticleMention:
-    asset_id: UUID
-    source_id: str
-    raw_snapshot_id: UUID
-    article_url: str
-    title: str
-    source_domain: str | None
-    language: str | None
-    source_country: str | None
-    published_at: datetime
-    fetched_at: datetime
-    matched_query: str
-    id: UUID = field(default_factory=uuid4)
 
 
 @dataclass(frozen=True, slots=True)

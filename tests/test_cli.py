@@ -1,6 +1,6 @@
 import pytest
 
-from asset_frame.cli import _required_environment
+from asset_frame.cli import _required_environment, main
 
 
 def test_required_environment_rejects_missing_value(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -8,3 +8,37 @@ def test_required_environment_rejects_missing_value(monkeypatch: pytest.MonkeyPa
 
     with pytest.raises(SystemExit):
         _required_environment("MISSING_TEST_VALUE")
+
+
+def test_sources_lists_the_four_registered_sources(capsys: pytest.CaptureFixture[str]) -> None:
+    main(["sources"])
+
+    lines = capsys.readouterr().out.splitlines()
+    assert sorted(line.split("\t")[0] for line in lines) == [
+        "ecos",
+        "fred",
+        "krx-open-api",
+        "tiingo-eod",
+    ]
+
+
+def test_ingest_commands_require_api_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TIINGO_API_KEY", raising=False)
+    monkeypatch.delenv("KRX_API_KEY", raising=False)
+
+    with pytest.raises(SystemExit, match="TIINGO_API_KEY"):
+        main(
+            [
+                "ingest-tiingo",
+                "--ticker",
+                "SPY",
+                "--asset-type",
+                "etf",
+                "--start-date",
+                "2026-01-02",
+                "--end-date",
+                "2026-01-05",
+            ]
+        )
+    with pytest.raises(SystemExit, match="KRX_API_KEY"):
+        main(["ingest-krx", "--dataset", "etf_prices", "--date", "2026-01-05"])
