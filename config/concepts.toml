@@ -1,0 +1,31 @@
+# 개념 레지스트리 (PRD 12절). 층을 만들 때 그 층에 필요한 개념만 등록한다.
+# status = "implemented"이면 module이 import되고 tests와 card 파일이 존재해야 한다
+# (tests/test_concept_registry.py).
+schema_version = 1
+
+[[concepts]]
+id = "total_return_index"
+name = "총수익 지수"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.returns.series"
+tests = ["tests/test_returns.py"]
+card = "docs/concepts/total_return_index.md"
+
+[[concepts]]
+id = "monthly_return"
+name = "월간 총수익률"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.returns.series"
+tests = ["tests/test_returns.py"]
+card = "docs/concepts/monthly_return.md"
+
+[[concepts]]
+id = "cash_proxy_dtb3"
+name = "현금 수익률 대용(DTB3)"
+domain = "분산투자기법"
+status = "implemented"
+module = "asset_frame.returns.series"
+tests = ["tests/test_returns.py", "tests/test_fred_connector.py"]
+card = "docs/concepts/cash_proxy_dtb3.md"
