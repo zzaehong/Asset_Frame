@@ -1,4 +1,4 @@
-# 개념 레지스트리 (PRD 12절). 층을 만들 때 그 층에 필요한 개념만 등록한다.
+# 개념 레지스트리 (PRD 10절). 층을 만들 때 그 층에 필요한 개념만 등록한다.
 # status = "implemented"이면 module이 import되고 tests와 card 파일이 존재해야 한다
 # (tests/test_concept_registry.py).
 schema_version = 1

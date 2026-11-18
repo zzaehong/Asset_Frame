@@ -183,6 +183,8 @@ git merge --no-ff feature/<name> \
 
 승인은 요청 당시 확인한 feature 내용에만 적용된다. 승인 이후 feature 커밋이나 병합 대상이 바뀌면 새 상태를 다시 보고하고 승인을 받는다.
 
+병합이 확인되면(로컬 병합 또는 GitHub PR 병합) 병합 완료된 브랜치를 정리한다. `git branch --merged develop`로 확인한 뒤 `git branch -d <branch>`와 `git push origin --delete <branch>`로 삭제하고, `main`·`develop`·병합되지 않은 브랜치는 건드리지 않는다. 이 원격 삭제는 7절의 push 제한에 대한 상시 예외다(2026-11-19 사용자 지시).
+
 Feature branch에서 테스트가 성공했더라도 merge 후 `develop`에서 회귀 테스트를 다시 실행한다.
 
 이 저장소의 검증 명령은 다음과 같다. 모두 네트워크와 API 키 없이 실행되어야 한다.
