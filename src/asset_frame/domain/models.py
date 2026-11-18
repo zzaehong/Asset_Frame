@@ -163,3 +163,15 @@ class QuarantinedPrice:
     price: PriceObservation
     issue_code: str
     details: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class MacroObservation:
+    source_id: str
+    raw_snapshot_id: UUID
+    series_id: str
+    observation_date: date
+    value: Decimal | None
+    realtime_start: date
+    realtime_end: date
+    fetched_at: datetime

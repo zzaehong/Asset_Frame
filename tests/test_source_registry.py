@@ -32,6 +32,7 @@ def test_available_collectors_declare_their_ingested_data_kinds() -> None:
     assert {source_id for source_id, source in sources.items() if source.enabled} == {
         "krx-open-api",
         "tiingo-eod",
+        "fred",
     }
 
 

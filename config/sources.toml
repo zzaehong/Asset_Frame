@@ -25,6 +25,14 @@ terms_url = "https://www.tiingo.com/about/terms"
 verification_url = "https://www.tiingo.com/"
 enabled = true
 implementation_status = "available"
+# Rate limits checked 2026-11-18 at https://www.tiingo.com/about/pricing ("Tiingo API" table).
+# The account's plan is not recorded here; ingest-universe paces for Starter by default.
+# Tiingo docs state no per-request date range limit; the 10-year window is this
+# project's own connector rule.
+rate_limits_reviewed_at = "2026-11-18"
+rate_limits_url = "https://www.tiingo.com/about/pricing"
+rate_limits_starter = "50 requests/hour, 1000 requests/day, 500 unique symbols/month, 1 GB/month"
+rate_limits_power = "10000 requests/hour, 100000 requests/day, 40 GB/month"
 
 [[sources]]
 id = "ecos"
@@ -49,5 +57,9 @@ data_kinds = ["macro"]
 documentation_url = "https://fred.stlouisfed.org/docs/api/fred/"
 terms_url = "https://fred.stlouisfed.org/legal/"
 verification_url = "https://fred.stlouisfed.org/"
-enabled = false
-implementation_status = "planned"
+enabled = true
+implementation_status = "available"
+# Checked 2026-11-18: series_observations.html and terms_of_use.html state no numeric rate
+# limit ("may impose or adjust the limit ... at any time"). Rate limit: 미확인.
+rate_limits_reviewed_at = "2026-11-18"
+rate_limits_url = "https://fred.stlouisfed.org/docs/api/terms_of_use.html"

@@ -15,6 +15,7 @@ from asset_frame.domain.models import (
     AssetType,
     CorporateAction,
     IdentifierType,
+    MacroObservation,
     PriceObservation,
     QuarantinedPrice,
     RawSnapshot,
@@ -128,6 +129,20 @@ CREATE TABLE IF NOT EXISTS price_quarantine (
     issue_code TEXT NOT NULL,
     details TEXT NOT NULL,
     detected_at TEXT NOT NULL
+);
+-- Generic macro store. Every fetch appends rows; realtime_start/end are kept exactly as the
+-- provider returned them so ALFRED vintages can be used later without a schema change.
+CREATE TABLE IF NOT EXISTS macro_observation (
+    macro_observation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id TEXT NOT NULL REFERENCES sources(source_id),
+    series_id TEXT NOT NULL,
+    observation_date TEXT NOT NULL,
+    value TEXT,
+    realtime_start TEXT NOT NULL,
+    realtime_end TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    raw_snapshot_id TEXT NOT NULL REFERENCES raw_snapshots(raw_snapshot_id),
+    UNIQUE (series_id, observation_date, realtime_start, raw_snapshot_id)
 );
 """
 
@@ -393,6 +408,30 @@ class SqliteIngestionRepository:
                         detected_at,
                     )
                     for item in prices
+                ],
+            )
+
+    def save_macro_observations(self, observations: tuple[MacroObservation, ...]) -> None:
+        with self._connect() as connection:
+            connection.executemany(
+                """
+                INSERT INTO macro_observation (
+                    source_id, series_id, observation_date, value, realtime_start,
+                    realtime_end, fetched_at, raw_snapshot_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        item.source_id,
+                        item.series_id,
+                        item.observation_date.isoformat(),
+                        _text(item.value),
+                        item.realtime_start.isoformat(),
+                        item.realtime_end.isoformat(),
+                        item.fetched_at.isoformat(),
+                        str(item.raw_snapshot_id),
+                    )
+                    for item in observations
                 ],
             )
 

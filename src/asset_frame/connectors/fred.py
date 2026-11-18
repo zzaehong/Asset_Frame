@@ -1,0 +1,68 @@
+from __future__ import annotations
+
+import json
+from datetime import date
+from decimal import Decimal, InvalidOperation
+from urllib.parse import urlencode
+
+from asset_frame.domain.models import FetchRequest, MacroObservation, RawSnapshot
+
+FRED_SOURCE_ID = "fred"
+FRED_OBSERVATIONS_URL = "https://api.stlouisfed.org/fred/series/observations"
+SUPPORTED_SERIES = ("DTB3",)
+_MISSING_VALUE = "."
+
+
+class FredPayloadError(ValueError):
+    pass
+
+
+def build_observations_request(series_id: str, api_key: str) -> FetchRequest:
+    if series_id not in SUPPORTED_SERIES:
+        raise ValueError(f"FRED series is not approved for collection: {series_id}")
+    query = urlencode({"series_id": series_id, "api_key": api_key, "file_type": "json"})
+    return FetchRequest(url=f"{FRED_OBSERVATIONS_URL}?{query}")
+
+
+def parse_observations(
+    body: bytes, *, series_id: str, snapshot: RawSnapshot
+) -> tuple[MacroObservation, ...]:
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as error:
+        raise FredPayloadError("FRED response is not valid JSON") from error
+    if not isinstance(payload, dict) or not isinstance(payload.get("observations"), list):
+        raise FredPayloadError("FRED response must contain an observations list")
+    rows = payload["observations"]
+    if int(payload.get("count", len(rows))) != len(rows) + int(payload.get("offset", 0)):
+        raise FredPayloadError("FRED response is partial; count does not match observations")
+    observations = []
+    for row in rows:
+        try:
+            observations.append(
+                MacroObservation(
+                    source_id=FRED_SOURCE_ID,
+                    raw_snapshot_id=snapshot.id,
+                    series_id=series_id,
+                    observation_date=date.fromisoformat(row["date"]),
+                    value=_value(row["value"]),
+                    realtime_start=date.fromisoformat(row["realtime_start"]),
+                    realtime_end=date.fromisoformat(row["realtime_end"]),
+                    fetched_at=snapshot.fetched_at,
+                )
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise FredPayloadError(f"invalid FRED observation: {error}") from error
+    return tuple(observations)
+
+
+def _value(raw: str) -> Decimal | None:
+    if raw == _MISSING_VALUE:
+        return None
+    try:
+        value = Decimal(raw)
+    except InvalidOperation as error:
+        raise FredPayloadError(f"FRED value is not numeric: {raw!r}") from error
+    if not value.is_finite():
+        raise FredPayloadError("FRED value must be finite")
+    return value
