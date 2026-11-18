@@ -13,7 +13,7 @@ group = "us_equity"
 role = "anchor"
 refines = ""
 expected_inception = "1993-01"
-verified_inception = ""
+verified_inception = "1993-01-29"
 
 [[assets]]
 ticker = "SHY"
@@ -23,7 +23,7 @@ group = "treasury_short"
 role = "anchor"
 refines = ""
 expected_inception = "2002-07"
-verified_inception = ""
+verified_inception = "2002-07-26"
 
 [[assets]]
 ticker = "IEF"
@@ -33,7 +33,7 @@ group = "treasury_mid"
 role = "anchor"
 refines = ""
 expected_inception = "2002-07"
-verified_inception = ""
+verified_inception = "2002-07-26"
 
 [[assets]]
 ticker = "TLT"
@@ -43,7 +43,7 @@ group = "treasury_long"
 role = "anchor"
 refines = ""
 expected_inception = "2002-07"
-verified_inception = ""
+verified_inception = "2002-07-26"
 
 [[assets]]
 ticker = "TIP"
@@ -53,7 +53,7 @@ group = "tips"
 role = "anchor"
 refines = ""
 expected_inception = "2003-12"
-verified_inception = ""
+verified_inception = "2003-12-05"
 
 [[assets]]
 ticker = "LQD"
@@ -63,7 +63,7 @@ group = "ig_credit"
 role = "anchor"
 refines = ""
 expected_inception = "2002-07"
-verified_inception = ""
+verified_inception = "2002-07-26"
 
 [[assets]]
 ticker = "VCSH"
@@ -73,7 +73,7 @@ group = "ig_credit"
 role = "granular"
 refines = "LQD"
 expected_inception = "2009-11"
-verified_inception = ""
+verified_inception = "2009-11-23"
 
 [[assets]]
 ticker = "VCIT"
@@ -83,7 +83,7 @@ group = "ig_credit"
 role = "granular"
 refines = "LQD"
 expected_inception = "2009-11"
-verified_inception = ""
+verified_inception = "2009-11-23"
 
 [[assets]]
 ticker = "VCLT"
@@ -93,7 +93,7 @@ group = "ig_credit"
 role = "granular"
 refines = "LQD"
 expected_inception = "2009-11"
-verified_inception = ""
+verified_inception = "2009-11-23"
 
 [[assets]]
 ticker = "HYG"
@@ -103,7 +103,7 @@ group = "hy_credit"
 role = "anchor"
 refines = ""
 expected_inception = "2007-04"
-verified_inception = ""
+verified_inception = "2007-04-11"
 
 [[assets]]
 ticker = "SHYG"
@@ -123,7 +123,7 @@ group = "gold"
 role = "anchor"
 refines = ""
 expected_inception = "2004-11"
-verified_inception = ""
+verified_inception = "2004-11-18"
 
 [[assets]]
 ticker = "SLV"
@@ -133,7 +133,7 @@ group = "silver"
 role = "anchor"
 refines = ""
 expected_inception = "2006-04"
-verified_inception = ""
+verified_inception = "2006-04-28"
 
 [[assets]]
 ticker = "DBC"
@@ -143,7 +143,7 @@ group = "commodities"
 role = "anchor"
 refines = ""
 expected_inception = "2006-02"
-verified_inception = ""
+verified_inception = "2006-02-03"
 
 [[assets]]
 ticker = "VNQ"
@@ -153,7 +153,7 @@ group = "reits"
 role = "anchor"
 refines = ""
 expected_inception = "2004-09"
-verified_inception = ""
+verified_inception = "2004-09-29"
 
 [[assets]]
 ticker = "BIL"
@@ -163,7 +163,7 @@ group = "cash"
 role = "anchor"
 refines = ""
 expected_inception = "2007-05"
-verified_inception = ""
+verified_inception = "2007-05-30"
 
 [[assets]]
 ticker = "XLB"
@@ -173,7 +173,7 @@ group = "gics_sector"
 role = "anchor"
 refines = ""
 expected_inception = "1998-12"
-verified_inception = ""
+verified_inception = "1998-12-22"
 
 [[assets]]
 ticker = "XLE"
@@ -183,7 +183,7 @@ group = "gics_sector"
 role = "anchor"
 refines = ""
 expected_inception = "1998-12"
-verified_inception = ""
+verified_inception = "1998-12-22"
 
 [[assets]]
 ticker = "XLF"
@@ -193,7 +193,7 @@ group = "gics_sector"
 role = "anchor"
 refines = ""
 expected_inception = "1998-12"
-verified_inception = ""
+verified_inception = "1998-12-22"
 
 [[assets]]
 ticker = "XLI"
@@ -203,7 +203,7 @@ group = "gics_sector"
 role = "anchor"
 refines = ""
 expected_inception = "1998-12"
-verified_inception = ""
+verified_inception = "1998-12-22"
 
 [[assets]]
 ticker = "XLK"
@@ -213,7 +213,7 @@ group = "gics_sector"
 role = "anchor"
 refines = ""
 expected_inception = "1998-12"
-verified_inception = ""
+verified_inception = "1998-12-22"
 
 [[assets]]
 ticker = "XLP"
@@ -223,7 +223,7 @@ group = "gics_sector"
 role = "anchor"
 refines = ""
 expected_inception = "1998-12"
-verified_inception = ""
+verified_inception = "1998-12-22"
 
 [[assets]]
 ticker = "XLU"
@@ -233,7 +233,7 @@ group = "gics_sector"
 role = "anchor"
 refines = ""
 expected_inception = "1998-12"
-verified_inception = ""
+verified_inception = "1998-12-22"
 
 [[assets]]
 ticker = "XLV"
@@ -243,7 +243,7 @@ group = "gics_sector"
 role = "anchor"
 refines = ""
 expected_inception = "1998-12"
-verified_inception = ""
+verified_inception = "1998-12-22"
 
 [[assets]]
 ticker = "XLY"
@@ -253,7 +253,7 @@ group = "gics_sector"
 role = "anchor"
 refines = ""
 expected_inception = "1998-12"
-verified_inception = ""
+verified_inception = "1998-12-22"
 
 [[assets]]
 ticker = "XLRE"
@@ -263,7 +263,7 @@ group = "gics_sector"
 role = "granular"
 refines = "XLF"
 expected_inception = "2015-10"
-verified_inception = ""
+verified_inception = "2015-10-08"
 
 [[assets]]
 ticker = "XLC"
@@ -273,7 +273,7 @@ group = "gics_sector"
 role = "granular"
 refines = "XLK"
 expected_inception = "2018-06"
-verified_inception = ""
+verified_inception = "2018-06-19"
 
 [[assets]]
 ticker = "QQQ"
@@ -283,7 +283,7 @@ group = "style_growth"
 role = "anchor"
 refines = ""
 expected_inception = "1999-03"
-verified_inception = ""
+verified_inception = "1999-03-10"
 
 [[assets]]
 ticker = "DVY"
@@ -293,7 +293,7 @@ group = "style_dividend"
 role = "anchor"
 refines = ""
 expected_inception = "2003-11"
-verified_inception = ""
+verified_inception = "2003-11-07"
 
 [[assets]]
 ticker = "VIG"
@@ -303,7 +303,7 @@ group = "style_dividend"
 role = "granular"
 refines = "DVY"
 expected_inception = "2006-04"
-verified_inception = ""
+verified_inception = "2006-04-27"
 
 [[assets]]
 ticker = "SCHD"
@@ -313,4 +313,4 @@ group = "style_dividend"
 role = "granular"
 refines = "DVY"
 expected_inception = "2011-10"
-verified_inception = ""
+verified_inception = "2011-10-20"
