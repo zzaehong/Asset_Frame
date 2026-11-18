@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -21,7 +22,8 @@ from asset_frame.universe import (
 )
 from asset_frame.universe_jobs import verify_universe
 
-UNIVERSE = load_universe(Path("config/universe.toml"))
+UNIVERSE_PATH = Path("config/universe.toml")
+UNIVERSE = load_universe(UNIVERSE_PATH)
 
 
 def asset(ticker: str, group: str, role: str = "anchor", refines: str | None = None):
@@ -153,7 +155,10 @@ def collector(tmp_path: Path, transport: TiingoFake) -> TiingoEodCollector:
 
 def test_verify_writes_only_ok_rows_to_config(tmp_path: Path) -> None:
     config = tmp_path / "universe.toml"
-    config.write_text(Path("config/universe.toml").read_text())
+    # Start from a blank copy so the result does not depend on the repo's recorded values.
+    config.write_text(
+        re.sub(r'verified_inception = ".*"', 'verified_inception = ""', UNIVERSE_PATH.read_text())
+    )
     store = ResearchStore(tmp_path / "db.sqlite3")
     spy = replace(next(a for a in UNIVERSE if a.ticker == "SPY"))
     bil = replace(next(a for a in UNIVERSE if a.ticker == "BIL"))
