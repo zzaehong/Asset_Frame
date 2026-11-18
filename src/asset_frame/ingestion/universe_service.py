@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+from asset_frame.connectors.tiingo import tiingo_asset_id
 from asset_frame.domain.models import AssetType
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.storage.research import ResearchStore
@@ -44,15 +45,30 @@ def ingest_universe(
     store: ResearchStore,
     api_key: str,
     end_date: date,
+    full: bool = False,
     report: Callable[[str], None] = print,
 ) -> UniverseIngestResult:
-    """Collect every ticker's full history; a ticker done for end_date is skipped on rerun."""
+    """Collect each ticker's history; a ticker done for end_date is skipped on rerun.
+
+    A ticker with stored prices resumes from its last stored day minus the window overlap, so the
+    new snapshot shares at least one trading day with the old data (Tiingo rescales adjClose per
+    fetch). `full=True` downloads the whole history again.
+    """
     result = UniverseIngestResult()
     for asset in assets:
         if store.is_ingest_complete(asset.ticker, end_date):
             result.skipped.append(asset.ticker)
             continue
-        start = asset.expected_inception - timedelta(days=LOOKBACK_DAYS)
+        last = None if full else store.last_price_date(tiingo_asset_id(asset.ticker))
+        if last is not None and last >= end_date:
+            store.mark_ingest_complete(asset.ticker, end_date)
+            result.skipped.append(asset.ticker)
+            continue
+        start = (
+            asset.expected_inception - timedelta(days=LOOKBACK_DAYS)
+            if last is None
+            else last - timedelta(days=WINDOW_OVERLAP_DAYS)
+        )
         try:
             for window_start, window_end in collection_windows(start, end_date):
                 collector.collect(
@@ -68,7 +84,7 @@ def ingest_universe(
             continue
         store.mark_ingest_complete(asset.ticker, end_date)
         result.collected.append(asset.ticker)
-        report(f"{asset.ticker}: collected")
+        report(f"{asset.ticker}: collected" + (f" from {start}" if last else ""))
     return result
 
 

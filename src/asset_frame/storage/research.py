@@ -88,6 +88,14 @@ class ResearchStore:
                 (ticker, as_of.isoformat(), _now()),
             )
 
+    def last_price_date(self, asset_id: UUID) -> date | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT MAX(trading_date) FROM price_observations WHERE asset_id = ?",
+                (str(asset_id),),
+            ).fetchone()
+        return date.fromisoformat(row[0]) if row[0] else None
+
     def price_points(self, asset_id: UUID) -> tuple[PricePoint, ...]:
         with self._connect() as connection:
             rows = connection.execute(

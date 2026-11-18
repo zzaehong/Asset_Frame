@@ -6,9 +6,11 @@ from pathlib import Path
 
 import pytest
 
+from asset_frame.connectors.tiingo import tiingo_asset_id
 from asset_frame.domain.models import FetchResponse
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.universe_service import collection_windows, ingest_universe
+from asset_frame.returns.series import total_return_index
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.raw import FileRawStore
 from asset_frame.storage.research import ResearchStore
@@ -105,6 +107,7 @@ class TiingoFake:
         self.listing = listing
         self.adj_closes = adj_closes
         self.requests = 0
+        self.price_starts: list[date] = []
 
     def fetch(self, request):  # type: ignore[no-untyped-def]
         self.requests += 1
@@ -121,6 +124,7 @@ class TiingoFake:
                 date.fromisoformat(query["startDate"]),
                 date.fromisoformat(query["endDate"]),
             )
+            self.price_starts.append(start)
             body = [
                 {
                     "date": f"{day.isoformat()}T00:00:00.000Z",
@@ -224,3 +228,66 @@ def test_ingest_resumes_from_the_failed_ticker(tmp_path: Path) -> None:
     assert (first.collected, list(first.failed)) == (["SHY"], ["IEF"])
     assert (second.skipped, second.collected) == (["SHY"], ["IEF"])
     assert set(calls) == {"IEF"}
+
+
+def test_incremental_ingest_matches_a_full_download(tmp_path: Path) -> None:
+    spy = next(a for a in UNIVERSE if a.ticker == "SPY")
+    days = [date(2020, 1, 1) + timedelta(days=n) for n in range(70)]
+    first_end, second_end = days[39], days[-1]
+    values = {day: 100.0 + n for n, day in enumerate(days)}
+
+    def run(directory: Path, data: dict[date, float], end: date, *, store=None, fake=None):
+        fake = fake or TiingoFake(date(2020, 1, 1), data)
+        store = store or ResearchStore(directory / "db.sqlite3")
+        ingest_universe(
+            (spy,),
+            collector=collector(directory, fake),
+            store=store,
+            api_key="k",
+            end_date=end,
+            report=lambda _: None,
+        )
+        return store, fake
+
+    # Incremental: history up to first_end, then Tiingo restates every old adjClose (x0.9) and
+    # the next run asks only for the days after the last stored one.
+    store, fake = run(
+        tmp_path / "inc", {d: v for d, v in values.items() if d <= first_end}, first_end
+    )
+    fake.adj_closes = {d: v * 0.9 for d, v in values.items() if d <= first_end}
+    fake.adj_closes.update({d: v for d, v in values.items() if d > first_end})
+    fake.price_starts.clear()
+    run(tmp_path / "inc", fake.adj_closes, second_end, store=store, fake=fake)
+
+    assert fake.price_starts == [first_end - timedelta(days=10)]
+
+    # Full: one download of the same final data.
+    full_store, _ = run(tmp_path / "full", dict(fake.adj_closes), second_end)
+
+    asset_id = tiingo_asset_id("SPY")
+    incremental = total_return_index(store.price_points(asset_id))
+    full = total_return_index(full_store.price_points(asset_id))
+    assert [p.trading_date for p in incremental] == [p.trading_date for p in full]
+    assert [float(p.level) for p in incremental] == pytest.approx([float(p.level) for p in full])
+
+
+def test_ticker_with_prices_through_end_date_is_not_requested_again(tmp_path: Path) -> None:
+    spy = next(a for a in UNIVERSE if a.ticker == "SPY")
+    store = ResearchStore(tmp_path / "db.sqlite3")
+    fake = TiingoFake(date(2020, 1, 1), {date(2020, 1, 1): 1.0, date(2020, 1, 2): 1.0})
+
+    def run(end: date):
+        return ingest_universe(
+            (spy,),
+            collector=collector(tmp_path, fake),
+            store=store,
+            api_key="k",
+            end_date=end,
+            report=lambda _: None,
+        )
+
+    assert run(date(2020, 1, 5)).collected == ["SPY"]
+    fake.requests = 0
+    again = run(date(2020, 1, 2))  # no log row for this end date, but prices already reach it
+
+    assert (again.skipped, fake.requests) == (["SPY"], 0)
