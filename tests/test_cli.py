@@ -25,6 +25,7 @@ def test_sources_lists_the_four_registered_sources(capsys: pytest.CaptureFixture
 def test_ingest_commands_require_api_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TIINGO_API_KEY", raising=False)
     monkeypatch.delenv("KRX_API_KEY", raising=False)
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
 
     with pytest.raises(SystemExit, match="TIINGO_API_KEY"):
         main(
@@ -42,3 +43,7 @@ def test_ingest_commands_require_api_keys(monkeypatch: pytest.MonkeyPatch) -> No
         )
     with pytest.raises(SystemExit, match="KRX_API_KEY"):
         main(["ingest-krx", "--dataset", "etf_prices", "--date", "2026-01-05"])
+    with pytest.raises(SystemExit, match="FRED_API_KEY"):
+        main(["ingest-fred", "--series", "DTB3"])
+    with pytest.raises(SystemExit, match="TIINGO_API_KEY"):
+        main(["ingest-universe"])

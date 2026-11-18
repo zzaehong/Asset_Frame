@@ -9,6 +9,7 @@ from asset_frame.domain.models import (
     AssetIdentifier,
     CorporateAction,
     IdentifierType,
+    MacroObservation,
     PriceObservation,
     QuarantinedPrice,
     RawSnapshot,
@@ -50,6 +51,8 @@ class IngestionRepository(Protocol):
 
     def save_quarantined_prices(self, prices: tuple[QuarantinedPrice, ...]) -> None: ...
 
+    def save_macro_observations(self, observations: tuple[MacroObservation, ...]) -> None: ...
+
 
 class MemoryIngestionRepository:
     def __init__(self) -> None:
@@ -61,6 +64,7 @@ class MemoryIngestionRepository:
         self.prices: list[PriceObservation] = []
         self.corporate_actions: list[CorporateAction] = []
         self.quarantined_prices: list[QuarantinedPrice] = []
+        self.macro_observations: list[MacroObservation] = []
 
     def upsert_source(self, source: SourceDefinition) -> None:
         self.sources[source.id] = source
@@ -133,3 +137,6 @@ class MemoryIngestionRepository:
 
     def save_quarantined_prices(self, prices: tuple[QuarantinedPrice, ...]) -> None:
         self.quarantined_prices.extend(prices)
+
+    def save_macro_observations(self, observations: tuple[MacroObservation, ...]) -> None:
+        self.macro_observations.extend(observations)
