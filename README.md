@@ -20,7 +20,7 @@
 | 가격 품질 검사와 충돌값 격리(평균하지 않음) | `tests/test_price_quality.py` |
 | SQLite 저장: 왕복 조회, 재수집 시 새 버전 추가, 격리 가격 별도 저장 | `tests/test_sqlite_repository.py` |
 | 유니버스 v3 설정 31개: 티커 중복 금지, 자산군당 앵커 1개, 세분은 같은 자산군 앵커를 세분 | `tests/test_universe.py` |
-| `ingest-universe`: 10년 구간 겹쳐 수집, 실패 티커부터 재시작. `universe verify`: ±31일 `ok`만 설정에 기록 | `tests/test_universe.py` |
+| `ingest-universe`: 10년 구간 겹쳐 수집, 실패 티커부터 재시작, 저장된 티커는 새 날짜만 수집(전체 재수집과 같은 지수). `universe verify`: ±31일 `ok`만 설정에 기록 | `tests/test_universe.py` |
 | 총수익 지수·월간 수익률(손 계산 표본), snapshot 연결, 현금 대용, 앵커 보존, `eligible_assets` 13개월, 일간 ±25% 이상치 표시 | `tests/test_returns.py` |
 | 개념 레지스트리: 구현된 개념은 모듈·테스트·카드가 있음 | `tests/test_concept_registry.py` |
 | 직접 의존성의 공식 문서 registry 등록 | `tests/test_dependency_registry.py` |
@@ -63,7 +63,8 @@ uv run asset-frame ingest-krx --dataset etf_prices --date 2026-11-16
 ### 유니버스 월간 수익률 (M1-1)
 
 ```bash
-uv run asset-frame ingest-universe          # 31개 티커 전체 이력. Starter 요금제 기준 약 3.6시간
+uv run asset-frame ingest-universe          # 처음엔 전체 이력(Starter 기준 약 3.6시간), 이후엔 새 날짜만
+uv run asset-frame ingest-universe --full   # 전체 이력을 다시 받음
 uv run asset-frame universe verify          # 상장일 검증. ok만 config/universe.toml에 기록
 uv run asset-frame ingest-fred --series DTB3
 uv run asset-frame build-returns            # monthly_return, return_anomaly 테이블에 새 빌드 추가
@@ -73,6 +74,8 @@ uv run asset-frame universe status          # 콘솔 표 + var/reports/universe_
 - `ingest-universe`는 Tiingo Starter 한도(시간당 50회, `config/sources.toml`)에 맞춰 요청 사이를
   75초 띄웁니다. 요금제가 다르면 `--min-interval-seconds`로 바꿉니다. 중간에 실패하면 같은 명령을
   다시 실행합니다. 같은 `--end-date`로 끝난 티커는 건너뜁니다.
+  가격이 이미 저장된 티커는 마지막 저장일 10일 전부터만 받습니다(티커당 요청 2회). Tiingo는 수집할
+  때마다 `adjClose` 전체를 다시 계산하므로, 겹치는 날짜가 있어야 새 구간이 기존 지수에 이어집니다.
 - `universe verify`의 `mismatch`는 설정 파일을 바꾸지 않습니다. 사람이 확인합니다.
 - 계산 규칙(월말 기준, 대용 근사, 버전)은 [개념 레지스트리](docs/concepts/README.md)에 있습니다.
 
