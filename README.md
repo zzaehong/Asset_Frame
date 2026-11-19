@@ -31,6 +31,7 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | `regime`: Sahm 지표·INDPRO/CFNAI 침체 규칙·L3 4분면·주식채권 상관 국면, 발표일 이후 값만 쓰는 월말 replay, NBER 대비 채점(손 계산 표본) | `tests/test_regime_rules.py`, `tests/test_regime_replay.py` |
 | 해시 체인 원장: 연속 `seq`·이전 해시, 수정·삭제 거부(트리거), 변조·누락 탐지, 같은 키 중복 방지, 국면 월 기록의 live·replay 구분 | `tests/test_ledger.py` |
 | 예측·채점: 모멘텀(12-1)·무작위·사용자 순위와 상관 부호 확률을 원장에 기록(월당 모델별 1건), 3개월 뒤 순위 IC·상·하위 스프레드·Brier 채점, MDE 표시, 잘못된 입력 거부 | `tests/test_prediction.py` |
+| Mac 앱(`app/`, 읽기 전용): 파이썬이 쓴 해시 체인 검증과 변조·삭제 탐지, 원장 항목 해석, 성적표 평균, 데이터 상태 쿼리, 읽기 전용 연결 | `app/Tests/AssetFrameCoreTests/LedgerTests.swift` |
 | `backup`: SQLite 일관 복사(최근 4개 유지)와 raw 파일 추가 복사(기존 파일은 덮어쓰지 않음) | `tests/test_backup.py` |
 | 개념 레지스트리: 구현된 개념은 모듈·테스트·카드가 있음 | `tests/test_concept_registry.py` |
 | 직접 의존성의 공식 문서 registry 등록 | `tests/test_dependency_registry.py` |
@@ -102,6 +103,15 @@ uv run asset-frame backtest --window-months 24   # 위험 추정 창 민감도(�
 - `universe verify`의 `mismatch`는 설정 파일을 바꾸지 않습니다. 사람이 확인합니다.
 - 계산 규칙(월말 기준, 대용 근사, 버전)은 [개념 레지스트리](docs/concepts/README.md)에 있습니다.
 
+### Mac 앱
+
+```bash
+app/build_app.sh                                   # app/build/AssetFrame.app 생성(이 Mac 전용 임시 서명)
+open -n --env ASSET_FRAME_HOME=$PWD app/build/AssetFrame.app
+```
+
+첫 실행에서 프로젝트 폴더를 고르면 기억합니다(`ASSET_FRAME_HOME`이 있으면 그 값을 씁니다). 앱은 DB를 읽기 전용으로 열고, 데이터는 위 CLI로 갱신한 뒤 ⌘R로 다시 읽습니다. 설계는 [ADR-0008](docs/adr/0008-mac-app-read-only.md)입니다.
+
 ## 데이터 규칙
 
 - Tiingo OHLCV는 raw 값, `adjusted_close`는 CRSP 방식 배당·분할 조정 종가입니다
@@ -119,6 +129,7 @@ uv run asset-frame backtest --window-months 24   # 위험 추정 창 민감도(�
 uv run pytest            # 네트워크·API 키 없이 실행됨
 uv run ruff check .
 uv run ruff format --check .
+cd app && swift test   # Mac 앱 코어(macOS, Xcode 필요)
 ```
 
 ## 제한
