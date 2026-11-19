@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
+from asset_frame.analytics.risk import WINDOW_MONTHS
 from asset_frame.backtest.engine import RULES, MonthResult, run_strategy
 from asset_frame.backtest.metrics import Performance, Relative, performance, relative
 from asset_frame.backtest.strategies import Strategy
@@ -36,12 +37,13 @@ def run_backtest(
     returns: dict[str, dict[date, float]],
     *,
     cash_ticker: str,
+    window_months: int = WINDOW_MONTHS,
 ) -> BacktestResult:
     """Rows cover the months in which every strategy under every rule holds its full intended
     weights (coverage 1), so all rows describe the same period and the same composition."""
     calendar = sorted(returns[CALENDAR_TICKER])
     months = {
-        (strategy.id, rule): run_strategy(strategy, returns, calendar, rule)
+        (strategy.id, rule): run_strategy(strategy, returns, calendar, rule, window_months)
         for strategy in strategies
         for rule in RULES
     }

@@ -37,7 +37,11 @@ def test_project_strategies_match_prd_7() -> None:
         "all_weather_approx",
         "permanent",
         "equal_weight",
+        "inv_vol",
+        "erc",
+        "min_variance",
     ]
+    assert by_id["min_variance"].max_weight == 0.30
     assert by_id["bench_6040"].weights == {"SPY": 0.6, "IEF": 0.4}
     assert by_id["all_weather_approx"].weights["TLT"] == 0.40
     assert len(by_id["equal_weight"].members) == 12  # level-1 anchors
@@ -144,3 +148,26 @@ def test_rows_share_one_period_and_a_benchmark_tracks_itself_exactly() -> None:
     assert {(row.start, row.end) for row in result.rows} == {period}
     spy_row = next(r for r in result.rows if r.strategy == "bench_spy")
     assert spy_row.versus["bench_spy"].tracking_error == pytest.approx(0.0, abs=1e-12)
+
+
+def test_estimated_strategy_uses_the_trailing_window_before_the_month() -> None:
+    months = month_list(40)
+    returns = {
+        "A": {m: 0.01 if n % 2 == 0 else -0.01 for n, m in enumerate(months)},
+        "B": {m: 0.02 if n % 2 == 0 else -0.02 for n, m in enumerate(months)},
+    }
+    strategy = Strategy("iv", "r", "inv_vol", members=("A", "B"))
+
+    results = run_strategy(strategy, returns, months, "monthly", window_months=24)
+
+    assert results[0].month == months[24]  # a full 24-month window must precede the month
+    # volatilities 1 : 2 give weights 2/3, 1/3; month 24 is an up month for both
+    assert results[0].total_return == pytest.approx(2 / 3 * 0.01 + 1 / 3 * 0.02)
+    assert results[0].coverage == pytest.approx(1.0)
+
+
+def test_estimated_strategy_needs_two_assets_with_a_full_window() -> None:
+    months = month_list(40)
+    returns = {"A": {m: 0.01 * (n % 3 - 1) for n, m in enumerate(months)}}
+    strategy = Strategy("iv", "r", "inv_vol", members=("A", "B"))
+    assert run_strategy(strategy, returns, months, "monthly", window_months=24) == ()

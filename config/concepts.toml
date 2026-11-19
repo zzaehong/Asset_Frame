@@ -72,7 +72,7 @@ name = "위험기여도"
 domain = "분산투자기법"
 status = "implemented"
 module = "asset_frame.analytics.risk"
-tests = ["tests/test_analytics.py"]
+tests = ["tests/test_analytics.py", "tests/test_allocation.py"]
 card = "docs/concepts/risk_contribution.md"
 
 [[concepts]]
@@ -119,3 +119,12 @@ status = "implemented"
 module = "asset_frame.backtest.metrics"
 tests = ["tests/test_backtest.py"]
 card = "docs/concepts/information_ratio.md"
+
+[[concepts]]
+id = "mean_variance"
+name = "평균-분산(최소분산 포트폴리오)"
+domain = "분산투자기법"
+status = "implemented"
+module = "asset_frame.analytics.allocation"
+tests = ["tests/test_allocation.py"]
+card = "docs/concepts/mean_variance.md"

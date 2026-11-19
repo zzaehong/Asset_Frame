@@ -7,6 +7,7 @@ from dataclasses import astuple, fields
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from asset_frame.analytics.risk import WINDOW_MONTHS
 from asset_frame.backtest.engine import CALC_VERSION as BACKTEST_CALC_VERSION
 from asset_frame.backtest.jobs import BENCHMARKS, run_backtest
 from asset_frame.backtest.strategies import load_strategies
@@ -86,7 +87,12 @@ def main(argv: list[str] | None = None) -> None:
     fred_parser.add_argument("--series", required=True, choices=SUPPORTED_SERIES)
 
     subparsers.add_parser("build-returns", help="compute monthly total returns")
-    subparsers.add_parser("backtest", help="compare strategies under three rebalancing rules")
+    backtest_parser = subparsers.add_parser(
+        "backtest", help="compare strategies under three rebalancing rules"
+    )
+    backtest_parser.add_argument(
+        "--window-months", type=int, default=WINDOW_MONTHS, help="risk estimation window"
+    )
 
     arguments = parser.parse_args(argv)
     if arguments.command == "sources":
@@ -110,7 +116,7 @@ def main(argv: list[str] | None = None) -> None:
     elif arguments.command == "build-returns":
         _build_returns()
     elif arguments.command == "backtest":
-        _backtest()
+        _backtest(arguments.window_months)
 
 
 def _print_sources() -> None:
@@ -249,7 +255,7 @@ def _analyze_universe() -> None:
     print(f"wrote {risk_path}\nwrote {correlation_path}")
 
 
-def _backtest() -> None:
+def _backtest(window_months: int) -> None:
     universe = load_universe(UNIVERSE_PATH)
     cash_ticker = next(asset.ticker for asset in universe if asset.group == "cash")
     returns = {
@@ -257,10 +263,14 @@ def _backtest() -> None:
         for ticker, by_month in _research_store().latest_returns().items()
     }
     result = run_backtest(
-        load_strategies(STRATEGIES_PATH, universe), returns, cash_ticker=cash_ticker
+        load_strategies(STRATEGIES_PATH, universe),
+        returns,
+        cash_ticker=cash_ticker,
+        window_months=window_months,
     )
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    performance_path = REPORT_DIR / "backtest_performance.csv"
+    suffix = "" if window_months == WINDOW_MONTHS else f"_w{window_months}"
+    performance_path = REPORT_DIR / f"backtest_performance{suffix}.csv"
     with performance_path.open("w", newline="") as csv_file:
         writer = csv.writer(csv_file)
         header = [
@@ -314,7 +324,7 @@ def _backtest() -> None:
                     else ["", "", ""]
                 )
             writer.writerow([*line, BACKTEST_CALC_VERSION])
-    monthly_path = REPORT_DIR / "backtest_monthly.csv"
+    monthly_path = REPORT_DIR / f"backtest_monthly{suffix}.csv"
     with monthly_path.open("w", newline="") as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(["strategy", "rule", "month", "total_return", "coverage", "turnover"])

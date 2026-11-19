@@ -32,3 +32,24 @@ id = "equal_weight"
 role = "naive_baseline"
 kind = "equal_weight"
 members = "level1_anchors"
+
+# 추정 비중 전략: 직전 window_months(기본 36)개월 수익률로 비중을 추정한다. 창에 모든 달이 있는
+# 자산만 쓴다. max_weight(자산당 상한)는 임의 선택이며 민감도 분석 대상이다.
+[[strategies]]
+id = "inv_vol"
+role = "risk_balanced_simple"
+kind = "inv_vol"
+members = "level1_anchors"
+
+[[strategies]]
+id = "erc"
+role = "risk_balanced"
+kind = "erc"
+members = "level1_anchors"
+
+[[strategies]]
+id = "min_variance"
+role = "diversification"
+kind = "min_variance"
+members = "level1_anchors"
+max_weight = 0.30

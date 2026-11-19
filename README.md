@@ -2,11 +2,11 @@
 
 1명(저장소 소유자)이 쓰는 자산배분 실험 도구입니다. 여러 자산군으로 만든 배분 전략을 같은 기준으로
 비교합니다. 요구사항은 [PRD v0.4](PRD.md), 진행 순서는 [로드맵](docs/roadmap.md)에 있습니다. 현재 마일스톤은 M1(자산배분 실험실)이며,
-구현된 것은 데이터 층(M1-1), 분석 층(M1-2), 백테스트 층의 고정 비중 전략(M1-3a)까지입니다.
+구현된 것은 데이터 층(M1-1), 분석 층(M1-2), 백테스트 층(M1-3)까지입니다.
 
 ## 구현됨
 
-지금 구현된 것은 데이터 층, 위험 분석 층, 고정 비중 전략 백테스트입니다. 추정 비중 전략과 리포트는 아직 없습니다. 아래 항목은 모두 옆에 적은 테스트로 확인됩니다.
+지금 구현된 것은 데이터 층, 위험 분석 층, 전략 8개 백테스트입니다. HTML 리포트는 아직 없습니다. 아래 항목은 모두 옆에 적은 테스트로 확인됩니다.
 
 | 기능 | 확인 테스트 |
 |---|---|
@@ -23,7 +23,8 @@
 | `ingest-universe`: 10년 구간 겹쳐 수집, 실패 티커부터 재시작, 저장된 티커는 새 날짜만 수집(전체 재수집과 같은 지수). `universe verify`: ±31일 `ok`만 설정에 기록 | `tests/test_universe.py` |
 | 총수익 지수·월간 수익률(손 계산 표본), snapshot 연결, 현금 대용, 앵커 보존, `eligible_assets` 13개월, 일간 ±25% 이상치 표시 | `tests/test_returns.py` |
 | 위험 지표(연율 변동성, 최대낙폭, 95% 역사적 VaR), 36개월 상관행렬, 위험기여도(손 계산 표본·분산 일치 검증) | `tests/test_analytics.py` |
-| 전략 5개(벤치마크 2, 고정 비중 2, 동일가중) 설정 검증, 월간·분기·밴드 리밸런싱, 편입 자격 13개월·비중 재배분(coverage), 성과 지표(CAGR·샤프·소르티노·칼마·정보비율) 손 계산 검증 | `tests/test_backtest.py` |
+| 전략 8개 설정 검증(벤치마크 2, 고정 비중 2, 동일가중, 추정 비중 3), 월간·분기·밴드 리밸런싱, 편입 자격 13개월·비중 재배분(coverage), 성과 지표(CAGR·샤프·소르티노·칼마·정보비율) 손 계산 검증, 36개월 창 추정 전략 | `tests/test_backtest.py` |
+| 추정 비중: 역변동성, 위험균등(위험기여도 동일 검증), 상한 있는 최소분산(닫힌 해·격자 탐색 비교) | `tests/test_allocation.py` |
 | 개념 레지스트리: 구현된 개념은 모듈·테스트·카드가 있음 | `tests/test_concept_registry.py` |
 | 직접 의존성의 공식 문서 registry 등록 | `tests/test_dependency_registry.py` |
 
@@ -73,6 +74,7 @@ uv run asset-frame build-returns            # monthly_return, return_anomaly 테
 uv run asset-frame universe status          # 콘솔 표 + var/reports/universe_status.csv
 uv run asset-frame universe analyze         # var/reports/analysis_risk.csv, analysis_correlation.csv
 uv run asset-frame backtest                 # var/reports/backtest_performance.csv, backtest_monthly.csv
+uv run asset-frame backtest --window-months 24   # 위험 추정 창 민감도(파일명에 _w24)
 ```
 
 - `ingest-universe`는 Tiingo Starter 한도(시간당 50회, `config/sources.toml`)에 맞춰 요청 사이를
@@ -106,4 +108,4 @@ uv run ruff format --check .
 
 - 자동매매와 주문 기능은 없고 만들지 않습니다.
 - 공식 API·공식 배포 파일만 수집합니다. 크롤링과 비공식 금융 라이브러리는 쓰지 않습니다.
-- 추정 비중 전략(`inv_vol`, `erc`, `min_variance`)과 HTML 리포트는 M1-3b, M1-4에서 만듭니다. 백테스트는 거래비용·세금을 반영하지 않습니다.
+- HTML 리포트는 M1-4에서 만듭니다. 백테스트는 거래비용·세금을 반영하지 않습니다.

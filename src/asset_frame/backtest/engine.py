@@ -14,7 +14,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 
-from asset_frame.backtest.strategies import Strategy, target_weights
+from asset_frame.analytics.risk import WINDOW_MONTHS, aligned_window
+from asset_frame.backtest.strategies import ESTIMATED, Strategy, target_weights
 
 CALC_VERSION = "backtest_v1"
 MINIMUM_HISTORY_MONTHS = 13
@@ -36,20 +37,30 @@ def run_strategy(
     returns: Mapping[str, Mapping[date, float]],
     months: Sequence[date],
     rule: str,
+    window_months: int = WINDOW_MONTHS,
 ) -> tuple[MonthResult, ...]:
-    """`months` is the calendar (sorted month ends); `rule` is monthly, quarterly or band."""
+    """`months` is the calendar (sorted month ends); `rule` is monthly, quarterly or band.
+
+    Estimated strategies use the `window_months` calendar months before the current month and
+    only the assets that have a return in every one of them.
+    """
     if rule not in RULES:
         raise ValueError(f"unknown rebalancing rule {rule}")
     history = {ticker: sorted(by_month) for ticker, by_month in returns.items()}
     results = []
     weights: dict[str, float] = {}
-    for month in months:
+    for position, month in enumerate(months):
         eligible = [
             ticker
             for ticker, dates in history.items()
             if bisect_left(dates, month) >= MINIMUM_HISTORY_MONTHS and month in returns[ticker]
         ]
-        target, coverage = target_weights(strategy, eligible)
+        window = None
+        if strategy.kind in ESTIMATED and position >= window_months:
+            window = aligned_window(
+                {t: returns[t] for t in eligible}, months[position - window_months : position]
+            )
+        target, coverage = target_weights(strategy, eligible, window)
         if not target:
             weights = {}
             continue
