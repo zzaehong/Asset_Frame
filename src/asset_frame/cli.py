@@ -20,6 +20,7 @@ from asset_frame.ingestion.krx_service import KrxCollector
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.transport import RateLimitedRetryTransport, UrllibHttpTransport
 from asset_frame.ingestion.universe_service import ingest_universe
+from asset_frame.regime.jobs import run_regime
 from asset_frame.report.dashboard import build_payload, render_dashboard
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.backup import backup
@@ -91,6 +92,7 @@ def main(argv: list[str] | None = None) -> None:
 
     subparsers.add_parser("build-returns", help="compute monthly total returns")
     subparsers.add_parser("dashboard", help="write the offline interactive dashboard")
+    subparsers.add_parser("regime", help="replay regime rules and score them against NBER")
     subparsers.add_parser("backup", help="copy the database and raw files to BACKUP_PATH")
     backtest_parser = subparsers.add_parser(
         "backtest", help="compare strategies under three rebalancing rules"
@@ -122,6 +124,8 @@ def main(argv: list[str] | None = None) -> None:
         _build_returns()
     elif arguments.command == "dashboard":
         _dashboard()
+    elif arguments.command == "regime":
+        _regime()
     elif arguments.command == "backup":
         _backup()
     elif arguments.command == "backtest":
@@ -422,6 +426,27 @@ def _cell(value: object) -> str:
 
 def _source(source_id: str) -> SourceDefinition:
     return next(source for source in load_source_registry(SOURCES_PATH) if source.id == source_id)
+
+
+def _regime() -> None:
+    rows, scores = run_regime(_research_store())
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    path = REPORT_DIR / "regime_replay.csv"
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([field.name for field in fields(rows[0])])
+        writer.writerows(astuple(row) for row in rows)
+    print(f"wrote {path} ({len(rows)} months)")
+    for result in scores:
+        print(
+            f"{result.rule}: scored {result.months} months, NBER recession months "
+            f"{result.recession_months}, detected {result.detected}, false alarms "
+            f"{result.false_alarms}"
+        )
+        for start, lag in result.episodes:
+            print(
+                f"  episode {start:%Y-%m}: first flag {'never' if lag is None else lag} months in"
+            )
 
 
 def _backup() -> None:

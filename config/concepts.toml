@@ -137,3 +137,12 @@ status = "implemented"
 module = "asset_frame.connectors.fred"
 tests = ["tests/test_fred_connector.py"]
 card = "docs/concepts/macro_first_release.md"
+
+[[concepts]]
+id = "regime_rules"
+name = "경기 국면 규칙"
+domain = "거시경제분석"
+status = "implemented"
+module = "asset_frame.regime.rules"
+tests = ["tests/test_regime_rules.py", "tests/test_regime_replay.py"]
+card = "docs/concepts/regime_rules.md"
