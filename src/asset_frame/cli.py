@@ -52,13 +52,17 @@ def main(argv: list[str] | None = None) -> None:
     krx_parser.add_argument("--date", required=True, type=date.fromisoformat)
 
     universe_ingest_parser = subparsers.add_parser(
-        "ingest-universe", help="collect full Tiingo history for every universe ticker"
+        "ingest-universe",
+        help="collect Tiingo history for every universe ticker (only new days if stored)",
     )
     universe_ingest_parser.add_argument(
         "--end-date", type=date.fromisoformat, default=datetime.now(UTC).date()
     )
     universe_ingest_parser.add_argument(
         "--min-interval-seconds", type=float, default=TIINGO_STARTER_INTERVAL_SECONDS
+    )
+    universe_ingest_parser.add_argument(
+        "--full", action="store_true", help="download the whole history again"
     )
 
     universe_parser = subparsers.add_parser("universe", help="universe verification and status")
@@ -81,7 +85,7 @@ def main(argv: list[str] | None = None) -> None:
     elif arguments.command == "ingest-krx":
         _ingest_krx(arguments.dataset, arguments.date)
     elif arguments.command == "ingest-universe":
-        _ingest_universe(arguments.end_date, arguments.min_interval_seconds)
+        _ingest_universe(arguments.end_date, arguments.min_interval_seconds, arguments.full)
     elif arguments.command == "universe" and arguments.universe_command == "verify":
         _verify_universe()
     elif arguments.command == "universe":
@@ -137,7 +141,7 @@ def _ingest_krx(dataset_name: str, business_date: date) -> None:
     print(f"collected {count} KRX {dataset_name} rows for {business_date.isoformat()}")
 
 
-def _ingest_universe(end_date: date, min_interval_seconds: float) -> None:
+def _ingest_universe(end_date: date, min_interval_seconds: float, full: bool) -> None:
     api_key = _required_environment("TIINGO_API_KEY")
     collector = TiingoEodCollector(
         source=_source(TIINGO_SOURCE_ID),
@@ -153,6 +157,7 @@ def _ingest_universe(end_date: date, min_interval_seconds: float) -> None:
         store=_research_store(),
         api_key=api_key,
         end_date=end_date,
+        full=full,
     )
     print(
         f"universe ingest through {end_date}: {len(result.collected)} collected, "
