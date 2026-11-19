@@ -40,8 +40,12 @@ def test_project_strategies_match_prd_7() -> None:
         "inv_vol",
         "erc",
         "min_variance",
+        "min_variance_cap20",
+        "min_variance_cap40",
     ]
     assert by_id["min_variance"].max_weight == 0.30
+    assert by_id["min_variance_cap20"].max_weight == 0.20
+    assert by_id["min_variance_cap40"].max_weight == 0.40
     assert by_id["bench_6040"].weights == {"SPY": 0.6, "IEF": 0.4}
     assert by_id["all_weather_approx"].weights["TLT"] == 0.40
     assert len(by_id["equal_weight"].members) == 12  # level-1 anchors

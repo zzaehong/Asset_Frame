@@ -53,3 +53,18 @@ role = "diversification"
 kind = "min_variance"
 members = "level1_anchors"
 max_weight = 0.30
+
+# min_variance 상한 민감도(20·40%). 본 전략의 30%는 임의 선택이라 같은 규칙으로 나란히 비교한다.
+[[strategies]]
+id = "min_variance_cap20"
+role = "sensitivity"
+kind = "min_variance"
+members = "level1_anchors"
+max_weight = 0.20
+
+[[strategies]]
+id = "min_variance_cap40"
+role = "sensitivity"
+kind = "min_variance"
+members = "level1_anchors"
+max_weight = 0.40
