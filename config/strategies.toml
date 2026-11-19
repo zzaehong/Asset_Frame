@@ -1,0 +1,34 @@
+# 전략 후보 (PRD 7절). 전략을 추가·삭제하거나 비중을 바꾸면 PRD와 ADR을 함께 확인한다.
+# kind = "fixed": weights 합이 1. kind = "equal_weight": members의 편입 가능한 자산을 동일가중.
+# 편입 가능 자산이 모자란 달은 있는 자산에 비중을 비례 배분하고 coverage로 표시한다.
+schema_version = 1
+
+[[strategies]]
+id = "bench_spy"
+role = "benchmark"
+kind = "fixed"
+weights = { SPY = 1.0 }
+
+[[strategies]]
+id = "bench_6040"
+role = "benchmark"
+kind = "fixed"
+weights = { SPY = 0.6, IEF = 0.4 }
+
+[[strategies]]
+id = "all_weather_approx"
+role = "regime_diversified"
+kind = "fixed"
+weights = { SPY = 0.30, TLT = 0.40, IEF = 0.15, GLD = 0.075, DBC = 0.075 }
+
+[[strategies]]
+id = "permanent"
+role = "regime_diversified"
+kind = "fixed"
+weights = { SPY = 0.25, TLT = 0.25, GLD = 0.25, BIL = 0.25 }
+
+[[strategies]]
+id = "equal_weight"
+role = "naive_baseline"
+kind = "equal_weight"
+members = "level1_anchors"

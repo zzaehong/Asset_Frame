@@ -7,6 +7,9 @@ from dataclasses import astuple, fields
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from asset_frame.backtest.engine import CALC_VERSION as BACKTEST_CALC_VERSION
+from asset_frame.backtest.jobs import BENCHMARKS, run_backtest
+from asset_frame.backtest.strategies import load_strategies
 from asset_frame.connectors.fred import FRED_SOURCE_ID, SUPPORTED_SERIES
 from asset_frame.connectors.krx import KRX_SOURCE_ID, KrxDataset
 from asset_frame.connectors.tiingo import TIINGO_SOURCE_ID
@@ -32,6 +35,7 @@ from asset_frame.universe_jobs import (
 SOURCES_PATH = Path("config/sources.toml")
 UNIVERSE_PATH = Path("config/universe.toml")
 REPORT_DIR = Path("var/reports")
+STRATEGIES_PATH = Path("config/strategies.toml")
 STATUS_CSV_PATH = REPORT_DIR / "universe_status.csv"
 DEFAULT_DATABASE_PATH = "var/asset_frame.sqlite3"
 DEFAULT_RAW_STORE_PATH = "var/raw"
@@ -82,6 +86,7 @@ def main(argv: list[str] | None = None) -> None:
     fred_parser.add_argument("--series", required=True, choices=SUPPORTED_SERIES)
 
     subparsers.add_parser("build-returns", help="compute monthly total returns")
+    subparsers.add_parser("backtest", help="compare strategies under three rebalancing rules")
 
     arguments = parser.parse_args(argv)
     if arguments.command == "sources":
@@ -104,6 +109,8 @@ def main(argv: list[str] | None = None) -> None:
         _ingest_fred(arguments.series)
     elif arguments.command == "build-returns":
         _build_returns()
+    elif arguments.command == "backtest":
+        _backtest()
 
 
 def _print_sources() -> None:
@@ -240,6 +247,94 @@ def _analyze_universe() -> None:
     if analysis.excluded:
         print(f"excluded from the window statistics: {', '.join(analysis.excluded)}")
     print(f"wrote {risk_path}\nwrote {correlation_path}")
+
+
+def _backtest() -> None:
+    universe = load_universe(UNIVERSE_PATH)
+    cash_ticker = next(asset.ticker for asset in universe if asset.group == "cash")
+    returns = {
+        ticker: {month: float(value) for month, value in by_month.items()}
+        for ticker, by_month in _research_store().latest_returns().items()
+    }
+    result = run_backtest(
+        load_strategies(STRATEGIES_PATH, universe), returns, cash_ticker=cash_ticker
+    )
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    performance_path = REPORT_DIR / "backtest_performance.csv"
+    with performance_path.open("w", newline="") as csv_file:
+        writer = csv.writer(csv_file)
+        header = [
+            "strategy",
+            "rule",
+            "start",
+            "end",
+            "months",
+            "cagr",
+            "volatility",
+            "sharpe",
+            "sortino",
+            "calmar",
+            "max_drawdown",
+            "mean_monthly_turnover",
+        ]
+        for name in BENCHMARKS:
+            header += [f"{name}_excess_cagr", f"{name}_tracking_error", f"{name}_information_ratio"]
+        header.append("calc_version")
+        writer.writerow(header)
+        for row in result.rows:
+            p = row.performance
+            line = [
+                row.strategy,
+                row.rule,
+                row.start,
+                row.end,
+                p.months,
+                *(
+                    _ratio(v)
+                    for v in (
+                        p.cagr,
+                        p.volatility,
+                        p.sharpe,
+                        p.sortino,
+                        p.calmar,
+                        p.max_drawdown,
+                        row.mean_turnover,
+                    )
+                ),
+            ]
+            for name in BENCHMARKS:
+                rel = row.versus.get(name)
+                line += (
+                    [
+                        _ratio(rel.excess_cagr),
+                        _ratio(rel.tracking_error),
+                        _ratio(rel.information_ratio),
+                    ]
+                    if rel
+                    else ["", "", ""]
+                )
+            writer.writerow([*line, BACKTEST_CALC_VERSION])
+    monthly_path = REPORT_DIR / "backtest_monthly.csv"
+    with monthly_path.open("w", newline="") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(["strategy", "rule", "month", "total_return", "coverage", "turnover"])
+        for (strategy_id, rule), results in result.months.items():
+            for item in results:
+                writer.writerow(
+                    [
+                        strategy_id,
+                        rule,
+                        item.month,
+                        f"{item.total_return:.6f}",
+                        f"{item.coverage:.4f}",
+                        f"{item.turnover:.4f}",
+                    ]
+                )
+    print(
+        f"common period {result.common_months[0]} .. {result.common_months[-1]} "
+        f"({len(result.common_months)} months)"
+    )
+    print(f"wrote {performance_path}\nwrote {monthly_path}")
 
 
 def _ratio(value: float | None) -> str:

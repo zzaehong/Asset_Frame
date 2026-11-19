@@ -74,3 +74,48 @@ status = "implemented"
 module = "asset_frame.analytics.risk"
 tests = ["tests/test_analytics.py"]
 card = "docs/concepts/risk_contribution.md"
+
+[[concepts]]
+id = "strategic_allocation"
+name = "전략적 자산배분과 리밸런싱"
+domain = "분산투자기법"
+status = "implemented"
+module = "asset_frame.backtest.engine"
+tests = ["tests/test_backtest.py"]
+card = "docs/concepts/strategic_allocation.md"
+
+[[concepts]]
+id = "cagr_calmar"
+name = "연복리수익률과 칼마 비율"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.backtest.metrics"
+tests = ["tests/test_backtest.py"]
+card = "docs/concepts/cagr_calmar.md"
+
+[[concepts]]
+id = "sharpe_ratio"
+name = "샤프 비율"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.backtest.metrics"
+tests = ["tests/test_backtest.py"]
+card = "docs/concepts/sharpe_ratio.md"
+
+[[concepts]]
+id = "sortino_ratio"
+name = "소르티노 비율"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.backtest.metrics"
+tests = ["tests/test_backtest.py"]
+card = "docs/concepts/sortino_ratio.md"
+
+[[concepts]]
+id = "information_ratio"
+name = "정보비율과 추적오차"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.backtest.metrics"
+tests = ["tests/test_backtest.py"]
+card = "docs/concepts/information_ratio.md"
