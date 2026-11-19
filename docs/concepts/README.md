@@ -23,6 +23,7 @@
 | `sharpe_ratio` | 샤프 비율 | 투자운용결과분석 | [sharpe_ratio.md](sharpe_ratio.md) |
 | `sortino_ratio` | 소르티노 비율 | 투자운용결과분석 | [sortino_ratio.md](sortino_ratio.md) |
 | `information_ratio` | 정보비율과 추적오차 | 투자운용결과분석 | [information_ratio.md](information_ratio.md) |
+| `mean_variance` | 평균-분산(최소분산 포트폴리오) | 분산투자기법 | [mean_variance.md](mean_variance.md) |
 
 ## 등록 예정
 
