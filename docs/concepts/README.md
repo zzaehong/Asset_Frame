@@ -18,6 +18,11 @@
 | `historical_var` | 역사적 VaR | 리스크관리 | [historical_var.md](historical_var.md) |
 | `correlation` | 상관계수 | 분산투자기법 | [correlation.md](correlation.md) |
 | `risk_contribution` | 위험기여도 | 분산투자기법 | [risk_contribution.md](risk_contribution.md) |
+| `strategic_allocation` | 전략적 자산배분과 리밸런싱 | 분산투자기법 | [strategic_allocation.md](strategic_allocation.md) |
+| `cagr_calmar` | 연복리수익률과 칼마 비율 | 투자운용결과분석 | [cagr_calmar.md](cagr_calmar.md) |
+| `sharpe_ratio` | 샤프 비율 | 투자운용결과분석 | [sharpe_ratio.md](sharpe_ratio.md) |
+| `sortino_ratio` | 소르티노 비율 | 투자운용결과분석 | [sortino_ratio.md](sortino_ratio.md) |
+| `information_ratio` | 정보비율과 추적오차 | 투자운용결과분석 | [information_ratio.md](information_ratio.md) |
 
 ## 등록 예정
 
