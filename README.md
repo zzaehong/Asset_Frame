@@ -2,11 +2,11 @@
 
 1명(저장소 소유자)이 쓰는 자산배분 실험 도구입니다. 여러 자산군으로 만든 배분 전략을 같은 기준으로
 비교합니다. 요구사항은 [PRD v0.4](PRD.md), 진행 순서는 [로드맵](docs/roadmap.md)에 있습니다. 현재 마일스톤은 M1(자산배분 실험실)이며,
-구현된 것은 그 첫 단계인 데이터 층(M1-1)까지입니다.
+구현된 것은 데이터 층(M1-1)과 분석 층(M1-2)까지입니다.
 
 ## 구현됨
 
-지금 구현된 것은 **데이터 층**뿐입니다. 분석·전략·리포트는 아직 없습니다. 아래 항목은 모두 옆에 적은 테스트로 확인됩니다.
+지금 구현된 것은 데이터 층과 위험 분석 층입니다. 전략·리포트는 아직 없습니다. 아래 항목은 모두 옆에 적은 테스트로 확인됩니다.
 
 | 기능 | 확인 테스트 |
 |---|---|
@@ -22,6 +22,7 @@
 | 유니버스 v3 설정 31개: 티커 중복 금지, 자산군당 앵커 1개, 세분은 같은 자산군 앵커를 세분 | `tests/test_universe.py` |
 | `ingest-universe`: 10년 구간 겹쳐 수집, 실패 티커부터 재시작, 저장된 티커는 새 날짜만 수집(전체 재수집과 같은 지수). `universe verify`: ±31일 `ok`만 설정에 기록 | `tests/test_universe.py` |
 | 총수익 지수·월간 수익률(손 계산 표본), snapshot 연결, 현금 대용, 앵커 보존, `eligible_assets` 13개월, 일간 ±25% 이상치 표시 | `tests/test_returns.py` |
+| 위험 지표(연율 변동성, 최대낙폭, 95% 역사적 VaR), 36개월 상관행렬, 위험기여도(손 계산 표본·분산 일치 검증) | `tests/test_analytics.py` |
 | 개념 레지스트리: 구현된 개념은 모듈·테스트·카드가 있음 | `tests/test_concept_registry.py` |
 | 직접 의존성의 공식 문서 registry 등록 | `tests/test_dependency_registry.py` |
 
@@ -69,6 +70,7 @@ uv run asset-frame universe verify          # 상장일 검증. ok만 config/uni
 uv run asset-frame ingest-fred --series DTB3
 uv run asset-frame build-returns            # monthly_return, return_anomaly 테이블에 새 빌드 추가
 uv run asset-frame universe status          # 콘솔 표 + var/reports/universe_status.csv
+uv run asset-frame universe analyze         # var/reports/analysis_risk.csv, analysis_correlation.csv
 ```
 
 - `ingest-universe`는 Tiingo Starter 한도(시간당 50회, `config/sources.toml`)에 맞춰 요청 사이를
@@ -102,4 +104,4 @@ uv run ruff format --check .
 
 - 자동매매와 주문 기능은 없고 만들지 않습니다.
 - 공식 API·공식 배포 파일만 수집합니다. 크롤링과 비공식 금융 라이브러리는 쓰지 않습니다.
-- 수익률 시계열까지만 있습니다. 상관·위험기여도·전략·리포트는 M1-2, M1-3에서 만듭니다.
+- 월간 수익률과 위험 분석까지만 있습니다. 전략·백테스트·리포트는 M1-3, M1-4에서 만듭니다.
