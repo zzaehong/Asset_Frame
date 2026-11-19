@@ -10,7 +10,7 @@
 - `entry_hash = SHA-256(정규 JSON [seq, prev_hash, entry_type, payload, created_at])`. 첫 항목의 `prev_hash`는 `0` 64개다. 정규 JSON은 키 정렬, 공백 없음, 비ASCII 유지다.
 - `BEFORE UPDATE`·`BEFORE DELETE` 트리거가 수정과 삭제를 거부한다. 같은 `entry_key`는 한 번만 들어간다(재실행 중복 방지).
 - `kind`는 payload 안에 둔다. `live`는 그 달 판단 직후 기록한 항목, `replay`는 과거 월을 사후에 재현한 항목이다. 둘은 키가 달라 공존하며, 보고서에서 합산하지 않는다.
-- 항목 종류는 M2-3에서 `regime_observation`뿐이다. 예측과 채점은 M2-4에서 `prediction`·`score`로 추가한다.
+- 항목 종류: `regime_observation`(M2-3), `prediction`·`score`(M2-4). 채점은 예측 항목을 고치지 않고 `prediction_seq`로 가리키는 새 항목을 추가한다.
 
 ## 결과와 한계
 
