@@ -20,10 +20,12 @@ from asset_frame.ingestion.krx_service import KrxCollector
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.transport import RateLimitedRetryTransport, UrllibHttpTransport
 from asset_frame.ingestion.universe_service import ingest_universe
-from asset_frame.regime.jobs import run_regime
+from asset_frame.ledger.chain import first_broken_seq
+from asset_frame.regime.jobs import record_regime, run_regime
 from asset_frame.report.dashboard import build_payload, render_dashboard
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.backup import backup
+from asset_frame.storage.ledger import LedgerStore
 from asset_frame.storage.raw import FileRawStore
 from asset_frame.storage.research import ResearchStore
 from asset_frame.storage.sqlite import SqliteIngestionRepository
@@ -93,6 +95,15 @@ def main(argv: list[str] | None = None) -> None:
     subparsers.add_parser("build-returns", help="compute monthly total returns")
     subparsers.add_parser("dashboard", help="write the offline interactive dashboard")
     subparsers.add_parser("regime", help="replay regime rules and score them against NBER")
+    ledger_parser = subparsers.add_parser("ledger", help="append-only hash-chained ledger")
+    ledger_commands = ledger_parser.add_subparsers(dest="ledger_command", required=True)
+    ledger_commands.add_parser("verify", help="check the hash chain and print the head hash")
+    record_parser = ledger_commands.add_parser(
+        "record-regime", help="append the latest month's regime reading (live)"
+    )
+    record_parser.add_argument(
+        "--replay", action="store_true", help="append every replayed month as `replay` instead"
+    )
     subparsers.add_parser("backup", help="copy the database and raw files to BACKUP_PATH")
     backtest_parser = subparsers.add_parser(
         "backtest", help="compare strategies under three rebalancing rules"
@@ -126,6 +137,8 @@ def main(argv: list[str] | None = None) -> None:
         _dashboard()
     elif arguments.command == "regime":
         _regime()
+    elif arguments.command == "ledger":
+        _ledger(arguments.ledger_command, getattr(arguments, "replay", False))
     elif arguments.command == "backup":
         _backup()
     elif arguments.command == "backtest":
@@ -447,6 +460,20 @@ def _regime() -> None:
             print(
                 f"  episode {start:%Y-%m}: first flag {'never' if lag is None else lag} months in"
             )
+
+
+def _ledger(command: str, replay_all: bool) -> None:
+    ledger = LedgerStore(_database_path())
+    if command == "record-regime":
+        rows, _ = run_regime(_research_store())
+        appended, skipped = record_regime(ledger, rows, replay_all=replay_all)
+        print(f"appended {appended}, already in ledger {skipped}")
+    entries = ledger.entries()
+    broken = first_broken_seq(entries)
+    if broken is not None:
+        raise SystemExit(f"ledger chain broken at entry {broken}")
+    head = entries[-1].entry_hash if entries else "(empty)"
+    print(f"ledger ok: {len(entries)} entries, head {head}")
 
 
 def _backup() -> None:
