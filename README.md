@@ -26,6 +26,7 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | 전략 8개 설정 검증(벤치마크 2, 고정 비중 2, 동일가중, 추정 비중 3), 월간·분기·밴드 리밸런싱, 편입 자격 13개월·비중 재배분(coverage), 성과 지표(CAGR·샤프·소르티노·칼마·정보비율) 손 계산 검증, 36개월 창 추정 전략 | `tests/test_backtest.py` |
 | 추정 비중: 역변동성, 위험균등(위험기여도 동일 검증), 상한 있는 최소분산(닫힌 해·격자 탐색 비교) | `tests/test_allocation.py` |
 | 위기 구간(2008·2020·2022) 누적 수익률·최대낙폭과 부분 구성 표시, 월간 HTML 리포트(성과표·위기표·누적 가치 차트·위험표·상관행렬, 이름 이스케이프, 태그 균형) | `tests/test_report.py` |
+| 오프라인 웹 대시보드: 한 파일(`dashboard.html`)에 계산 결과를 담고 외부 로드 없음, 규칙별 성과·누적 가치·위기·위험·상관, 데이터가 스크립트를 닫지 못함 | `tests/test_dashboard.py` |
 | 개념 레지스트리: 구현된 개념은 모듈·테스트·카드가 있음 | `tests/test_concept_registry.py` |
 | 직접 의존성의 공식 문서 registry 등록 | `tests/test_dependency_registry.py` |
 
@@ -74,6 +75,7 @@ uv run asset-frame ingest-fred --series DTB3
 uv run asset-frame build-returns            # monthly_return, return_anomaly 테이블에 새 빌드 추가
 uv run asset-frame universe status          # 콘솔 표 + var/reports/universe_status.csv
 uv run asset-frame universe analyze         # var/reports/analysis_risk.csv, analysis_correlation.csv
+uv run asset-frame dashboard                # var/reports/dashboard.html (오프라인 웹 대시보드, 서버 불필요)
 uv run asset-frame report                   # var/reports/report.html (브라우저로 열기)
 uv run asset-frame backtest                 # var/reports/backtest_performance.csv, backtest_monthly.csv
 uv run asset-frame backtest --window-months 24   # 위험 추정 창 민감도(파일명에 _w24)

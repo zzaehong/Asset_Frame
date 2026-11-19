@@ -1,0 +1,125 @@
+"""Offline web dashboard: one self-contained HTML file with the computed results embedded.
+
+All numbers are computed here in Python; the page only filters and draws them. The file loads
+nothing from the network, so it opens from disk without a server.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Sequence
+from datetime import date
+from pathlib import Path
+
+from asset_frame.backtest.engine import CALC_VERSION as BACKTEST_CALC_VERSION
+from asset_frame.backtest.engine import RULES
+from asset_frame.backtest.jobs import CRISIS_WINDOWS, BacktestResult, window_stat
+from asset_frame.universe_jobs import Analysis
+
+BENCHMARKS = ("bench_spy", "bench_6040")
+TEMPLATE_PATH = Path(__file__).with_name("dashboard.html")
+_PLACEHOLDER = "/*__DATA__*/null"
+
+
+def build_payload(
+    result: BacktestResult,
+    analysis: Analysis,
+    *,
+    strategy_ids: Sequence[str],
+    anchors: Sequence[str],
+    generated_on: date,
+) -> dict:
+    rows = {(row.strategy, row.rule): row for row in result.rows}
+    performance: dict[str, dict] = {rule: {} for rule in RULES}
+    for (strategy, rule), row in rows.items():
+        p = row.performance
+        entry = {
+            "cagr": p.cagr,
+            "volatility": p.volatility,
+            "sharpe": p.sharpe,
+            "sortino": p.sortino,
+            "calmar": p.calmar,
+            "max_drawdown": p.max_drawdown,
+            "turnover": row.mean_turnover,
+            "versus": {},
+        }
+        for name in BENCHMARKS:
+            relative, bench = row.versus.get(name), rows.get((name, rule))
+            if relative is None or bench is None or strategy == name:
+                continue
+            bench_p = bench.performance
+            entry["versus"][name] = {
+                "excess_cagr": relative.excess_cagr,
+                "information_ratio": relative.information_ratio,
+                "better_sharpe": p.sharpe is not None
+                and bench_p.sharpe is not None
+                and p.sharpe > bench_p.sharpe,
+                "smaller_drawdown": p.max_drawdown > bench_p.max_drawdown,
+            }
+        performance[rule][strategy] = entry
+
+    wealth: dict[str, dict] = {rule: {} for rule in RULES}
+    crisis: dict[str, dict] = {rule: {} for rule in RULES}
+    for strategy in strategy_ids:
+        for rule in RULES:
+            by_month = {r.month: r for r in result.months[strategy, rule]}
+            level, path = 1.0, []
+            for month in result.common_months:
+                level *= 1 + by_month[month].total_return
+                path.append(level)
+            wealth[rule][strategy] = path
+            crisis[rule][strategy] = {}
+            for name, (start, end) in CRISIS_WINDOWS.items():
+                stat = window_stat(result.months[strategy, rule], start, end)
+                crisis[rule][strategy][name] = (
+                    None
+                    if stat is None
+                    else {
+                        "cumulative": stat.cumulative_return,
+                        "max_drawdown": stat.max_drawdown,
+                        "min_coverage": stat.min_coverage,
+                        "months": stat.months,
+                    }
+                )
+
+    tickers = [t for t in anchors if (t, t) in analysis.correlation]
+    return {
+        "generated_on": generated_on.isoformat(),
+        "as_of": analysis.as_of.isoformat(),
+        "calc_version": BACKTEST_CALC_VERSION,
+        "period": {
+            "start": result.common_months[0].isoformat(),
+            "end": result.common_months[-1].isoformat(),
+            "months": len(result.common_months),
+        },
+        "rules": list(RULES),
+        "strategies": list(strategy_ids),
+        "months": [month.isoformat() for month in result.common_months],
+        "performance": performance,
+        "wealth": wealth,
+        "crisis": crisis,
+        "crisis_windows": list(CRISIS_WINDOWS),
+        "risk": [
+            {
+                "ticker": a.ticker,
+                "months": a.months,
+                "volatility": a.volatility,
+                "max_drawdown": a.max_drawdown,
+                "var_95": a.var_95,
+                "risk_share": analysis.risk_contribution.get(a.ticker),
+            }
+            for a in analysis.assets
+        ],
+        "correlation": {
+            "tickers": tickers,
+            "window_months": analysis.window_months,
+            "matrix": [[analysis.correlation[a, b] for b in tickers] for a in tickers],
+        },
+    }
+
+
+def render_dashboard(payload: dict) -> str:
+    template = TEMPLATE_PATH.read_text(encoding="utf-8")
+    # "</" would end the script element early; JSON allows the escaped slash.
+    data = json.dumps(payload, ensure_ascii=False, allow_nan=False).replace("</", "<\\/")
+    return template.replace(_PLACEHOLDER, data, 1)
