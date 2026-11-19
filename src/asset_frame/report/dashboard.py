@@ -15,6 +15,9 @@ from asset_frame.backtest.engine import CALC_VERSION as BACKTEST_CALC_VERSION
 from asset_frame.backtest.engine import RULES
 from asset_frame.backtest.jobs import CRISIS_WINDOWS, BacktestResult, window_stat
 from asset_frame.backtest.strategies import Strategy
+from asset_frame.regime.performance import CALC_VERSION as REGIME_PERFORMANCE_VERSION
+from asset_frame.regime.performance import regime_performance
+from asset_frame.regime.replay import RegimeRow
 from asset_frame.universe import UniverseAsset
 from asset_frame.universe_jobs import Analysis
 
@@ -35,6 +38,7 @@ def build_payload(
     proxy_months: Mapping[str, Sequence[date]],
     cash_ticker: str,
     generated_on: date,
+    regime_rows: Sequence[RegimeRow] = (),
 ) -> dict:
     strategy_ids = [s.id for s in strategies]
     anchors = [a.ticker for a in universe if a.level == 1 and a.role == "anchor"]
@@ -156,6 +160,9 @@ def build_payload(
             for ticker, months in proxy_months.items()
             if months
         },
+        "regime": _regime_payload(
+            regime_rows, {t: returns[t] for t in tickers_in(universe, returns)}
+        ),
         "definitions": {
             s.id: {
                 "kind": s.kind,
@@ -166,6 +173,35 @@ def build_payload(
             }
             for s in strategies
         },
+    }
+
+
+def tickers_in(universe: Sequence[UniverseAsset], returns: Mapping[str, object]) -> list[str]:
+    return [a.ticker for a in universe if a.ticker in returns]
+
+
+def _regime_payload(
+    rows: Sequence[RegimeRow], returns: Mapping[str, Mapping[date, float]]
+) -> dict | None:
+    if not rows:
+        return None
+    return {
+        "calc_version": REGIME_PERFORMANCE_VERSION,
+        "rows": [
+            {
+                "month": row.month_end.isoformat(),
+                "quadrant": row.quadrant,
+                "recession": row.indpro_sahm,
+                "correlation_regime": row.correlation_regime,
+                "sahm": row.sahm,
+                "cfnai_ma3": row.cfnai_ma3,
+                "indpro_yoy": row.indpro_yoy,
+                "stock_bond_correlation": row.stock_bond_correlation,
+                "nber": row.nber_recession,
+            }
+            for row in rows
+        ],
+        "performance": regime_performance(rows, returns),
     }
 
 

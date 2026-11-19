@@ -137,3 +137,39 @@ def test_embedded_data_cannot_close_the_script_element(payload: dict) -> None:
     payload["strategies"][0] = "</script><b>x"
     html = render_dashboard(payload)
     assert html.count("</script>") == 2  # only the two real closing tags
+
+
+def test_payload_regime_section_is_absent_without_rows_and_carries_performance_with_them() -> None:
+    from asset_frame.regime.replay import RegimeRow
+
+    result, analysis, returns, calendar = make_inputs()
+    kwargs = dict(
+        universe=UNIVERSE,
+        strategies=STRATEGIES,
+        returns=returns,
+        proxy_months={},
+        cash_ticker="BIL",
+        generated_on=date(2026, 1, 1),
+    )
+    assert build_payload(result, analysis, **kwargs)["regime"] is None
+
+    rows = [
+        RegimeRow(
+            month_end=calendar[i],
+            sahm=None,
+            indpro_yoy=None,
+            cfnai_ma3=None,
+            indpro_sahm=False,
+            cfnai_sahm=None,
+            quadrant="growth_up_inflation_up",
+            stock_bond_correlation=None,
+            correlation_regime=None,
+            nber_recession=False,
+        )
+        for i in range(10)
+    ]
+    regime = build_payload(result, analysis, regime_rows=rows, **kwargs)["regime"]
+
+    cell = regime["performance"]["quadrant"]["growth_up_inflation_up"]
+    assert cell["months"] == 10 and "SPY" in cell["assets"]
+    json.dumps(regime, allow_nan=False)

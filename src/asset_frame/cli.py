@@ -394,6 +394,11 @@ def _dashboard() -> None:
     returns = _float_returns(store)
     cash_ticker = _cash_ticker(universe)
     months, _ = store.latest_build()
+    try:
+        regime_rows, _ = run_regime(store)
+    except SystemExit as error:
+        print(f"regime section skipped: {error}")
+        regime_rows = ()
     payload = build_payload(
         run_backtest(strategies, returns, cash_ticker=cash_ticker),
         analyze_universe(universe, store=store),
@@ -403,6 +408,7 @@ def _dashboard() -> None:
         proxy_months={t: [m for m, is_proxy in rows if is_proxy] for t, rows in months.items()},
         cash_ticker=cash_ticker,
         generated_on=datetime.now(UTC).date(),
+        regime_rows=regime_rows,
     )
     _write_report("dashboard.html", render_dashboard(payload))
 
