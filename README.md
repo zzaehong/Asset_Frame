@@ -28,6 +28,7 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | 위기 구간(2008·2020·2022) 누적 수익률·최대낙폭과 부분 구성 표시, 현금도 일반 자산으로 담김(평균 비중·대용 구간), 오프라인 대시보드 한 파일(외부 로드 없음, 데이터가 스크립트를 닫지 못함) | `tests/test_dashboard.py` |
 | 대시보드 안의 포트폴리오 실험실·롤링 상관 엔진이 파이썬 엔진과 같은 값을 냄(노드가 없으면 건너뜀) | `tests/test_dashboard_engine.py` |
 | FRED 거시 시리즈(INDPRO·UNRATE·CPIAUCSL·CFNAIMA3)를 최초 발표값과 발표일로 저장(`output_type=4`), USREC은 현재 값, 승인 안 된 시리즈 거부 | `tests/test_fred_connector.py` |
+| `regime`: Sahm 지표·INDPRO/CFNAI 침체 규칙·L3 4분면·주식채권 상관 국면, 발표일 이후 값만 쓰는 월말 replay, NBER 대비 채점(손 계산 표본) | `tests/test_regime_rules.py`, `tests/test_regime_replay.py` |
 | `backup`: SQLite 일관 복사(최근 4개 유지)와 raw 파일 추가 복사(기존 파일은 덮어쓰지 않음) | `tests/test_backup.py` |
 | 개념 레지스트리: 구현된 개념은 모듈·테스트·카드가 있음 | `tests/test_concept_registry.py` |
 | 직접 의존성의 공식 문서 registry 등록 | `tests/test_dependency_registry.py` |
@@ -79,6 +80,7 @@ uv run asset-frame build-returns            # monthly_return, return_anomaly 테
 uv run asset-frame universe status          # 콘솔 표 + var/reports/universe_status.csv
 uv run asset-frame universe analyze         # var/reports/analysis_risk.csv, analysis_correlation.csv
 uv run asset-frame dashboard                # var/reports/dashboard.html: 오프라인 대화형 대시보드(서버 불필요)
+uv run asset-frame regime                   # var/reports/regime_replay.csv: 국면 규칙 replay와 NBER 채점
 uv run asset-frame backup                   # var의 DB·raw를 BACKUP_PATH로 복사(수집 후 실행)
 uv run asset-frame backtest                 # var/reports/backtest_performance.csv, backtest_monthly.csv
 uv run asset-frame backtest --window-months 24   # 위험 추정 창 민감도(파일명에 _w24)
