@@ -20,11 +20,12 @@ from asset_frame.ingestion.krx_service import KrxCollector
 from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.transport import RateLimitedRetryTransport, UrllibHttpTransport
 from asset_frame.ingestion.universe_service import ingest_universe
+from asset_frame.report.html import render_report
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.raw import FileRawStore
 from asset_frame.storage.research import ResearchStore
 from asset_frame.storage.sqlite import SqliteIngestionRepository
-from asset_frame.universe import load_universe
+from asset_frame.universe import UniverseAsset, load_universe
 from asset_frame.universe_jobs import (
     StatusRow,
     analyze_universe,
@@ -87,6 +88,7 @@ def main(argv: list[str] | None = None) -> None:
     fred_parser.add_argument("--series", required=True, choices=SUPPORTED_SERIES)
 
     subparsers.add_parser("build-returns", help="compute monthly total returns")
+    subparsers.add_parser("report", help="write the monthly HTML report")
     backtest_parser = subparsers.add_parser(
         "backtest", help="compare strategies under three rebalancing rules"
     )
@@ -115,6 +117,8 @@ def main(argv: list[str] | None = None) -> None:
         _ingest_fred(arguments.series)
     elif arguments.command == "build-returns":
         _build_returns()
+    elif arguments.command == "report":
+        _report()
     elif arguments.command == "backtest":
         _backtest(arguments.window_months)
 
@@ -257,15 +261,10 @@ def _analyze_universe() -> None:
 
 def _backtest(window_months: int) -> None:
     universe = load_universe(UNIVERSE_PATH)
-    cash_ticker = next(asset.ticker for asset in universe if asset.group == "cash")
-    returns = {
-        ticker: {month: float(value) for month, value in by_month.items()}
-        for ticker, by_month in _research_store().latest_returns().items()
-    }
     result = run_backtest(
         load_strategies(STRATEGIES_PATH, universe),
-        returns,
-        cash_ticker=cash_ticker,
+        _float_returns(_research_store()),
+        cash_ticker=_cash_ticker(universe),
         window_months=window_months,
     )
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -345,6 +344,35 @@ def _backtest(window_months: int) -> None:
         f"({len(result.common_months)} months)"
     )
     print(f"wrote {performance_path}\nwrote {monthly_path}")
+
+
+def _report() -> None:
+    universe = load_universe(UNIVERSE_PATH)
+    store = _research_store()
+    strategies = load_strategies(STRATEGIES_PATH, universe)
+    result = run_backtest(strategies, _float_returns(store), cash_ticker=_cash_ticker(universe))
+    html = render_report(
+        result,
+        analyze_universe(universe, store=store),
+        strategy_ids=[s.id for s in strategies],
+        anchors=[a.ticker for a in universe if a.level == 1 and a.role == "anchor"],
+        generated_on=datetime.now(UTC).date(),
+    )
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    path = REPORT_DIR / "report.html"
+    path.write_text(html, encoding="utf-8")
+    print(f"wrote {path}")
+
+
+def _cash_ticker(universe: tuple[UniverseAsset, ...]) -> str:
+    return next(asset.ticker for asset in universe if asset.group == "cash")
+
+
+def _float_returns(store: ResearchStore) -> dict[str, dict[date, float]]:
+    return {
+        ticker: {month: float(value) for month, value in by_month.items()}
+        for ticker, by_month in store.latest_returns().items()
+    }
 
 
 def _ratio(value: float | None) -> str:

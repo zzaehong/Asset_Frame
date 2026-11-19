@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from math import prod
 
-from asset_frame.analytics.risk import WINDOW_MONTHS
+from asset_frame.analytics.risk import WINDOW_MONTHS, max_drawdown
 from asset_frame.backtest.engine import RULES, MonthResult, run_strategy
 from asset_frame.backtest.metrics import Performance, Relative, performance, relative
 from asset_frame.backtest.strategies import Strategy
@@ -75,3 +76,36 @@ def run_backtest(
             )
         )
     return BacktestResult(months, common, tuple(rows))
+
+
+@dataclass(frozen=True, slots=True)
+class WindowStat:
+    months: int
+    cumulative_return: float
+    max_drawdown: float
+    min_coverage: float
+
+
+# PRD 9절의 위기 구간: 2008 금융위기, 2020 코로나, 2022 금리 인상.
+CRISIS_WINDOWS = {
+    "2008 금융위기": (date(2008, 1, 1), date(2008, 12, 31)),
+    "2020 코로나": (date(2020, 2, 1), date(2020, 3, 31)),
+    "2022 금리 인상": (date(2022, 1, 1), date(2022, 12, 31)),
+}
+
+
+def window_stat(results: tuple[MonthResult, ...], start: date, end: date) -> WindowStat | None:
+    """Cumulative return and max drawdown over the months of `results` inside [start, end].
+
+    None when the strategy has no month in the window; min_coverage < 1 means the strategy did
+    not hold its full intended weights for part of the window."""
+    inside = [r for r in results if start <= r.month <= end]
+    if not inside:
+        return None
+    returns = [r.total_return for r in inside]
+    return WindowStat(
+        len(inside),
+        prod(1 + r for r in returns) - 1,
+        max_drawdown(returns),
+        min(r.coverage for r in inside),
+    )
