@@ -61,22 +61,86 @@ enum Format {
     }
 }
 
+struct SignalRow: View {
+    let ok: Bool
+    let text: String
+    var body: some View {
+        Label {
+            Text(text)
+        } icon: {
+            Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(ok ? Color.green : Color.orange)
+        }
+    }
+}
+
+struct RegimeTile: View {
+    let title: String
+    let value: String
+    let detail: String
+    let alert: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.caption).foregroundStyle(.secondary)
+                Text(value).font(.title3.bold()).foregroundStyle(alert ? Color.red : Color.primary)
+                Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 78, alignment: .topLeading)
+            .padding(12)
+            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct OverviewView: View {
     @EnvironmentObject var model: AppModel
+
+    private var priceAge: (date: String, days: Int)? {
+        guard let text = model.status?.latestPriceDate else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        guard let date = formatter.date(from: text) else { return nil }
+        return (text, Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 0)
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                Card(title: "지금 확인할 것") {
+                    if let age = priceAge {
+                        SignalRow(ok: age.days <= 7,
+                                  text: "가격 데이터는 \(age.date) 기준입니다(\(age.days)일 전)." + (age.days <= 7 ? "" : " 터미널에서 수집 후 `uv run asset-frame dashboard`를 다시 실행하세요."))
+                    }
+                    if let ledger = model.ledger {
+                        SignalRow(ok: ledger.brokenAt == nil,
+                                  text: ledger.brokenAt == nil ? "원장 해시 체인이 정상입니다(\(ledger.entries.count)건)." : "원장 체인이 \(ledger.brokenAt ?? 0)번 항목에서 깨졌습니다.")
+                        if let regime = ledger.latestLiveRegime {
+                            let mine = ledger.predictions.contains { $0.model == "human" && $0.asOf.prefix(7) == regime.monthEnd.prefix(7) }
+                            SignalRow(ok: mine, text: mine ? "\(regime.monthEnd.prefix(7)) 내 예측을 입력했습니다." : "\(regime.monthEnd.prefix(7)) 내 예측이 아직 없습니다. 원장 화면에서 입력 명령을 복사하세요.")
+                        }
+                        SignalRow(ok: ledger.pending.isEmpty,
+                                  text: ledger.pending.isEmpty ? "채점 대기 중인 예측이 없습니다." : "채점 대기 \(ledger.pending.count)건. 기준월 3개월 뒤 `uv run asset-frame ledger score`로 채점합니다.")
+                    }
+                }
                 if let regime = model.ledger?.latestLiveRegime {
-                    Card(title: "현재 국면 (\(regime.monthEnd) 월말 기준)") {
-                        Line(label: "INDPRO + Sahm 침체 규칙", value: Format.flag(regime.indproSahm))
-                        Line(label: "CFNAI-MA3 + Sahm 침체 규칙", value: Format.flag(regime.cfnaiSahm))
-                        Line(label: "Sahm 지표(%p, 0.5 이상이면 신호)", value: Format.number(regime.sahm))
-                        Line(label: "산업생산 전년비", value: Format.percent(regime.indproYoY))
-                        Line(label: "CFNAI-MA3", value: Format.number(regime.cfnaiMA3))
-                        Line(label: "성장 × 물가", value: Format.quadrant(regime.quadrant))
-                        Line(label: "SPY–IEF 36개월 상관", value: Format.number(regime.correlation))
-                        Text(Format.correlation(regime.correlationRegime)).font(.caption).foregroundStyle(.secondary)
+                    Card(title: "현재 국면 (\(regime.monthEnd) 월말)") {
+                        HStack(alignment: .top, spacing: 10) {
+                            RegimeTile(title: "성장×물가", value: Format.quadrant(regime.quadrant),
+                                       detail: regime.cfnaiMA3.map { "CFNAI-MA3 \(Format.number($0))" } ?? "", alert: false) { model.screen = .regime }
+                            RegimeTile(title: "침체 신호", value: Format.flag(regime.indproSahm),
+                                       detail: "Sahm \(Format.number(regime.sahm))%p", alert: regime.indproSahm == true) { model.screen = .regime }
+                            RegimeTile(title: "주식·채권 상관", value: regime.correlationRegime == "stock_bond_positive" ? "동행 (+)" : "헤지 (−)",
+                                       detail: "SPY–IEF \(Format.number(regime.correlation))", alert: false) { model.screen = .regime }
+                        }
+                        HStack {
+                            Button("① 시장 국면 보기") { model.screen = .regime }
+                            Button("② 이 국면의 과거 성과") { model.screen = .history }
+                        }
                         Text("규칙 \(regime.calcVersion). 침체 규칙은 표본이 2~3번뿐이라 참고용입니다.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -86,24 +150,7 @@ struct OverviewView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                if let ledger = model.ledger {
-                    LedgerStatusCard(ledger: ledger)
-                    if !ledger.pending.isEmpty {
-                        Card(title: "채점 대기 (\(ledger.pending.count)건)") {
-                            ForEach(ledger.pending, id: \.seq) { item in
-                                Line(label: item.model, value: "\(item.asOf) 기준 → 3개월 뒤 채점")
-                            }
-                            Text("터미널에서 `uv run asset-frame ledger score`로 채점합니다.")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                if let status = model.status {
-                    Card(title: "데이터 최신성") {
-                        Line(label: "마지막 가격일", value: status.latestPriceDate ?? "—")
-                        Line(label: "마지막 월간 수익률", value: status.latestReturnMonth ?? "—")
-                    }
-                }
+                if let ledger = model.ledger { LedgerStatusCard(ledger: ledger) }
                 if let loaded = model.loadedAt {
                     Text("읽은 시각 \(loaded.formatted(date: .abbreviated, time: .standard)) · 앱은 데이터를 읽기만 합니다")
                         .font(.caption).foregroundStyle(.secondary)

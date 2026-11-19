@@ -16,6 +16,11 @@ struct AssetFrameApp: App {
                 Button("새로고침") { model.load() }.keyboardShortcut("r")
                 Button("프로젝트 폴더 선택…") { model.chooseProject() }
             }
+            CommandMenu("화면") {
+                ForEach(Screen.sidebarOrder) { screen in
+                    Button(screen.rawValue) { model.screen = screen }.keyboardShortcut(screen.shortcut)
+                }
+            }
         }
     }
 }

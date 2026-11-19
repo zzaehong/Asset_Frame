@@ -18,7 +18,7 @@
 | M2-2 | 국면 규칙: Sahm, `indpro_sahm`·`cfnai_sahm` 침체 규칙, L3 4분면, 주식채권 상관 국면. 발표일 이후 값만 쓰는 2007년~ 월말 replay와 NBER 채점(`regime`, `regime_rules` 카드). 규칙은 결과를 보기 전에 고정(시도 1회). | 완료(2026-11-19) |
 | M2-3 | 해시 체인 원장([ADR-0007](adr/0007-ledger-hash-chain.md)): 추가 전용 `ledger_entry`, `ledger verify`, `ledger record-regime`(live 최근 월, `--replay` 전체 월). 2026-10 live 1건 기록함 | 완료(2026-11-19) |
 | M2-4 | 예측·채점(`prediction_scoring` 카드): 12개 앵커 3개월 순위와 상관 부호 확률, 모델 `momentum_12_1`·`equal_rank`와 사용자 입력, 순위 IC·스프레드·Brier·MDE. Sahm 결측 처리(`regime_v2`). 2026-10 모델 예측 2건 기록, 첫 채점은 2027-01 | 완료(2026-11-19) |
-| M5 | Mac 앱([ADR-0008](adr/0008-mac-app-read-only.md)): `app/` SwiftUI, DB 읽기 전용. 개요(현재 국면·원장 상태·채점 대기·데이터 최신성)·대시보드(기존 HTML을 앱 안에서)·원장·데이터. `app/build_app.sh`, `swift test` 9개 | 구현(병합 승인 대기) |
+| M5 | Mac 앱([ADR-0008](adr/0008-mac-app-read-only.md)): `app/` SwiftUI, DB 읽기 전용. 홈(지금 확인할 것·현재 국면)·① 시장 국면·② 국면별 과거 성과·③ 전략 비교·포트폴리오 실험실(기존 HTML 탭을 사이드바로)·원장·데이터. `app/build_app.sh`, `swift test` 9개 | 구현(병합 승인 대기) |
 
 - PRD 9절은 HTML 리포트를 M1-3에 포함하지만, "한 작업에 새 계층 하나" 규칙에 따라 M1-3과 M1-4로 나눈다.
 - ECOS와 KRX 수집기는 M4 전까지 쓰는 곳이 없다. 새 작업으로 키우지 않는다.
