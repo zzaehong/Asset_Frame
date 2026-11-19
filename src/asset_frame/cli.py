@@ -21,6 +21,12 @@ from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.transport import RateLimitedRetryTransport, UrllibHttpTransport
 from asset_frame.ingestion.universe_service import ingest_universe
 from asset_frame.ledger.chain import first_broken_seq
+from asset_frame.prediction.jobs import (
+    record_human_prediction,
+    record_predictions,
+    score_due,
+    scoreboard,
+)
 from asset_frame.regime.jobs import record_regime, run_regime
 from asset_frame.report.dashboard import build_payload, render_dashboard
 from asset_frame.sources.registry import load_source_registry
@@ -104,6 +110,19 @@ def main(argv: list[str] | None = None) -> None:
     record_parser.add_argument(
         "--replay", action="store_true", help="append every replayed month as `replay` instead"
     )
+    ledger_commands.add_parser(
+        "predict-models", help="append model predictions for the latest month"
+    )
+    predict_parser = ledger_commands.add_parser("predict", help="append your own prediction")
+    predict_parser.add_argument(
+        "--ranking", required=True, help="tickers best to worst, comma-separated"
+    )
+    predict_parser.add_argument(
+        "--positive-prob", type=float, required=True, help="P(SPY-IEF 36m correlation > 0)"
+    )
+    predict_parser.add_argument("--note", required=True, help="one-line reason")
+    ledger_commands.add_parser("score", help="score predictions whose 3 months have passed")
+    ledger_commands.add_parser("scoreboard", help="per-model scores with sample size and MDE")
     subparsers.add_parser("backup", help="copy the database and raw files to BACKUP_PATH")
     backtest_parser = subparsers.add_parser(
         "backtest", help="compare strategies under three rebalancing rules"
@@ -138,7 +157,7 @@ def main(argv: list[str] | None = None) -> None:
     elif arguments.command == "regime":
         _regime()
     elif arguments.command == "ledger":
-        _ledger(arguments.ledger_command, getattr(arguments, "replay", False))
+        _ledger(arguments)
     elif arguments.command == "backup":
         _backup()
     elif arguments.command == "backtest":
@@ -462,12 +481,46 @@ def _regime() -> None:
             )
 
 
-def _ledger(command: str, replay_all: bool) -> None:
+def _ledger(arguments: argparse.Namespace) -> None:
+    command = arguments.ledger_command
     ledger = LedgerStore(_database_path())
     if command == "record-regime":
         rows, _ = run_regime(_research_store())
-        appended, skipped = record_regime(ledger, rows, replay_all=replay_all)
+        appended, skipped = record_regime(ledger, rows, replay_all=arguments.replay)
         print(f"appended {appended}, already in ledger {skipped}")
+    elif command in ("predict-models", "predict", "score"):
+        returns = _float_returns(_research_store())
+        if "SPY" not in returns:
+            raise SystemExit("no monthly returns: run `asset-frame build-returns`")
+        month_ends = sorted(returns["SPY"])
+        anchors = [
+            a.ticker for a in load_universe(UNIVERSE_PATH) if a.level == 1 and a.role == "anchor"
+        ]
+        if command == "predict-models":
+            print(f"appended {record_predictions(ledger, returns, anchors, month_ends)}")
+        elif command == "predict":
+            try:
+                new = record_human_prediction(
+                    ledger,
+                    anchors,
+                    month_ends,
+                    [t.strip().upper() for t in arguments.ranking.split(",")],
+                    arguments.positive_prob,
+                    arguments.note,
+                )
+            except ValueError as error:
+                raise SystemExit(str(error)) from error
+            print("appended" if new else f"already predicted for {month_ends[-1]}")
+        else:
+            print(f"scored {score_due(ledger, returns, month_ends)}")
+    elif command == "scoreboard":
+        for board in scoreboard(ledger):
+            print(
+                f"{board.model}: scored {board.scored}, mean IC {_ratio(board.mean_ic)} "
+                f"(MDE {_ratio(board.ic_mde) or 'n/a: <5 samples'}), "
+                f"mean top-bottom spread {_ratio(board.mean_spread)}, "
+                f"mean Brier {_ratio(board.mean_brier)}"
+            )
     entries = ledger.entries()
     broken = first_broken_seq(entries)
     if broken is not None:

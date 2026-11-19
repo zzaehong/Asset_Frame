@@ -66,7 +66,7 @@ def replay(
         unrate = available(series["UNRATE"], as_of)
         cpi = available(series["CPIAUCSL"], as_of)
         cfnai = available(series["CFNAIMA3"], as_of)
-        correlation = _stock_bond_correlation(returns, month_ends, as_of)
+        correlation = stock_bond_correlation(returns, month_ends, as_of)
         rows.append(
             RegimeRow(
                 month_end=as_of,
@@ -84,7 +84,7 @@ def replay(
     return tuple(rows)
 
 
-def _stock_bond_correlation(
+def stock_bond_correlation(
     returns: Mapping[str, Mapping[date, float]], month_ends: list[date], as_of: date
 ) -> float | None:
     months = trailing_months(month_ends, as_of, WINDOW_MONTHS)

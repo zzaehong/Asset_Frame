@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date
 
-CALC_VERSION = "regime_v1"
+CALC_VERSION = "regime_v2"  # v2: a 3-month average may use 2 of 3 months (missing 2025-10)
 SAHM_THRESHOLD = 0.5  # percentage points, Sahm's original definition
 CFNAI_MA3_THRESHOLD = -0.70  # Chicago Fed: below -0.70 after an expansion, rising recession odds
 INFLATION_DIRECTION_MONTHS = 3
@@ -29,15 +29,18 @@ def available(series: Series, as_of: date) -> dict[int, float]:
 
 def sahm_indicator(unrate: dict[int, float]) -> float | None:
     """3-month average of the latest unemployment rate minus the minimum of the 3-month averages
-    of the previous 12 months (Sahm Rule, in percentage points). None if any input month is missing.
+    of the previous 12 months (Sahm Rule, in percentage points).
+
+    A 3-month average uses the months it has when at least 2 of the 3 exist (BLS published no
+    2025-10 rate); with fewer, or if any of the 13 averages is missing, the result is None.
     """
     if not unrate:
         return None
     latest = max(unrate)
 
     def average(month: int) -> float | None:
-        values = [unrate.get(month - lag) for lag in range(3)]
-        return None if None in values else sum(values) / 3  # type: ignore[arg-type]
+        values = [unrate[m] for m in (month, month - 1, month - 2) if m in unrate]
+        return sum(values) / len(values) if len(values) >= 2 else None
 
     current = average(latest)
     prior = [average(latest - back) for back in range(1, 13)]

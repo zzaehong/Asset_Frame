@@ -40,12 +40,21 @@ def test_sahm_indicator_hand_computed() -> None:
     assert sahm_indicator(CALM) == pytest.approx(0.0)
 
 
-def test_sahm_needs_complete_history() -> None:
+def test_sahm_averages_two_of_three_months_but_not_fewer() -> None:
     assert sahm_indicator({}) is None
-    assert sahm_indicator(months([4.0] * 14)) is None  # 12 prior averages need 15 months
-    gap = dict(CALM)
-    del gap[5]
-    assert sahm_indicator(gap) is None
+    assert sahm_indicator(months([4.0] * 13)) is None  # the oldest average would have 1 month
+    one_gap = dict(CALM)
+    del one_gap[5]
+    assert sahm_indicator(one_gap) == pytest.approx(0.0)
+    two_gaps = dict(CALM)
+    del two_gaps[5], two_gaps[6]
+    assert sahm_indicator(two_gaps) is None
+
+
+def test_sahm_with_a_missing_month_uses_the_remaining_two() -> None:
+    unrate = dict(FIRING)
+    del unrate[13]  # latest average = (4.0 + 5.0) / 2 = 4.5, previous minimum 4.0
+    assert sahm_indicator(unrate) == pytest.approx(0.5)
 
 
 def test_year_over_year_and_inflation_direction() -> None:

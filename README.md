@@ -30,6 +30,7 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | FRED 거시 시리즈(INDPRO·UNRATE·CPIAUCSL·CFNAIMA3)를 최초 발표값과 발표일로 저장(`output_type=4`), USREC은 현재 값, 승인 안 된 시리즈 거부 | `tests/test_fred_connector.py` |
 | `regime`: Sahm 지표·INDPRO/CFNAI 침체 규칙·L3 4분면·주식채권 상관 국면, 발표일 이후 값만 쓰는 월말 replay, NBER 대비 채점(손 계산 표본) | `tests/test_regime_rules.py`, `tests/test_regime_replay.py` |
 | 해시 체인 원장: 연속 `seq`·이전 해시, 수정·삭제 거부(트리거), 변조·누락 탐지, 같은 키 중복 방지, 국면 월 기록의 live·replay 구분 | `tests/test_ledger.py` |
+| 예측·채점: 모멘텀(12-1)·무작위·사용자 순위와 상관 부호 확률을 원장에 기록(월당 모델별 1건), 3개월 뒤 순위 IC·상·하위 스프레드·Brier 채점, MDE 표시, 잘못된 입력 거부 | `tests/test_prediction.py` |
 | `backup`: SQLite 일관 복사(최근 4개 유지)와 raw 파일 추가 복사(기존 파일은 덮어쓰지 않음) | `tests/test_backup.py` |
 | 개념 레지스트리: 구현된 개념은 모듈·테스트·카드가 있음 | `tests/test_concept_registry.py` |
 | 직접 의존성의 공식 문서 registry 등록 | `tests/test_dependency_registry.py` |
@@ -83,6 +84,10 @@ uv run asset-frame universe analyze         # var/reports/analysis_risk.csv, ana
 uv run asset-frame dashboard                # var/reports/dashboard.html: 오프라인 대화형 대시보드(서버 불필요)
 uv run asset-frame regime                   # var/reports/regime_replay.csv: 국면 규칙 replay와 NBER 채점
 uv run asset-frame ledger record-regime     # 최근 월의 국면 판독을 원장에 live로 추가(--replay: 전체 월을 replay로)
+uv run asset-frame ledger predict-models    # 모멘텀·무작위 모델의 최근 월 예측을 원장에 추가
+uv run asset-frame ledger predict --ranking SPY,GLD,... --positive-prob 0.6 --note "근거"  # 내 예측
+uv run asset-frame ledger score             # 3개월이 지난 예측 채점
+uv run asset-frame ledger scoreboard        # 모델별 성적표(표본 수·MDE 포함)
 uv run asset-frame ledger verify            # 해시 체인 검증, head 해시 출력
 uv run asset-frame backup                   # var의 DB·raw를 BACKUP_PATH로 복사(수집 후 실행)
 uv run asset-frame backtest                 # var/reports/backtest_performance.csv, backtest_monthly.csv

@@ -146,3 +146,12 @@ status = "implemented"
 module = "asset_frame.regime.rules"
 tests = ["tests/test_regime_rules.py", "tests/test_regime_replay.py"]
 card = "docs/concepts/regime_rules.md"
+
+[[concepts]]
+id = "prediction_scoring"
+name = "예측과 채점"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.prediction.scoring"
+tests = ["tests/test_prediction.py"]
+card = "docs/concepts/prediction_scoring.md"
