@@ -128,3 +128,12 @@ status = "implemented"
 module = "asset_frame.analytics.allocation"
 tests = ["tests/test_allocation.py"]
 card = "docs/concepts/mean_variance.md"
+
+[[concepts]]
+id = "macro_first_release"
+name = "거시 지표의 최초 발표값"
+domain = "거시경제분석"
+status = "implemented"
+module = "asset_frame.connectors.fred"
+tests = ["tests/test_fred_connector.py"]
+card = "docs/concepts/macro_first_release.md"

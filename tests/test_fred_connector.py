@@ -49,7 +49,37 @@ def test_request_targets_official_endpoint_and_only_approved_series() -> None:
     assert request.url.startswith("https://api.stlouisfed.org/fred/series/observations?")
     assert "series_id=DTB3" in request.url and "file_type=json" in request.url
     with pytest.raises(ValueError):
-        build_observations_request("CPIAUCSL", "secret")
+        build_observations_request("GDP", "secret")
+
+
+def test_only_replayed_series_request_the_initial_release() -> None:
+    first = build_observations_request("INDPRO", "secret").url
+    assert "output_type=4" in first and "realtime_end=9999-12-31" in first
+    assert "output_type" not in build_observations_request("DTB3", "secret").url
+    assert "output_type" not in build_observations_request("USREC", "secret").url
+
+
+def test_first_releases_keep_the_publication_date(tmp_path: Path) -> None:
+    rows = [
+        {
+            "realtime_start": "2026-03-17",
+            "realtime_end": "2026-04-16",
+            "date": "2026-02-01",
+            "value": "103.5",
+        },
+        {
+            "realtime_start": "2026-04-16",
+            "realtime_end": "9999-12-31",
+            "date": "2026-03-01",
+            "value": ".",
+        },
+    ]
+    fred_collector(tmp_path, rows=rows).collect(series_id="INDPRO", api_key="secret")
+
+    assert ResearchStore(tmp_path / "db.sqlite3").macro_first_releases("INDPRO") == (
+        (date(2026, 2, 1), date(2026, 3, 17), Decimal("103.5")),
+        (date(2026, 3, 1), date(2026, 4, 16), None),
+    )
 
 
 def test_missing_value_becomes_null_not_zero() -> None:
@@ -74,18 +104,21 @@ def test_partial_or_malformed_responses_are_rejected(payload: bytes) -> None:
 
 
 class FakeTransport:
-    def __init__(self, status: int = 200) -> None:
+    def __init__(self, status: int = 200, rows: list[dict[str, str]] | None = None) -> None:
         self.status = status
+        self.rows = ROWS if rows is None else rows
 
     def fetch(self, request):  # type: ignore[no-untyped-def]
-        return FetchResponse(self.status, body(ROWS), {}, datetime(2026, 11, 18, tzinfo=UTC))
+        return FetchResponse(self.status, body(self.rows), {}, datetime(2026, 11, 18, tzinfo=UTC))
 
 
-def fred_collector(tmp_path: Path, status: int = 200) -> FredCollector:
+def fred_collector(
+    tmp_path: Path, status: int = 200, rows: list[dict[str, str]] | None = None
+) -> FredCollector:
     source = next(s for s in load_source_registry(Path("config/sources.toml")) if s.id == "fred")
     return FredCollector(
         source=source,
-        transport=FakeTransport(status),
+        transport=FakeTransport(status, rows),
         raw_store=FileRawStore(tmp_path / "raw"),
         repository=SqliteIngestionRepository(tmp_path / "db.sqlite3"),
     )
