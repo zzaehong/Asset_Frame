@@ -112,8 +112,8 @@ level = 1
 group = "hy_credit"
 role = "granular"
 refines = "HYG"
-expected_inception = "2013-06"
-verified_inception = ""
+expected_inception = "2013-10"
+verified_inception = "2013-10-17"
 
 [[assets]]
 ticker = "GLD"
