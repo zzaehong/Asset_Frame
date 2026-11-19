@@ -21,11 +21,18 @@ from asset_frame.storage.raw import FileRawStore
 from asset_frame.storage.research import ResearchStore
 from asset_frame.storage.sqlite import SqliteIngestionRepository
 from asset_frame.universe import load_universe
-from asset_frame.universe_jobs import StatusRow, build_returns, universe_status, verify_universe
+from asset_frame.universe_jobs import (
+    StatusRow,
+    analyze_universe,
+    build_returns,
+    universe_status,
+    verify_universe,
+)
 
 SOURCES_PATH = Path("config/sources.toml")
 UNIVERSE_PATH = Path("config/universe.toml")
-STATUS_CSV_PATH = Path("var/reports/universe_status.csv")
+REPORT_DIR = Path("var/reports")
+STATUS_CSV_PATH = REPORT_DIR / "universe_status.csv"
 DEFAULT_DATABASE_PATH = "var/asset_frame.sqlite3"
 DEFAULT_RAW_STORE_PATH = "var/raw"
 # Tiingo Starter plan allows 50 requests/hour (config/sources.toml); 75 s keeps us at 48.
@@ -69,6 +76,7 @@ def main(argv: list[str] | None = None) -> None:
     universe_commands = universe_parser.add_subparsers(dest="universe_command", required=True)
     universe_commands.add_parser("verify", help="compare inception dates with Tiingo data")
     universe_commands.add_parser("status", help="print per-ticker data status")
+    universe_commands.add_parser("analyze", help="risk table and 36-month correlation matrix")
 
     fred_parser = subparsers.add_parser("ingest-fred", help="collect a FRED series")
     fred_parser.add_argument("--series", required=True, choices=SUPPORTED_SERIES)
@@ -88,6 +96,8 @@ def main(argv: list[str] | None = None) -> None:
         _ingest_universe(arguments.end_date, arguments.min_interval_seconds, arguments.full)
     elif arguments.command == "universe" and arguments.universe_command == "verify":
         _verify_universe()
+    elif arguments.command == "universe" and arguments.universe_command == "analyze":
+        _analyze_universe()
     elif arguments.command == "universe":
         _print_universe_status()
     elif arguments.command == "ingest-fred":
@@ -197,6 +207,43 @@ def _print_universe_status() -> None:
     with STATUS_CSV_PATH.open("w", newline="") as csv_file:
         csv.writer(csv_file).writerows(table)
     print(f"wrote {STATUS_CSV_PATH}")
+
+
+def _analyze_universe() -> None:
+    analysis = analyze_universe(load_universe(UNIVERSE_PATH), store=_research_store())
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    risk_path = REPORT_DIR / "analysis_risk.csv"
+    with risk_path.open("w", newline="") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(
+            ["ticker", "months", "volatility", "max_drawdown", "var_95", "equal_weight_risk_share"]
+        )
+        for row in analysis.assets:
+            share = analysis.risk_contribution.get(row.ticker)
+            writer.writerow(
+                [
+                    row.ticker,
+                    row.months,
+                    *(_ratio(v) for v in (row.volatility, row.max_drawdown, row.var_95, share)),
+                ]
+            )
+    tickers = sorted({first for first, _ in analysis.correlation})
+    correlation_path = REPORT_DIR / "analysis_correlation.csv"
+    with correlation_path.open("w", newline="") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(["", *tickers])
+        for first in tickers:
+            writer.writerow(
+                [first, *(_ratio(analysis.correlation[first, second]) for second in tickers)]
+            )
+    print(f"as of {analysis.as_of}, window {analysis.window_months} months")
+    if analysis.excluded:
+        print(f"excluded from the window statistics: {', '.join(analysis.excluded)}")
+    print(f"wrote {risk_path}\nwrote {correlation_path}")
+
+
+def _ratio(value: float | None) -> str:
+    return "" if value is None else f"{value:.4f}"
 
 
 def _ingest_fred(series_id: str) -> None:

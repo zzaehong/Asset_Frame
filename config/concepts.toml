@@ -29,3 +29,48 @@ status = "implemented"
 module = "asset_frame.returns.series"
 tests = ["tests/test_returns.py", "tests/test_fred_connector.py"]
 card = "docs/concepts/cash_proxy_dtb3.md"
+
+[[concepts]]
+id = "volatility"
+name = "변동성"
+domain = "리스크관리"
+status = "implemented"
+module = "asset_frame.analytics.risk"
+tests = ["tests/test_analytics.py"]
+card = "docs/concepts/volatility.md"
+
+[[concepts]]
+id = "max_drawdown"
+name = "최대낙폭"
+domain = "리스크관리"
+status = "implemented"
+module = "asset_frame.analytics.risk"
+tests = ["tests/test_analytics.py"]
+card = "docs/concepts/max_drawdown.md"
+
+[[concepts]]
+id = "historical_var"
+name = "역사적 VaR"
+domain = "리스크관리"
+status = "implemented"
+module = "asset_frame.analytics.risk"
+tests = ["tests/test_analytics.py"]
+card = "docs/concepts/historical_var.md"
+
+[[concepts]]
+id = "correlation"
+name = "상관계수"
+domain = "분산투자기법"
+status = "implemented"
+module = "asset_frame.analytics.risk"
+tests = ["tests/test_analytics.py"]
+card = "docs/concepts/correlation.md"
+
+[[concepts]]
+id = "risk_contribution"
+name = "위험기여도"
+domain = "분산투자기법"
+status = "implemented"
+module = "asset_frame.analytics.risk"
+tests = ["tests/test_analytics.py"]
+card = "docs/concepts/risk_contribution.md"

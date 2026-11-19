@@ -13,6 +13,11 @@
 | `total_return_index` | 총수익 지수 | 투자운용결과분석 | [total_return_index.md](total_return_index.md) |
 | `monthly_return` | 월간 총수익률 | 투자운용결과분석 | [monthly_return.md](monthly_return.md) |
 | `cash_proxy_dtb3` | 현금 수익률 대용(DTB3) | 분산투자기법 | [cash_proxy_dtb3.md](cash_proxy_dtb3.md) |
+| `volatility` | 변동성 | 리스크관리 | [volatility.md](volatility.md) |
+| `max_drawdown` | 최대낙폭 | 리스크관리 | [max_drawdown.md](max_drawdown.md) |
+| `historical_var` | 역사적 VaR | 리스크관리 | [historical_var.md](historical_var.md) |
+| `correlation` | 상관계수 | 분산투자기법 | [correlation.md](correlation.md) |
+| `risk_contribution` | 위험기여도 | 분산투자기법 | [risk_contribution.md](risk_contribution.md) |
 
 ## 등록 예정
 
