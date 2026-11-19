@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Asset_Frame 대시보드</title>
+<style>
+:root { --bg:#f6f8fa; --surface:#fff; --fg:#16212b; --muted:#5b6a78; --line:#d9e0e6; --accent:#0b6e8a;
+  --pos:#2f7d4f; --neg:#b3402a; --warn-bg:#fbeedb; --warn-fg:#7a4709;
+  --c1:#16212b; --c2:#5b6a78; --c3:#0b6e8a; --c4:#b4690e; --c5:#2f7d4f; --c6:#8a3f9a; --c7:#c2410c; --c8:#1d4ed8; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#10171d; --surface:#17212a; --fg:#e4ebf1; --muted:#93a3b1; --line:#2a3945; --accent:#5cc2dd;
+  --pos:#6fcf93; --neg:#f08a72; --warn-bg:#3a2a14; --warn-fg:#f0c98b;
+  --c1:#e4ebf1; --c2:#93a3b1; --c3:#5cc2dd; --c4:#f0b160; --c5:#6fcf93; --c6:#d29be0; --c7:#f59e6b; --c8:#8fb0ff; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg:#10171d; --surface:#17212a; --fg:#e4ebf1; --muted:#93a3b1; --line:#2a3945; --accent:#5cc2dd;
+  --pos:#6fcf93; --neg:#f08a72; --warn-bg:#3a2a14; --warn-fg:#f0c98b;
+  --c1:#e4ebf1; --c2:#93a3b1; --c3:#5cc2dd; --c4:#f0b160; --c5:#6fcf93; --c6:#d29be0; --c7:#f59e6b; --c8:#8fb0ff; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.6 system-ui, -apple-system, "Segoe UI", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  padding: 28px max(16px, env(safe-area-inset-right)) 56px max(16px, env(safe-area-inset-left)); }
+main { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px; }
+h1 { font-size: 24px; margin: 0; } h2 { font-size: 15px; margin: 0 0 4px; }
+p { margin: 0; } .muted { color: var(--muted); font-size: 13px; }
+.lead { font-size: 17px; line-height: 1.55; }
+.lead b { font-variant-numeric: tabular-nums; color: var(--accent); }
+.bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 0; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; border-bottom: 1px solid var(--line); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); color: var(--fg); padding: 6px 12px; font: inherit; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+button:focus-visible, th[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 5px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; } th:first-child, td:first-child { text-align: left; }
+th[tabindex] { cursor: pointer; user-select: none; }
+tr.bench td:first-child { font-style: italic; }
+.good { color: var(--pos); } .bad { color: var(--neg); } .partial { opacity: .55; font-style: italic; }
+.chart { position: relative; }
+svg { width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+svg text { fill: var(--muted); font-size: 11px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 99px; padding: 2px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.chip i { width: 14px; height: 3px; display: inline-block; }
+.chip[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
+.tip { position: absolute; top: 8px; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.tip div { display: flex; justify-content: space-between; gap: 14px; }
+.heat td { text-align: center; padding: 4px 6px; min-width: 40px; }
+.warn { background: var(--warn-bg); color: var(--warn-fg); border-radius: 6px; padding: 12px 14px; }
+.warn ul { margin: 6px 0 0; padding-left: 18px; }
+footer { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Asset_Frame 대시보드</h1>
+    <p class="muted" id="meta"></p>
+  </header>
+  <p class="lead" id="lead"></p>
+  <div class="bar">
+    <span class="muted">리밸런싱 규칙</span>
+    <div class="seg" id="rules" role="group" aria-label="리밸런싱 규칙"></div>
+  </div>
+
+  <section id="performance">
+    <h2>전략 성과표</h2>
+    <p class="muted">같은 구간에서 모든 전략이 의도한 비중을 다 담은 달만 비교합니다. 샤프·소르티노는 같은 달 현금 수익률을 뺀 초과수익 기준입니다. 머리글을 누르면 정렬합니다.</p>
+    <div class="scroll"><table id="perf-table"></table></div>
+  </section>
+
+  <section id="wealth">
+    <h2>누적 가치</h2>
+    <p class="muted">비교 구간 시작 전을 1로 둔 로그 축입니다. 점선은 벤치마크, 이름을 누르면 선을 켜고 끕니다. 거래비용과 세금은 반영하지 않았습니다.</p>
+    <div class="chips" id="chips"></div>
+    <div class="chart" id="chart"></div>
+  </section>
+
+  <section id="crisis">
+    <h2>위기 구간 비교</h2>
+    <p class="muted">구간 안 누적 수익률과 최대낙폭입니다. 흐리게 기울인 값은 일부 자산이 상장 전이거나 추정 창이 모자라 의도한 비중을 다 담지 못한 달이 있다는 뜻이고, 빈칸(–)은 그 구간에 시작하지 못한 전략입니다.</p>
+    <div class="scroll"><table id="crisis-table"></table></div>
+  </section>
+
+  <section id="risk">
+    <h2>자산별 위험</h2>
+    <p class="muted">변동성·최대낙폭·VaR은 자산별 전체 이력의 월간 수익률 기준입니다. 위험 몫은 자산군 앵커 12개를 동일가중했을 때 최근 36개월 분산 중 차지하는 비율입니다.</p>
+    <div class="scroll"><table id="risk-table"></table></div>
+  </section>
+
+  <section id="correlation">
+    <h2>상관행렬</h2>
+    <p class="muted" id="corr-note"></p>
+    <div class="scroll"><table class="heat" id="corr-table"></table></div>
+  </section>
+
+  <div class="warn">
+    <b>읽기 전에</b>
+    <ul>
+      <li>거래비용과 세금을 반영하지 않은 백테스트입니다.</li>
+      <li>월말 값 기준이라 달 안의 낙폭은 보이지 않습니다.</li>
+      <li>표본이 짧습니다(경기 침체 3번 안팎). 순위 차이가 우연일 수 있습니다.</li>
+      <li>위험균등 전략(inv_vol, erc)은 변동성이 매우 낮은 현금에 비중이 크게 쏠립니다.</li>
+      <li>min_variance의 자산당 상한 30%는 임의로 정한 값입니다.</li>
+    </ul>
+  </div>
+  <footer id="foot"></footer>
+</main>
+
+<script>
+const D = /*__DATA__*/null;
+const RULE_LABEL = {monthly: "월간", quarterly: "분기", band: "밴드 ±5%p"};
+const WINDOW_LABEL = {"2008 금융위기": "2008 금융위기", "2020 코로나": "2020 코로나", "2022 금리 인상": "2022 금리 인상"};
+const state = {rule: D.rules.includes("quarterly") ? "quarterly" : D.rules[0], hidden: new Set(), sort: null};
+const $ = (id) => document.getElementById(id);
+const nf = (digits) => (v) => (v == null ? "–" : v.toFixed(digits));
+const pct = (v) => (v == null ? "–" : (v * 100).toFixed(1) + "%");
+const spct = (v) => (v == null ? "–" : (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%");
+const dec = nf(2);
+const colorOf = (strategy) => "var(--c" + ((D.strategies.indexOf(strategy) % 8) + 1) + ")";
+const isBench = (s) => s.startsWith("bench");
+
+function node(tag, text, className) {
+  const n = document.createElement(tag);
+  if (text != null) n.textContent = text;
+  if (className) n.className = className;
+  return n;
+}
+const sign = (v) => (v == null ? "" : v > 0 ? "good" : v < 0 ? "bad" : "");
+
+function edgeText(entry, bench) {
+  const v = entry.versus[bench];
+  if (!v) return {text: "–", cls: ""};
+  if (v.better_sharpe && v.smaller_drawdown) return {text: "샤프·낙폭 모두", cls: "good"};
+  if (v.better_sharpe) return {text: "샤프만", cls: ""};
+  if (v.smaller_drawdown) return {text: "낙폭만", cls: ""};
+  return {text: "없음", cls: "bad"};
+}
+
+function renderLead() {
+  const perf = D.performance[state.rule];
+  const beat = (bench) => {
+    const others = D.strategies.filter((s) => s !== bench && perf[s]);
+    return [others.filter((s) => perf[s].versus[bench] && perf[s].versus[bench].better_sharpe && perf[s].versus[bench].smaller_drawdown).length, others.length];
+  };
+  const [spy, spyOf] = beat("bench_spy");
+  const [b6040, b6040Of] = beat("bench_6040");
+  const lead = $("lead");
+  lead.replaceChildren();
+  const parts = [
+    ["비교 구간은 ", null], [D.period.start.slice(0, 7), 1], ["부터 ", null], [D.period.end.slice(0, 7), 1], ["까지 ", null],
+    [String(D.period.months), 1], ["개월입니다. ", null], [RULE_LABEL[state.rule], 1],
+    [" 리밸런싱에서 SPY 100%보다 샤프가 높고 최대낙폭도 작은 전략은 비교 대상 ", null], [String(spyOf), 1], ["개 중 ", null],
+    [String(spy), 1], ["개, 60/40보다 그런 전략은 ", null], [String(b6040Of), 1], ["개 중 ", null], [String(b6040), 1], ["개입니다.", null],
+  ];
+  for (const [text, strong] of parts) lead.appendChild(strong ? node("b", text) : document.createTextNode(text));
+}
+
+const PERF_COLUMNS = [
+  ["strategy", "전략", (v) => v],
+  ["cagr", "CAGR", pct], ["volatility", "변동성", pct], ["sharpe", "샤프", dec], ["sortino", "소르티노", dec],
+  ["calmar", "칼마", dec], ["max_drawdown", "최대낙폭", pct], ["turnover", "월 회전율", (v) => (v == null ? "–" : (v * 100).toFixed(2) + "%")],
+  ["spy_excess", "SPY 대비 초과 CAGR", spct], ["spy_edge", "SPY 대비 우위", (v) => v],
+  ["b6040_excess", "60/40 대비 초과 CAGR", spct], ["b6040_edge", "60/40 대비 우위", (v) => v],
+];
+
+function perfRows() {
+  const perf = D.performance[state.rule];
+  return D.strategies.filter((s) => perf[s]).map((s) => {
+    const e = perf[s];
+    const spy = edgeText(e, "bench_spy"), b6040 = edgeText(e, "bench_6040");
+    return {
+      strategy: s, cagr: e.cagr, volatility: e.volatility, sharpe: e.sharpe, sortino: e.sortino, calmar: e.calmar,
+      max_drawdown: e.max_drawdown, turnover: e.turnover,
+      spy_excess: e.versus.bench_spy ? e.versus.bench_spy.excess_cagr : null, spy_edge: spy.text, spy_cls: spy.cls,
+      b6040_excess: e.versus.bench_6040 ? e.versus.bench_6040.excess_cagr : null, b6040_edge: b6040.text, b6040_cls: b6040.cls,
+    };
+  });
+}
+
+function renderPerf() {
+  const table = $("perf-table");
+  table.replaceChildren();
+  const head = table.createTHead().insertRow();
+  for (const [key, label] of PERF_COLUMNS) {
+    const th = node("th", label + (state.sort && state.sort.key === key ? (state.sort.desc ? " ▼" : " ▲") : ""));
+    th.tabIndex = 0;
+    th.setAttribute("role", "button");
+    const toggle = () => {
+      state.sort = state.sort && state.sort.key === key ? {key, desc: !state.sort.desc} : {key, desc: key !== "strategy"};
+      renderPerf();
+    };
+    th.addEventListener("click", toggle);
+    th.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); } });
+    head.appendChild(th);
+  }
+  let rows = perfRows();
+  if (state.sort) {
+    const {key, desc} = state.sort;
+    rows = rows.slice().sort((a, b) => {
+      const x = a[key], y = b[key];
+      if (x == null && y == null) return 0;
+      if (x == null) return 1;
+      if (y == null) return -1;
+      return (typeof x === "string" ? x.localeCompare(y) : x - y) * (desc ? -1 : 1);
+    });
+  }
+  const body = table.createTBody();
+  for (const row of rows) {
+    const tr = body.insertRow();
+    if (isBench(row.strategy)) tr.className = "bench";
+    for (const [key, , format] of PERF_COLUMNS) {
+      const td = tr.insertCell();
+      td.textContent = format(row[key]);
+      if (key === "spy_excess" || key === "b6040_excess") td.className = sign(row[key]);
+      if (key === "spy_edge") td.className = row.spy_cls;
+      if (key === "b6040_edge") td.className = row.b6040_cls;
+    }
+  }
+}
+
+function renderChips() {
+  const chips = $("chips");
+  chips.replaceChildren();
+  for (const s of D.strategies) {
+    const chip = node("button", null, "chip");
+    chip.type = "button";
+    chip.setAttribute("aria-pressed", String(!state.hidden.has(s)));
+    const swatch = node("i");
+    swatch.style.background = colorOf(s);
+    if (isBench(s)) swatch.style.background = "repeating-linear-gradient(90deg," + colorOf(s) + " 0 5px,transparent 5px 8px)";
+    chip.append(swatch, document.createTextNode(s));
+    chip.addEventListener("click", () => {
+      if (state.hidden.has(s)) state.hidden.delete(s); else state.hidden.add(s);
+      renderChips();
+      renderChart();
+    });
+    chips.appendChild(chip);
+  }
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+function svgNode(tag, attrs) {
+  const n = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, String(v));
+  return n;
+}
+
+function renderChart() {
+  const host = $("chart");
+  host.replaceChildren();
+  const visible = D.strategies.filter((s) => !state.hidden.has(s) && D.wealth[state.rule][s]);
+  if (!visible.length) { host.appendChild(node("p", "표시할 전략을 선택하세요.", "muted")); return; }
+  const width = Math.max(host.clientWidth, 320), height = 320;
+  const m = {top: 10, right: 12, bottom: 24, left: 44};
+  const all = visible.flatMap((s) => D.wealth[state.rule][s]);
+  const lo = Math.min(...all), hi = Math.max(...all);
+  const logLo = Math.log(lo), logHi = Math.log(hi);
+  const n = D.months.length;
+  const x = (i) => m.left + ((width - m.left - m.right) * i) / Math.max(n - 1, 1);
+  const y = (v) => m.top + (height - m.top - m.bottom) * (1 - (Math.log(v) - logLo) / Math.max(logHi - logLo, 1e-9));
+  const svg = svgNode("svg", {viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": "전략별 누적 가치 로그 차트"});
+  const steps = [0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 8, 10, 15, 20];
+  const ticks = steps.filter((t) => t >= lo * 0.98 && t <= hi * 1.02);
+  for (const t of ticks) {
+    svg.appendChild(svgNode("line", {x1: m.left, x2: width - m.right, y1: y(t), y2: y(t), stroke: "var(--line)"}));
+    const label = svgNode("text", {x: m.left - 6, y: y(t) + 4, "text-anchor": "end"});
+    label.textContent = String(t);
+    svg.appendChild(label);
+  }
+  for (const [i, anchor] of [[0, "start"], [n - 1, "end"]]) {
+    const label = svgNode("text", {x: x(i), y: height - 6, "text-anchor": anchor});
+    label.textContent = D.months[i].slice(0, 7);
+    svg.appendChild(label);
+  }
+  for (const s of visible) {
+    const path = D.wealth[state.rule][s].map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1)).join("");
+    const line = svgNode("path", {d: path, fill: "none", "stroke-width": 1.6, "stroke-linejoin": "round"});
+    line.style.stroke = colorOf(s);
+    if (isBench(s)) line.setAttribute("stroke-dasharray", "5 3");
+    svg.appendChild(line);
+  }
+  const cursor = svgNode("line", {y1: m.top, y2: height - m.bottom, stroke: "var(--muted)", visibility: "hidden"});
+  svg.appendChild(cursor);
+  const tip = node("div", null, "tip");
+  tip.hidden = true;
+  const hit = svgNode("rect", {x: m.left, y: m.top, width: width - m.left - m.right, height: height - m.top - m.bottom, fill: "transparent"});
+  hit.addEventListener("pointermove", (event) => {
+    const box = svg.getBoundingClientRect();
+    const px = ((event.clientX - box.left) / box.width) * width;
+    const i = Math.max(0, Math.min(n - 1, Math.round(((px - m.left) / (width - m.left - m.right)) * (n - 1))));
+    cursor.setAttribute("x1", x(i)); cursor.setAttribute("x2", x(i)); cursor.setAttribute("visibility", "visible");
+    tip.replaceChildren(node("div", D.months[i].slice(0, 7)));
+    for (const s of visible.slice().sort((a, b) => D.wealth[state.rule][b][i] - D.wealth[state.rule][a][i])) {
+      const row = node("div");
+      const name = node("span", s); name.style.color = colorOf(s);
+      row.append(name, node("span", dec(D.wealth[state.rule][s][i])));
+      tip.appendChild(row);
+    }
+    tip.hidden = false;
+    const scale = box.width / width;
+    const px2 = x(i) * scale;
+    tip.style.left = (px2 + 12 + 170 > box.width ? Math.max(0, px2 - 172) : px2 + 12) + "px";
+  });
+  hit.addEventListener("pointerleave", () => { tip.hidden = true; cursor.setAttribute("visibility", "hidden"); });
+  svg.appendChild(hit);
+  host.append(svg, tip);
+}
+
+function renderCrisis() {
+  const table = $("crisis-table");
+  table.replaceChildren();
+  const head = table.createTHead();
+  const top = head.insertRow();
+  top.appendChild(node("th", "전략")).rowSpan = 2;
+  for (const name of D.crisis_windows) top.appendChild(node("th", WINDOW_LABEL[name] || name)).colSpan = 2;
+  const sub = head.insertRow();
+  for (const _ of D.crisis_windows) { sub.appendChild(node("th", "누적")); sub.appendChild(node("th", "낙폭")); }
+  const body = table.createTBody();
+  for (const s of D.strategies) {
+    const tr = body.insertRow();
+    if (isBench(s)) tr.className = "bench";
+    tr.insertCell().textContent = s;
+    for (const name of D.crisis_windows) {
+      const w = D.crisis[state.rule][s][name];
+      const cls = w && w.min_coverage < 1 - 1e-9 ? "partial" : "";
+      const a = tr.insertCell(), b = tr.insertCell();
+      a.textContent = w ? spct(w.cumulative) : "–"; b.textContent = w ? pct(w.max_drawdown) : "–";
+      if (cls) { a.className = cls; b.className = cls; }
+    }
+  }
+}
+
+function renderRisk() {
+  const table = $("risk-table");
+  table.replaceChildren();
+  const head = table.createTHead().insertRow();
+  for (const label of ["자산", "월 수", "변동성", "최대낙폭", "95% VaR(1개월)", "동일가중 위험 몫"]) head.appendChild(node("th", label));
+  const body = table.createTBody();
+  for (const r of D.risk) {
+    const tr = body.insertRow();
+    tr.insertCell().textContent = r.ticker;
+    tr.insertCell().textContent = String(r.months);
+    for (const v of [r.volatility, r.max_drawdown, r.var_95, r.risk_share]) tr.insertCell().textContent = pct(v);
+  }
+}
+
+function renderCorrelation() {
+  const c = D.correlation;
+  $("corr-note").textContent = `자산군 앵커 ${c.tickers.length}개의 최근 ${c.window_months}개월(${D.as_of} 기준) 월간 수익률 상관입니다. 상관은 국면에 따라 변하고 이 표는 현재 창의 한 시점입니다.`;
+  const table = $("corr-table");
+  table.replaceChildren();
+  const head = table.createTHead().insertRow();
+  head.appendChild(node("th", ""));
+  for (const t of c.tickers) head.appendChild(node("th", t));
+  const body = table.createTBody();
+  c.tickers.forEach((a, i) => {
+    const tr = body.insertRow();
+    tr.insertCell().textContent = a;
+    c.matrix[i].forEach((v) => {
+      const td = tr.insertCell();
+      td.textContent = v == null ? "–" : v.toFixed(2);
+      if (v != null) td.style.background = `color-mix(in srgb, var(${v >= 0 ? "--pos" : "--neg"}) ${Math.round(Math.abs(v) * 45)}%, transparent)`;
+    });
+  });
+}
+
+function renderRules() {
+  const group = $("rules");
+  group.replaceChildren();
+  for (const rule of D.rules) {
+    const button = node("button", RULE_LABEL[rule] || rule);
+    button.type = "button";
+    button.setAttribute("aria-pressed", String(rule === state.rule));
+    button.addEventListener("click", () => { state.rule = rule; renderAll(); });
+    group.appendChild(button);
+  }
+}
+
+function renderAll() {
+  renderRules(); renderLead(); renderPerf(); renderChart(); renderCrisis();
+}
+
+$("meta").textContent = `생성 ${D.generated_on} · 데이터 기준 ${D.as_of} · 계산 버전 ${D.calc_version}`;
+$("foot").textContent = `이 파일은 계산 결과를 담은 오프라인 페이지입니다. 새 데이터는 asset-frame dashboard로 다시 만드세요. (생성 ${D.generated_on})`;
+renderChips(); renderRisk(); renderCorrelation(); renderAll();
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(renderChart, 120); });
+</script>
+</body>
+</html>
