@@ -27,6 +27,7 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | 추정 비중: 역변동성, 위험균등(위험기여도 동일 검증), 상한 있는 최소분산(닫힌 해·격자 탐색 비교) | `tests/test_allocation.py` |
 | 위기 구간(2008·2020·2022) 누적 수익률·최대낙폭과 부분 구성 표시, 현금도 일반 자산으로 담김(평균 비중·대용 구간), 오프라인 대시보드 한 파일(외부 로드 없음, 데이터가 스크립트를 닫지 못함) | `tests/test_dashboard.py` |
 | 대시보드 안의 포트폴리오 실험실·롤링 상관 엔진이 파이썬 엔진과 같은 값을 냄(노드가 없으면 건너뜀) | `tests/test_dashboard_engine.py` |
+| FRED 거시 시리즈(INDPRO·UNRATE·CPIAUCSL·CFNAIMA3)를 최초 발표값과 발표일로 저장(`output_type=4`), USREC은 현재 값, 승인 안 된 시리즈 거부 | `tests/test_fred_connector.py` |
 | `backup`: SQLite 일관 복사(최근 4개 유지)와 raw 파일 추가 복사(기존 파일은 덮어쓰지 않음) | `tests/test_backup.py` |
 | 개념 레지스트리: 구현된 개념은 모듈·테스트·카드가 있음 | `tests/test_concept_registry.py` |
 | 직접 의존성의 공식 문서 registry 등록 | `tests/test_dependency_registry.py` |

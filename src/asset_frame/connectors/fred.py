@@ -9,7 +9,12 @@ from asset_frame.domain.models import FetchRequest, MacroObservation, RawSnapsho
 
 FRED_SOURCE_ID = "fred"
 FRED_OBSERVATIONS_URL = "https://api.stlouisfed.org/fred/series/observations"
-SUPPORTED_SERIES = ("DTB3",)
+# Series replayed as first published (output_type=4: initial release only; realtime_start is the
+# release date). DTB3 is a market rate and USREC is NBER dating used only to score: current vintage.
+FIRST_RELEASE_SERIES = ("INDPRO", "CFNAIMA3", "UNRATE", "CPIAUCSL")
+SUPPORTED_SERIES = ("DTB3", *FIRST_RELEASE_SERIES, "USREC")
+_EARLIEST_REALTIME = "1776-07-04"  # FRED's documented lower bound for realtime_start
+_LATEST_REALTIME = "9999-12-31"
 _MISSING_VALUE = "."
 
 
@@ -20,7 +25,14 @@ class FredPayloadError(ValueError):
 def build_observations_request(series_id: str, api_key: str) -> FetchRequest:
     if series_id not in SUPPORTED_SERIES:
         raise ValueError(f"FRED series is not approved for collection: {series_id}")
-    query = urlencode({"series_id": series_id, "api_key": api_key, "file_type": "json"})
+    params = {"series_id": series_id, "api_key": api_key, "file_type": "json"}
+    if series_id in FIRST_RELEASE_SERIES:
+        params |= {
+            "realtime_start": _EARLIEST_REALTIME,
+            "realtime_end": _LATEST_REALTIME,
+            "output_type": "4",
+        }
+    query = urlencode(params)
     return FetchRequest(url=f"{FRED_OBSERVATIONS_URL}?{query}")
 
 

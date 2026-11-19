@@ -146,6 +146,34 @@ class ResearchStore:
             for row in rows
         )
 
+    def macro_first_releases(self, series_id: str) -> tuple[tuple[date, date, Decimal | None], ...]:
+        """(observation date, first-published date, first-published value), newest fetch per date.
+
+        Only meaningful for series collected with output_type=4 (see FIRST_RELEASE_SERIES).
+        """
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT observation_date, realtime_start, value FROM (
+                    SELECT observation_date, realtime_start, value,
+                           row_number() OVER (
+                               PARTITION BY observation_date
+                               ORDER BY fetched_at DESC, macro_observation_id DESC
+                           ) AS rank
+                    FROM macro_observation WHERE series_id = ?
+                ) WHERE rank = 1 ORDER BY observation_date
+                """,
+                (series_id,),
+            ).fetchall()
+        return tuple(
+            (
+                date.fromisoformat(row[0]),
+                date.fromisoformat(row[1]),
+                None if row[2] is None else Decimal(row[2]),
+            )
+            for row in rows
+        )
+
     def save_verification(self, checks: Iterable[InceptionCheck]) -> None:
         checked_at = _now()
         with self._connect() as connection:
