@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from asset_frame.backtest.jobs import run_backtest
+from asset_frame.backtest.engine import MonthResult
+from asset_frame.backtest.jobs import run_backtest, window_stat
 from asset_frame.backtest.strategies import load_strategies
 from asset_frame.report.dashboard import build_payload, render_dashboard
 from asset_frame.universe import load_universe
@@ -23,8 +24,7 @@ def months(count: int) -> list[date]:
     return [date(2000 + n // 12, n % 12 + 1, 28) for n in range(count)]
 
 
-@pytest.fixture
-def payload() -> dict:
+def make_inputs() -> tuple:
     calendar = months(60)
     returns = {
         "SPY": {m: 0.01 + 0.002 * (n % 3) for n, m in enumerate(calendar)},
@@ -47,13 +47,49 @@ def payload() -> dict:
         risk_contribution={"SPY": 0.6, "IEF": 0.4},
         excluded=(),
     )
+    return result, analysis, returns, calendar
+
+
+@pytest.fixture
+def payload() -> dict:
+    result, analysis, returns, calendar = make_inputs()
     return build_payload(
         result,
         analysis,
-        strategy_ids=[s.id for s in STRATEGIES],
-        anchors=["SPY", "IEF"],
+        universe=UNIVERSE,
+        strategies=STRATEGIES,
+        returns=returns,
+        proxy_months={"BIL": calendar[:3]},
+        cash_ticker="BIL",
         generated_on=date(2026, 11, 19),
     )
+
+
+def test_window_stat_hand_calculation_and_partial_coverage() -> None:
+    results = (
+        MonthResult(date(2008, 1, 31), 0.10, 1.0, 0.0),
+        MonthResult(date(2008, 2, 29), -0.20, 0.5, 0.0),
+        MonthResult(date(2009, 1, 31), 0.05, 1.0, 0.0),
+    )
+    stat = window_stat(results, date(2008, 1, 1), date(2008, 12, 31))
+    assert stat is not None
+    assert stat.months == 2
+    assert stat.cumulative_return == pytest.approx(1.1 * 0.8 - 1)
+    assert stat.max_drawdown == pytest.approx(-0.20)
+    assert stat.min_coverage == 0.5
+    assert window_stat(results, date(2015, 1, 1), date(2015, 12, 31)) is None
+
+
+def test_cash_is_an_ordinary_asset_in_the_payload(payload: dict) -> None:
+    cash = next(a for a in payload["assets"] if a["ticker"] == "BIL")
+    assert cash["group"] == "cash"
+    assert len(payload["returns"]["BIL"]) == len(payload["calendar"])
+    assert payload["proxy"]["BIL"] == [0, 1, 2]
+    # permanent holds 25% cash on average, and the benchmarks hold none
+    average = payload["average_weights"]["quarterly"]
+    assert average["permanent"]["BIL"] == pytest.approx(0.25, abs=0.05)
+    assert "BIL" not in average["bench_spy"]
+    assert payload["definitions"]["permanent"]["weights"]["BIL"] == 0.25
 
 
 def test_wealth_is_the_running_product_of_the_monthly_returns(payload: dict) -> None:
@@ -86,7 +122,7 @@ def test_crisis_windows_without_months_are_none(payload: dict) -> None:
 def test_dashboard_is_one_offline_file_with_parseable_embedded_data(payload: dict) -> None:
     html = render_dashboard(payload)
 
-    data = re.search(r"const D = (.*?);\nconst RULE_LABEL", html, re.S)
+    data = re.search(r"const D = (.*?);\n// Backtest and risk functions", html, re.S)
     assert data is not None
     assert json.loads(data.group(1))["period"] == payload["period"]
     # nothing is loaded from outside the file
@@ -94,10 +130,10 @@ def test_dashboard_is_one_offline_file_with_parseable_embedded_data(payload: dic
         r"<link\b|\bsrc=|@import|url\(|fetch\(|XMLHttpRequest|https?://(?!www\.w3\.org/2000/svg)",
         html,
     )
-    assert html.count("<script>") == 1
+    assert html.count("<script>") == html.count("</script>") == 2  # data + engine, then the page
 
 
 def test_embedded_data_cannot_close_the_script_element(payload: dict) -> None:
     payload["strategies"][0] = "</script><b>x"
     html = render_dashboard(payload)
-    assert html.count("</script>") == 1
+    assert html.count("</script>") == 2  # only the two real closing tags

@@ -30,6 +30,7 @@ class MonthResult:
     total_return: float
     coverage: float
     turnover: float
+    weights: tuple[tuple[str, float], ...] = ()  # held during the month, before its return
 
 
 def run_strategy(
@@ -71,7 +72,9 @@ def run_strategy(
         else:
             turnover = 0.0
         portfolio = sum(weights[t] * returns[t][month] for t in weights)
-        results.append(MonthResult(month, portfolio, coverage, turnover))
+        results.append(
+            MonthResult(month, portfolio, coverage, turnover, tuple(sorted(weights.items())))
+        )
         weights = {t: w * (1 + returns[t][month]) / (1 + portfolio) for t, w in weights.items()}
     return tuple(results)
 

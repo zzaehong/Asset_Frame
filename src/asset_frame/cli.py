@@ -21,7 +21,6 @@ from asset_frame.ingestion.tiingo_service import TiingoEodCollector
 from asset_frame.ingestion.transport import RateLimitedRetryTransport, UrllibHttpTransport
 from asset_frame.ingestion.universe_service import ingest_universe
 from asset_frame.report.dashboard import build_payload, render_dashboard
-from asset_frame.report.html import render_report
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.raw import FileRawStore
 from asset_frame.storage.research import ResearchStore
@@ -89,8 +88,7 @@ def main(argv: list[str] | None = None) -> None:
     fred_parser.add_argument("--series", required=True, choices=SUPPORTED_SERIES)
 
     subparsers.add_parser("build-returns", help="compute monthly total returns")
-    subparsers.add_parser("report", help="write the monthly HTML report")
-    subparsers.add_parser("dashboard", help="write the offline web dashboard")
+    subparsers.add_parser("dashboard", help="write the offline interactive dashboard")
     backtest_parser = subparsers.add_parser(
         "backtest", help="compare strategies under three rebalancing rules"
     )
@@ -119,8 +117,6 @@ def main(argv: list[str] | None = None) -> None:
         _ingest_fred(arguments.series)
     elif arguments.command == "build-returns":
         _build_returns()
-    elif arguments.command == "report":
-        _report()
     elif arguments.command == "dashboard":
         _dashboard()
     elif arguments.command == "backtest":
@@ -350,27 +346,24 @@ def _backtest(window_months: int) -> None:
     print(f"wrote {performance_path}\nwrote {monthly_path}")
 
 
-def _report_inputs():  # type: ignore[no-untyped-def]
+def _dashboard() -> None:
     universe = load_universe(UNIVERSE_PATH)
     store = _research_store()
     strategies = load_strategies(STRATEGIES_PATH, universe)
-    return {
-        "result": run_backtest(
-            strategies, _float_returns(store), cash_ticker=_cash_ticker(universe)
-        ),
-        "analysis": analyze_universe(universe, store=store),
-        "strategy_ids": [s.id for s in strategies],
-        "anchors": [a.ticker for a in universe if a.level == 1 and a.role == "anchor"],
-        "generated_on": datetime.now(UTC).date(),
-    }
-
-
-def _report() -> None:
-    _write_report("report.html", render_report(**_report_inputs()))
-
-
-def _dashboard() -> None:
-    _write_report("dashboard.html", render_dashboard(build_payload(**_report_inputs())))
+    returns = _float_returns(store)
+    cash_ticker = _cash_ticker(universe)
+    months, _ = store.latest_build()
+    payload = build_payload(
+        run_backtest(strategies, returns, cash_ticker=cash_ticker),
+        analyze_universe(universe, store=store),
+        universe=universe,
+        strategies=strategies,
+        returns=returns,
+        proxy_months={t: [m for m, is_proxy in rows if is_proxy] for t, rows in months.items()},
+        cash_ticker=cash_ticker,
+        generated_on=datetime.now(UTC).date(),
+    )
+    _write_report("dashboard.html", render_dashboard(payload))
 
 
 def _write_report(name: str, html: str) -> None:

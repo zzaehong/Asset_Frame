@@ -7,28 +7,37 @@ nothing from the network, so it opens from disk without a server.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 from pathlib import Path
 
 from asset_frame.backtest.engine import CALC_VERSION as BACKTEST_CALC_VERSION
 from asset_frame.backtest.engine import RULES
 from asset_frame.backtest.jobs import CRISIS_WINDOWS, BacktestResult, window_stat
+from asset_frame.backtest.strategies import Strategy
+from asset_frame.universe import UniverseAsset
 from asset_frame.universe_jobs import Analysis
 
 BENCHMARKS = ("bench_spy", "bench_6040")
 TEMPLATE_PATH = Path(__file__).with_name("dashboard.html")
-_PLACEHOLDER = "/*__DATA__*/null"
+ENGINE_PATH = Path(__file__).with_name("dashboard_engine.js")
+_DATA_PLACEHOLDER = "/*__DATA__*/null"
+_ENGINE_PLACEHOLDER = "/*__ENGINE__*/"
 
 
 def build_payload(
     result: BacktestResult,
     analysis: Analysis,
     *,
-    strategy_ids: Sequence[str],
-    anchors: Sequence[str],
+    universe: Sequence[UniverseAsset],
+    strategies: Sequence[Strategy],
+    returns: Mapping[str, Mapping[date, float]],
+    proxy_months: Mapping[str, Sequence[date]],
+    cash_ticker: str,
     generated_on: date,
 ) -> dict:
+    strategy_ids = [s.id for s in strategies]
+    anchors = [a.ticker for a in universe if a.level == 1 and a.role == "anchor"]
     rows = {(row.strategy, row.rule): row for row in result.rows}
     performance: dict[str, dict] = {rule: {} for rule in RULES}
     for (strategy, rule), row in rows.items():
@@ -60,14 +69,21 @@ def build_payload(
 
     wealth: dict[str, dict] = {rule: {} for rule in RULES}
     crisis: dict[str, dict] = {rule: {} for rule in RULES}
+    average_weights: dict[str, dict] = {rule: {} for rule in RULES}
     for strategy in strategy_ids:
         for rule in RULES:
             by_month = {r.month: r for r in result.months[strategy, rule]}
             level, path = 1.0, []
+            totals: dict[str, float] = {}
             for month in result.common_months:
                 level *= 1 + by_month[month].total_return
                 path.append(level)
+                for ticker, weight in by_month[month].weights:
+                    totals[ticker] = totals.get(ticker, 0.0) + weight
             wealth[rule][strategy] = path
+            average_weights[rule][strategy] = {
+                ticker: total / len(result.common_months) for ticker, total in totals.items()
+            }
             crisis[rule][strategy] = {}
             for name, (start, end) in CRISIS_WINDOWS.items():
                 stat = window_stat(result.months[strategy, rule], start, end)
@@ -82,6 +98,8 @@ def build_payload(
                     }
                 )
 
+    calendar = sorted(returns["SPY"])
+    position = {month: i for i, month in enumerate(calendar)}
     tickers = [t for t in anchors if (t, t) in analysis.correlation]
     return {
         "generated_on": generated_on.isoformat(),
@@ -93,10 +111,11 @@ def build_payload(
             "months": len(result.common_months),
         },
         "rules": list(RULES),
-        "strategies": list(strategy_ids),
+        "strategies": strategy_ids,
         "months": [month.isoformat() for month in result.common_months],
         "performance": performance,
         "wealth": wealth,
+        "average_weights": average_weights,
         "crisis": crisis,
         "crisis_windows": list(CRISIS_WINDOWS),
         "risk": [
@@ -115,11 +134,54 @@ def build_payload(
             "window_months": analysis.window_months,
             "matrix": [[analysis.correlation[a, b] for b in tickers] for a in tickers],
         },
+        "cash_ticker": cash_ticker,
+        "assets": [
+            {
+                "ticker": a.ticker,
+                "name": a.name,
+                "level": a.level,
+                "group": a.group,
+                "role": a.role,
+                "anchor": a.ticker in anchors,
+            }
+            for a in universe
+        ],
+        "calendar": [month.isoformat() for month in calendar],
+        "returns": {
+            ticker: _aligned(by_month, position, len(calendar))
+            for ticker, by_month in returns.items()
+        },
+        "proxy": {
+            ticker: [position[m] for m in months if m in position]
+            for ticker, months in proxy_months.items()
+            if months
+        },
+        "definitions": {
+            s.id: {
+                "kind": s.kind,
+                "role": s.role,
+                "weights": s.weights,
+                "members": list(s.members),
+                "max_weight": s.max_weight,
+            }
+            for s in strategies
+        },
     }
+
+
+def _aligned(
+    by_month: Mapping[date, float], position: Mapping[date, int], size: int
+) -> list[float | None]:
+    values: list[float | None] = [None] * size
+    for month, value in by_month.items():
+        if month in position:
+            values[position[month]] = round(value, 8)
+    return values
 
 
 def render_dashboard(payload: dict) -> str:
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     # "</" would end the script element early; JSON allows the escaped slash.
     data = json.dumps(payload, ensure_ascii=False, allow_nan=False).replace("</", "<\\/")
-    return template.replace(_PLACEHOLDER, data, 1)
+    engine = ENGINE_PATH.read_text(encoding="utf-8")
+    return template.replace(_ENGINE_PLACEHOLDER, engine, 1).replace(_DATA_PLACEHOLDER, data, 1)
