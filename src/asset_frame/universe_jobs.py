@@ -6,6 +6,18 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from asset_frame.analytics.risk import (
+    WINDOW_MONTHS,
+    Pair,
+    aligned_window,
+    annualized_volatility,
+    correlation_matrix,
+    covariance_matrix,
+    historical_var,
+    max_drawdown,
+    risk_contributions,
+    trailing_months,
+)
 from asset_frame.connectors.tiingo import TIINGO_SOURCE_ID, build_metadata_request, tiingo_asset_id
 from asset_frame.returns.series import (
     CALC_VERSION,
@@ -109,3 +121,66 @@ def universe_status(
             )
         )
     return tuple(rows)
+
+
+@dataclass(frozen=True, slots=True)
+class AssetRisk:
+    ticker: str
+    months: int
+    volatility: float | None
+    max_drawdown: float | None
+    var_95: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class Analysis:
+    as_of: date
+    window_months: int
+    assets: tuple[AssetRisk, ...]
+    correlation: dict[Pair, float | None]
+    risk_contribution: dict[str, float]
+    excluded: tuple[str, ...]
+
+
+def analyze_universe(
+    assets: tuple[UniverseAsset, ...], *, store: ResearchStore, window: int = WINDOW_MONTHS
+) -> Analysis:
+    """Per-asset risk over each ticker's full history; correlation and risk contribution over
+    the trailing window ending at the latest SPY month. Assets without every month are excluded
+    from the window statistics. Risk contribution is for an equal-weight portfolio of the
+    level-1 anchors (the equal_weight strategy)."""
+    monthly = {
+        ticker: {month: float(value) for month, value in by_month.items()}
+        for ticker, by_month in store.latest_returns().items()
+    }
+    calendar = sorted(monthly[CALENDAR_TICKER])
+    as_of = calendar[-1]
+    months = trailing_months(calendar, as_of, window)
+    if not months:
+        raise ValueError(f"fewer than {window} monthly returns for {CALENDAR_TICKER}")
+    in_window = aligned_window(
+        {a.ticker: monthly[a.ticker] for a in assets if a.ticker in monthly}, months
+    )
+    rows = []
+    for asset in assets:
+        values = list(monthly.get(asset.ticker, {}).values())
+        rows.append(
+            AssetRisk(
+                asset.ticker,
+                len(values),
+                annualized_volatility(values) if len(values) >= 2 else None,
+                max_drawdown(values) if values else None,
+                historical_var(values) if values else None,
+            )
+        )
+    anchors = [a.ticker for a in assets if a.level == 1 and a.role == "anchor"]
+    weighted = [ticker for ticker in anchors if ticker in in_window]
+    cov = covariance_matrix({ticker: in_window[ticker] for ticker in weighted})
+    return Analysis(
+        as_of=as_of,
+        window_months=window,
+        assets=tuple(rows),
+        correlation=correlation_matrix(in_window),
+        risk_contribution=risk_contributions({t: 1 / len(weighted) for t in weighted}, cov),
+        excluded=tuple(a.ticker for a in assets if a.ticker not in in_window),
+    )

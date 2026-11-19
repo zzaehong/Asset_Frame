@@ -210,6 +210,21 @@ class ResearchStore:
             )
         return computed_at
 
+    def latest_returns(self) -> dict[str, dict[date, Decimal]]:
+        """Monthly total returns per ticker from the latest build."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT ticker, month_end, total_return FROM monthly_return
+                WHERE computed_at = (SELECT max(computed_at) FROM monthly_return)
+                ORDER BY ticker, month_end
+                """
+            ).fetchall()
+        result: dict[str, dict[date, Decimal]] = {}
+        for ticker, month_end, total_return in rows:
+            result.setdefault(ticker, {})[date.fromisoformat(month_end)] = Decimal(total_return)
+        return result
+
     def latest_build(self) -> tuple[dict[str, list[tuple[date, bool]]], dict[str, int]]:
         """Month ends (with proxy flag) and anomaly counts per ticker from the latest build."""
         with self._connect() as connection:
