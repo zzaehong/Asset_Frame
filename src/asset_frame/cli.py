@@ -22,6 +22,7 @@ from asset_frame.ingestion.transport import RateLimitedRetryTransport, UrllibHtt
 from asset_frame.ingestion.universe_service import ingest_universe
 from asset_frame.report.dashboard import build_payload, render_dashboard
 from asset_frame.sources.registry import load_source_registry
+from asset_frame.storage.backup import backup
 from asset_frame.storage.raw import FileRawStore
 from asset_frame.storage.research import ResearchStore
 from asset_frame.storage.sqlite import SqliteIngestionRepository
@@ -41,6 +42,7 @@ STRATEGIES_PATH = Path("config/strategies.toml")
 STATUS_CSV_PATH = REPORT_DIR / "universe_status.csv"
 DEFAULT_DATABASE_PATH = "var/asset_frame.sqlite3"
 DEFAULT_RAW_STORE_PATH = "var/raw"
+DEFAULT_BACKUP_PATH = "~/Backups/Asset_Frame"
 # Tiingo Starter plan allows 50 requests/hour (config/sources.toml); 75 s keeps us at 48.
 TIINGO_STARTER_INTERVAL_SECONDS = 75.0
 
@@ -89,6 +91,7 @@ def main(argv: list[str] | None = None) -> None:
 
     subparsers.add_parser("build-returns", help="compute monthly total returns")
     subparsers.add_parser("dashboard", help="write the offline interactive dashboard")
+    subparsers.add_parser("backup", help="copy the database and raw files to BACKUP_PATH")
     backtest_parser = subparsers.add_parser(
         "backtest", help="compare strategies under three rebalancing rules"
     )
@@ -119,6 +122,8 @@ def main(argv: list[str] | None = None) -> None:
         _build_returns()
     elif arguments.command == "dashboard":
         _dashboard()
+    elif arguments.command == "backup":
+        _backup()
     elif arguments.command == "backtest":
         _backtest(arguments.window_months)
 
@@ -417,6 +422,13 @@ def _cell(value: object) -> str:
 
 def _source(source_id: str) -> SourceDefinition:
     return next(source for source in load_source_registry(SOURCES_PATH) if source.id == source_id)
+
+
+def _backup() -> None:
+    destination = Path(os.getenv("BACKUP_PATH") or DEFAULT_BACKUP_PATH).expanduser()
+    raw_root = Path(os.getenv("RAW_STORE_PATH") or DEFAULT_RAW_STORE_PATH)
+    target, copied = backup(_database_path(), raw_root, destination, date.today())
+    print(f"database -> {target}\nraw files copied: {copied}")
 
 
 def _database_path() -> Path:

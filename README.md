@@ -23,10 +23,11 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | `ingest-universe`: 10년 구간 겹쳐 수집, 실패 티커부터 재시작, 저장된 티커는 새 날짜만 수집(전체 재수집과 같은 지수). `universe verify`: ±31일 `ok`만 설정에 기록 | `tests/test_universe.py` |
 | 총수익 지수·월간 수익률(손 계산 표본), snapshot 연결, 현금 대용, 앵커 보존, `eligible_assets` 13개월, 일간 ±25% 이상치 표시 | `tests/test_returns.py` |
 | 위험 지표(연율 변동성, 최대낙폭, 95% 역사적 VaR), 36개월 상관행렬, 위험기여도(손 계산 표본·분산 일치 검증) | `tests/test_analytics.py` |
-| 전략 8개 설정 검증(벤치마크 2, 고정 비중 2, 동일가중, 추정 비중 3), 월간·분기·밴드 리밸런싱, 편입 자격 13개월·비중 재배분(coverage), 성과 지표(CAGR·샤프·소르티노·칼마·정보비율) 손 계산 검증, 36개월 창 추정 전략 | `tests/test_backtest.py` |
+| 전략 8개 설정 검증(벤치마크 2, 고정 비중 2, 동일가중, 추정 비중 3)과 `min_variance` 상한 민감도 변형 2개(20·40%), 월간·분기·밴드 리밸런싱, 편입 자격 13개월·비중 재배분(coverage), 성과 지표(CAGR·샤프·소르티노·칼마·정보비율) 손 계산 검증, 36개월 창 추정 전략 | `tests/test_backtest.py` |
 | 추정 비중: 역변동성, 위험균등(위험기여도 동일 검증), 상한 있는 최소분산(닫힌 해·격자 탐색 비교) | `tests/test_allocation.py` |
 | 위기 구간(2008·2020·2022) 누적 수익률·최대낙폭과 부분 구성 표시, 현금도 일반 자산으로 담김(평균 비중·대용 구간), 오프라인 대시보드 한 파일(외부 로드 없음, 데이터가 스크립트를 닫지 못함) | `tests/test_dashboard.py` |
 | 대시보드 안의 포트폴리오 실험실·롤링 상관 엔진이 파이썬 엔진과 같은 값을 냄(노드가 없으면 건너뜀) | `tests/test_dashboard_engine.py` |
+| `backup`: SQLite 일관 복사(최근 4개 유지)와 raw 파일 추가 복사(기존 파일은 덮어쓰지 않음) | `tests/test_backup.py` |
 | 개념 레지스트리: 구현된 개념은 모듈·테스트·카드가 있음 | `tests/test_concept_registry.py` |
 | 직접 의존성의 공식 문서 registry 등록 | `tests/test_dependency_registry.py` |
 
@@ -44,6 +45,7 @@ uv run asset-frame sources
 |---|---|---|
 | `DATABASE_PATH` | SQLite 파일 경로 | `var/asset_frame.sqlite3` |
 | `RAW_STORE_PATH` | 원본 응답 저장 경로 | `var/raw` |
+| `BACKUP_PATH` | `backup` 명령의 복사 위치(저장소 밖) | `~/Backups/Asset_Frame` |
 | `TIINGO_API_KEY` | `ingest-tiingo`, `ingest-universe` | 없음(필수) |
 | `KRX_API_KEY` | `ingest-krx` | 없음(필수) |
 | `FRED_API_KEY` | `ingest-fred` | 없음(필수) |
@@ -76,6 +78,7 @@ uv run asset-frame build-returns            # monthly_return, return_anomaly 테
 uv run asset-frame universe status          # 콘솔 표 + var/reports/universe_status.csv
 uv run asset-frame universe analyze         # var/reports/analysis_risk.csv, analysis_correlation.csv
 uv run asset-frame dashboard                # var/reports/dashboard.html: 오프라인 대화형 대시보드(서버 불필요)
+uv run asset-frame backup                   # var의 DB·raw를 BACKUP_PATH로 복사(수집 후 실행)
 uv run asset-frame backtest                 # var/reports/backtest_performance.csv, backtest_monthly.csv
 uv run asset-frame backtest --window-months 24   # 위험 추정 창 민감도(파일명에 _w24)
 ```
