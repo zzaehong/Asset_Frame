@@ -907,7 +907,7 @@ function setupAssets() {
 }
 
 // ---------- 시장 국면 · 국면별 과거 성과 ----------
-const AXES = [["quadrant", "성장×물가"], ["indpro_sahm", "침체 신호"], ["correlation_regime", "주식·채권 상관"]];
+const AXES = [["quadrant", "성장×물가"], ["indpro_sahm", "실물경제 침체 신호"], ["correlation_regime", "주식·채권 상관"]];
 const LABEL_TEXT = {
   "True": "신호 켜짐", "False": "신호 없음",
   growth_up_inflation_up: "성장 ↑ · 물가 ↑", growth_up_inflation_down: "성장 ↑ · 물가 ↓",
@@ -934,10 +934,10 @@ function selectRegime(axis, label) {
 
 function renderRegimeTiles() {
   const row = currentRow();
-  $("regime-now").textContent = `${row.month.slice(0, 7)} 월말 기준 — ${row.quadrant ? labelText(row.quadrant) : "성장×물가 판단 불가"}, ${row.recession ? "침체 신호가 켜져 있습니다" : "침체 신호는 없습니다"}.`;
+  $("regime-now").textContent = `${row.month.slice(0, 7)} 월말 기준 — ${row.quadrant ? labelText(row.quadrant) : "성장×물가 판단 불가"}, ${row.recession ? "실물경제 침체 신호가 켜져 있습니다" : "실물경제 침체 신호는 없습니다"}.`;
   const tiles = [
     ["quadrant", row.quadrant, "성장×물가", row.cfnai_ma3 == null ? "" : `CFNAI-MA3 ${dec(row.cfnai_ma3)} (0 이상이면 성장 ↑)`, false],
-    ["indpro_sahm", rowLabel(row, "indpro_sahm"), "침체 신호", `규칙: 산업생산 전년비 < 0 그리고 Sahm ≥ 0.5%p. 지금 Sahm ${row.sahm == null ? "계산 불가(결측)" : dec(row.sahm) + "%p"} · 산업생산 전년비 ${spct(row.indpro_yoy)}`, row.recession === true],
+    ["indpro_sahm", rowLabel(row, "indpro_sahm"), "실물경제 침체 신호", `실물경제 기준(주식시장 하락과 다름): 산업생산 전년비 < 0 그리고 Sahm(실업률) ≥ 0.5%p. 지금 Sahm ${row.sahm == null ? "계산 불가(결측)" : dec(row.sahm) + "%p"} · 산업생산 전년비 ${spct(row.indpro_yoy)}`, row.recession === true],
     ["correlation_regime", row.correlation_regime, "주식·채권 상관", row.stock_bond_correlation == null ? "" : `SPY–IEF 36개월 상관 ${dec(row.stock_bond_correlation)}`, false],
   ];
   const host = $("regime-tiles");
@@ -984,7 +984,7 @@ function renderRegimePick() {
 const SHORT = {
   growth_up_inflation_up: "성장↑ 물가↑", growth_up_inflation_down: "성장↑ 물가↓",
   growth_down_inflation_up: "성장↓ 물가↑", growth_down_inflation_down: "성장↓ 물가↓",
-  True: "침체 신호", stock_bond_positive: "동행(+)", stock_bond_negative: "헤지(−)",
+  True: "실물 침체", stock_bond_positive: "동행(+)", stock_bond_negative: "헤지(−)",
 };
 const QUAD_COLOR = {
   growth_up_inflation_down: "#2f8f6b", growth_up_inflation_up: "#c9892b",
@@ -1020,7 +1020,7 @@ function renderRegimeTimeline() {
     ]) if (macro.series[id]) lines.push([name, macro.series[id], fmt, zero, ["var(--accent)", "var(--neg)"]]);
   }
   const left = 104, right = 64, laneH = 22, lineH = 58, gap = 8, top = 22;
-  const lanes = [["quadrant", "성장×물가"], ["indpro_sahm", "침체 신호"], ["correlation_regime", "주식·채권 상관"]];
+  const lanes = [["quadrant", "성장×물가"], ["indpro_sahm", "실물경제 침체 신호"], ["correlation_regime", "주식·채권 상관"]];
   const height = top + lanes.length * (laneH + gap) + lines.length * (lineH + gap) + 22;
   const f = frame(host, height);
   const w = (f.width - left - right) / n;
@@ -1140,7 +1140,7 @@ function renderRegimeTimeline() {
     cursor.setAttribute("x1", X(i) + w / 2); cursor.setAttribute("x2", X(i) + w / 2); cursor.setAttribute("visibility", "visible");
     const items = [
       ["성장×물가", row.quadrant ? labelText(row.quadrant) : "판단 불가"],
-      ["침체 신호", row.recession == null ? "판단 불가" : row.recession ? "켜짐" : "없음"],
+      ["실물경제 침체 신호", row.recession == null ? "판단 불가" : row.recession ? "켜짐" : "없음"],
       ["주식·채권", row.correlation_regime ? labelText(row.correlation_regime) : "–"],
       ...lines.map(([name, values, fmt]) => [name, values[i] == null ? "–" : fmt(values[i])]),
       ["NBER", row.nber ? "침체" : "–"],
@@ -1200,9 +1200,9 @@ function renderMonthPanel() {
   const at = (id, k = 0) => (m && m.series[id] && i - k >= 0 ? m.series[id][i - k] : null);
   const curve = at("T10Y3M"), fed = at("FEDFUNDS"), fed6 = at("FEDFUNDS", 6), usd = at("DTWEXBGS"), usd12 = at("DTWEXBGS", 12);
   const quad = row.quadrant ? labelText(row.quadrant) : "성장×물가 판단 불가(2011-06 이전)";
-  $("month-headline").textContent = `${quad}, ${row.recession == null ? "침체 신호 판단 불가" : row.recession ? "침체 신호 켜짐" : "침체 신호 없음"}${curve == null ? "" : curve < 0 ? ", 금리 곡선 역전" : ", 금리 곡선 정상"}.`;
+  $("month-headline").textContent = `${quad}, ${row.recession == null ? "실물경제 침체 신호 판단 불가" : row.recession ? "실물경제 침체 신호 켜짐" : "실물경제 침체 신호 없음"}${curve == null ? "" : curve < 0 ? ", 금리 곡선 역전" : ", 금리 곡선 정상"}.`;
   const kv = [
-    ["성장×물가", quad], ["침체 신호", row.recession == null ? "판단 불가" : row.recession ? "켜짐" : "없음"],
+    ["성장×물가", quad], ["실물경제 침체 신호", row.recession == null ? "판단 불가" : row.recession ? "켜짐" : "없음"],
     ["Sahm 지표", row.sahm == null ? "–" : dec(row.sahm) + "%p"], ["산업생산 전년비", spct(row.indpro_yoy)],
     ["CFNAI-MA3", row.cfnai_ma3 == null ? "–" : dec(row.cfnai_ma3)],
     ["주식·채권 상관", row.correlation_regime ? labelText(row.correlation_regime) + (row.stock_bond_correlation == null ? "" : ` (${dec(row.stock_bond_correlation)})`) : "–"],
@@ -1247,10 +1247,10 @@ function renderSimilar(i) {
   note.hidden = !state.similar;
   if (!state.similar) return;
   const row = D.regime.rows[i];
-  if (similarKey(i) == null) { note.textContent = "성장×물가나 침체 신호를 판단할 수 없는 달은 비슷한 달을 찾지 않습니다."; return; }
+  if (similarKey(i) == null) { note.textContent = "성장×물가나 실물경제 침체 신호를 판단할 수 없는 달은 비슷한 달을 찾지 않습니다."; return; }
   const matches = similarMonths(i);
   const usable = matches.map((j) => monthIndex(D.regime.rows[j])).filter((idx) => idx >= 0);
-  const label = `같은 상태(성장×물가·침체 신호·금리 곡선 역전 여부)였던 다른 달은 ${matches.length}개월입니다(타임라인의 주황 점).`;
+  const label = `같은 상태(성장×물가·실물경제 침체 신호·금리 곡선 역전 여부)였던 다른 달은 ${matches.length}개월입니다(타임라인의 주황 점).`;
   const cells = AFTER_ASSETS.filter((t) => D.returns[t]).map((t) => {
     const values = usable.map((idx) => forwardReturn(t, idx, state.horizon)).filter((v) => v != null);
     return values.length >= 3 ? `${t} ${spct(values.reduce((a, b) => a + b, 0) / values.length)}(${values.length}개월)` : null;

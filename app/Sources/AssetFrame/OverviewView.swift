@@ -31,7 +31,7 @@ struct Line: View {
 enum Format {
     static func flag(_ value: Bool?) -> String {
         guard let value else { return "계산 불가" }
-        return value ? "침체 신호" : "신호 없음"
+        return value ? "신호 켜짐" : "신호 없음"
     }
 
     static func number(_ value: Double?, _ digits: Int = 2) -> String {
@@ -132,7 +132,7 @@ struct OverviewView: View {
                         HStack(alignment: .top, spacing: 10) {
                             RegimeTile(title: "성장×물가", value: Format.quadrant(regime.quadrant),
                                        detail: regime.cfnaiMA3.map { "CFNAI-MA3 \(Format.number($0))" } ?? "", alert: false) { model.screen = .regime }
-                            RegimeTile(title: "침체 신호", value: Format.flag(regime.indproSahm),
+                            RegimeTile(title: "실물경제 침체 신호", value: Format.flag(regime.indproSahm),
                                        detail: "Sahm \(Format.number(regime.sahm))%p", alert: regime.indproSahm == true) { model.screen = .regime }
                             RegimeTile(title: "주식·채권 상관", value: regime.correlationRegime == "stock_bond_positive" ? "동행 (+)" : "헤지 (−)",
                                        detail: "SPY–IEF \(Format.number(regime.correlation))", alert: false) { model.screen = .regime }
