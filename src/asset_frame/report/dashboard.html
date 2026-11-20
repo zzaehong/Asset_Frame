@@ -94,6 +94,7 @@ footer { color: var(--muted); font-size: 12px; }
 .history th .now { display: inline-block; background: var(--accent); color: var(--bg); border-radius: 99px; padding: 0 7px; font-size: 11px; margin-top: 2px; }
 .history td { text-align: center; font-variant-numeric: tabular-nums; }
 .history td.base { background: color-mix(in srgb, var(--line) 35%, transparent); }
+.history .since { color: var(--muted); font-size: 11px; }
 .history td.thin { opacity: .72; font-style: italic; }
 .history td:first-child, .history th:first-child { text-align: left; cursor: default; }
 .dist .item { display: grid; grid-template-columns: 70px 1fr 340px; gap: 10px; align-items: center; padding: 3px 0; font-size: 14px; }
@@ -1374,6 +1375,10 @@ function renderHistory() {
   for (const t of tickers) {
     const tr = body.insertRow();
     const name = tr.insertCell(); name.textContent = t; name.title = (assetOf[t] || {}).name || "";
+    if (state.long) {
+      const first = C().returns[t].findIndex((v) => v != null);
+      if (first > 12) name.appendChild(node("small", ` ${C().calendar[first].slice(0, 4)}~`, "since"));
+    }
     for (const [key, label, cell, base] of cols) {
       const td = tr.insertCell();
       const st = statOf(cell, t);
@@ -1461,8 +1466,11 @@ function renderLongNote() {
     const lines = used.map((p) => `${p.ticker} ← ${p.proxy}(${kind[p.fidelity] || p.fidelity}, 겹친 ${p.overlap_months}개월 상관 ${p.correlation == null ? "–" : p.correlation}) ${p.first_month ? p.first_month.slice(0, 7) + "~" + p.last_month.slice(0, 7) : ""}`);
     note.replaceChildren();
     note.append(node("b", `긴 기간 보기: ${rows[0].month.slice(0, 7)}부터 ${rows[rows.length - 1].month.slice(0, 7)}까지.`),
-      document.createTextNode(" 거시 규칙은 그날 발표된 값만으로 1962년부터 다시 돌렸고, 4분면은 2011년 전에는 산업생산 기준만 있습니다. 상장 전 자산 구간은 아래 대용 펀드로 이었으며 실제 ETF가 아닙니다."));
-    if (lines.length) { const ul = node("ul"); for (const text of lines) ul.appendChild(node("li", text)); note.appendChild(ul); }
+      document.createTextNode(" 거시 규칙은 그날 발표된 값만으로 1962년부터 다시 돌렸고, 4분면은 2011년 전에는 산업생산 기준만 있습니다. 상장 전 자산 구간은 아래 대용 펀드로 이었으며 실제 ETF가 아닙니다. 자산마다 자료가 시작되는 해가 달라서(표의 \"1986~\" 표시) 자산끼리 평균을 비교할 때는 같은 기간이 아님에 주의하세요."));
+    if (lines.length) {
+      const details = node("details"); details.appendChild(node("summary", `사용한 대용 펀드 ${lines.length}개 보기`));
+      const ul = node("ul"); for (const text of lines) ul.appendChild(node("li", text)); details.appendChild(ul); note.appendChild(details);
+    }
     if (skipped.length) note.appendChild(node("p", "대용을 쓰지 않은 자산: " + skipped.map((p) => `${p.ticker}(${p.reason})`).join(", ") + ". 대용이 없는 자산(은·원자재·섹터·스타일 등)은 상장 이후만 나옵니다.", "muted"));
   }
 }

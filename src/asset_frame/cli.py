@@ -36,7 +36,7 @@ from asset_frame.regime.jobs import (
     run_regime_long,
 )
 from asset_frame.regime.market import EXTENSION_SERIES, MAX_AGE_DAYS
-from asset_frame.regime.replay import ip_quadrants
+from asset_frame.regime.replay import RULES, ip_quadrants, score
 from asset_frame.report.dashboard import LongContext, build_payload, render_dashboard
 from asset_frame.returns.series import total_return_index
 from asset_frame.sources.registry import load_source_registry
@@ -123,7 +123,12 @@ def main(argv: list[str] | None = None) -> None:
 
     subparsers.add_parser("build-returns", help="compute monthly total returns")
     subparsers.add_parser("dashboard", help="write the offline interactive dashboard")
-    subparsers.add_parser("regime", help="replay regime rules and score them against NBER")
+    regime_parser = subparsers.add_parser(
+        "regime", help="replay regime rules and score them against NBER (diagnostic)"
+    )
+    regime_parser.add_argument(
+        "--long", action="store_true", help="replay from 1962 with proxy-extended returns"
+    )
     ledger_parser = subparsers.add_parser("ledger", help="append-only hash-chained ledger")
     ledger_commands = ledger_parser.add_subparsers(dest="ledger_command", required=True)
     ledger_commands.add_parser("verify", help="check the hash chain and print the head hash")
@@ -180,7 +185,7 @@ def main(argv: list[str] | None = None) -> None:
     elif arguments.command == "dashboard":
         _dashboard()
     elif arguments.command == "regime":
-        _regime()
+        _regime(arguments.long)
     elif arguments.command == "ledger":
         _ledger(arguments)
     elif arguments.command == "backup":
@@ -602,10 +607,15 @@ def _source(source_id: str) -> SourceDefinition:
     return next(source for source in load_source_registry(SOURCES_PATH) if source.id == source_id)
 
 
-def _regime() -> None:
-    rows, scores = run_regime(_research_store())
+def _regime(long: bool = False) -> None:
+    store = _research_store()
+    if long:
+        rows, _, _ = run_regime_long(store)
+        scores = tuple(score(rows, rule) for rule in RULES)
+    else:
+        rows, scores = run_regime(store)
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    path = REPORT_DIR / "regime_replay.csv"
+    path = REPORT_DIR / ("regime_replay_long.csv" if long else "regime_replay.csv")
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow([field.name for field in fields(rows[0])])
