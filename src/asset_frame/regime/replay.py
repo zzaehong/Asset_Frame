@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 
@@ -17,6 +17,7 @@ from asset_frame.regime.rules import (
     available,
     correlation_regime,
     growth_inflation_quadrant,
+    growth_inflation_quadrant_ip,
     rule_cfnai_sahm,
     rule_indpro_sahm,
     sahm_indicator,
@@ -56,11 +57,12 @@ def replay(
     usrec: Mapping[date, bool],
     returns: Mapping[str, Mapping[date, float]],
     month_ends: list[date],
+    start: date = REPLAY_START,
 ) -> tuple[RegimeRow, ...]:
-    """One row per month end from REPLAY_START, using only values released by that date."""
+    """One row per month end from `start`, using only values released by that date."""
     rows = []
     for as_of in sorted(month_ends):
-        if as_of < REPLAY_START:
+        if as_of < start:
             continue
         indpro = available(series["INDPRO"], as_of)
         unrate = available(series["UNRATE"], as_of)
@@ -82,6 +84,16 @@ def replay(
             )
         )
     return tuple(rows)
+
+
+def ip_quadrants(series: Mapping[str, Series], month_ends: Sequence[date]) -> list[str | None]:
+    """INDPRO/CPI growth-inflation quadrant (`growth_inflation_quadrant_ip`) at each month end."""
+    return [
+        growth_inflation_quadrant_ip(
+            available(series["INDPRO"], as_of), available(series["CPIAUCSL"], as_of)
+        )
+        for as_of in month_ends
+    ]
 
 
 def stock_bond_correlation(

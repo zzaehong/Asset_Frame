@@ -31,7 +31,8 @@ def regime_performance(
     every month end. Returns are fractions; statistics are arithmetic over cumulative returns.
     """
     calendar = sorted({month for by_month in returns.values() for month in by_month})
-    position = {month: i for i, month in enumerate(calendar)}
+    # Rows and returns may use different dates for the same month (calendar vs last trading day).
+    position = {(month.year, month.month): i for i, month in enumerate(calendar)}
 
     def cell(indices: Sequence[int]) -> dict:
         assets: dict[str, dict] = {}
@@ -74,11 +75,11 @@ def regime_performance(
 def _forward(
     by_month: Mapping[date, float],
     calendar: Sequence[date],
-    position: Mapping[date, int],
+    position: Mapping[tuple[int, int], int],
     month_end: date,
     horizon: int,
 ) -> float | None:
-    start = position.get(month_end)
+    start = position.get((month_end.year, month_end.month))
     if start is None or start + horizon >= len(calendar):
         return None
     level = 1.0

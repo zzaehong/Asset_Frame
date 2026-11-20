@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -42,6 +43,35 @@ CREATE TABLE IF NOT EXISTS monthly_return (
     PRIMARY KEY (ticker, month_end, computed_at)
 );
 
+-- Stand-in months for assets younger than the study period; kept apart from monthly_return so every
+-- existing analysis keeps reading real ETF history only. Each build appends a full set.
+CREATE TABLE IF NOT EXISTS proxy_return (
+    ticker TEXT NOT NULL,
+    month_end TEXT NOT NULL,
+    total_return TEXT NOT NULL,
+    proxy_ticker TEXT NOT NULL,
+    fidelity TEXT NOT NULL,
+    source_price_version TEXT NOT NULL,
+    computed_at TEXT NOT NULL,
+    calc_version TEXT NOT NULL,
+    PRIMARY KEY (ticker, month_end, computed_at)
+);
+
+CREATE TABLE IF NOT EXISTS proxy_check (
+    ticker TEXT NOT NULL,
+    proxy_ticker TEXT NOT NULL,
+    fidelity TEXT NOT NULL,
+    overlap_months INTEGER NOT NULL,
+    correlation REAL,
+    annual_tracking_difference REAL,
+    mean_abs_difference REAL,
+    used INTEGER NOT NULL CHECK (used IN (0, 1)),
+    reason TEXT NOT NULL,
+    computed_at TEXT NOT NULL,
+    calc_version TEXT NOT NULL,
+    PRIMARY KEY (ticker, computed_at)
+);
+
 CREATE TABLE IF NOT EXISTS return_anomaly (
     ticker TEXT NOT NULL,
     trading_date TEXT NOT NULL,
@@ -52,6 +82,19 @@ CREATE TABLE IF NOT EXISTS return_anomaly (
     PRIMARY KEY (ticker, trading_date, computed_at)
 );
 """
+
+
+@dataclass(frozen=True, slots=True)
+class ProxyCheckRow:
+    ticker: str
+    proxy_ticker: str
+    fidelity: str
+    overlap_months: int
+    correlation: float | None
+    annual_tracking_difference: float | None
+    mean_abs_difference: float | None
+    used: bool
+    reason: str
 
 
 class ResearchStore:
@@ -252,6 +295,83 @@ class ResearchStore:
         for ticker, month_end, total_return in rows:
             result.setdefault(ticker, {})[date.fromisoformat(month_end)] = Decimal(total_return)
         return result
+
+    def save_proxy_build(
+        self,
+        returns: dict[str, tuple[MonthlyReturn, ...]],
+        checks: Iterable[ProxyCheckRow],
+        *,
+        proxy_by_target: dict[str, tuple[str, str]],
+        calc_version: str,
+    ) -> str:
+        """Append one build: spliced months (only for used proxies) and every check outcome."""
+        computed_at = _now()
+        with self._connect() as connection:
+            connection.executemany(
+                "INSERT INTO proxy_return VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    (
+                        ticker,
+                        item.month_end.isoformat(),
+                        str(item.total_return),
+                        proxy_by_target[ticker][0],
+                        proxy_by_target[ticker][1],
+                        item.source_price_version,
+                        computed_at,
+                        calc_version,
+                    )
+                    for ticker, items in returns.items()
+                    for item in items
+                ],
+            )
+            connection.executemany(
+                "INSERT INTO proxy_check VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    (
+                        row.ticker,
+                        row.proxy_ticker,
+                        row.fidelity,
+                        row.overlap_months,
+                        row.correlation,
+                        row.annual_tracking_difference,
+                        row.mean_abs_difference,
+                        int(row.used),
+                        row.reason,
+                        computed_at,
+                        calc_version,
+                    )
+                    for row in checks
+                ],
+            )
+        return computed_at
+
+    def latest_proxy_returns(self) -> dict[str, dict[date, Decimal]]:
+        """Stand-in monthly returns per target from the latest proxy build."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT ticker, month_end, total_return FROM proxy_return
+                WHERE computed_at = (SELECT max(computed_at) FROM proxy_return)
+                ORDER BY ticker, month_end
+                """
+            ).fetchall()
+        result: dict[str, dict[date, Decimal]] = {}
+        for ticker, month_end, total_return in rows:
+            result.setdefault(ticker, {})[date.fromisoformat(month_end)] = Decimal(total_return)
+        return result
+
+    def latest_proxy_checks(self) -> tuple[ProxyCheckRow, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT ticker, proxy_ticker, fidelity, overlap_months, correlation,
+                       annual_tracking_difference, mean_abs_difference, used, reason
+                FROM proxy_check
+                WHERE computed_at = (SELECT max(computed_at) FROM proxy_check)
+                ORDER BY ticker
+                """
+            ).fetchall()
+        return tuple(ProxyCheckRow(*row[:7], bool(row[7]), row[8]) for row in rows)
 
     def latest_build(self) -> tuple[dict[str, list[tuple[date, bool]]], dict[str, int]]:
         """Month ends (with proxy flag) and anomaly counts per ticker from the latest build."""

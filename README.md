@@ -31,6 +31,8 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | `regime`: Sahm 지표·INDPRO/CFNAI 침체 규칙·L3 4분면·주식채권 상관 국면, 발표일 이후 값만 쓰는 월말 replay, NBER 대비 채점(손 계산 표본) | `tests/test_regime_rules.py`, `tests/test_regime_replay.py` |
 | 해시 체인 원장: 연속 `seq`·이전 해시, 수정·삭제 거부(트리거), 변조·누락 탐지, 같은 키 중복 방지, 국면 월 기록의 live·replay 구분 | `tests/test_ledger.py` |
 | 예측·채점: 모멘텀(12-1)·무작위·사용자 순위와 상관 부호 확률을 원장에 기록(월당 모델별 1건), 3개월 뒤 순위 IC·상·하위 스프레드·Brier 채점, MDE 표시, 잘못된 입력 거부 | `tests/test_prediction.py` |
+| 대용 펀드 이력: 상장 전 구간을 같은 시장 펀드로 이어 붙임(대상 첫 달 이전만, 항상 대용 표시), 겹침 36개월·등급별 상관 기준 미달이면 사용 안 함, 일간 지수 연결, 기존 월간 수익률과 분리 저장, 설정 검증 | `tests/test_proxy.py`, `tests/test_proxy_jobs.py`, `tests/test_proxies_config.py` |
+| 긴 기간 국면: 1962년부터 월말 replay(INDPRO/CPI 기준 4분면 `regime_ip_v1` 포함, 달러지수 연결), 월 날짜 달라도 같은 달로 맞춤 | `tests/test_regime_rules.py`, `tests/test_regime_long.py`, `tests/test_regime_performance.py`, `tests/test_regime_market.py` |
 | 주식시장 하락장(SPY 총수익 −20% 진입·저점 +20% 종료, `equity_bear_v1`)과 타임라인 표시 | `tests/test_regime_equity.py`, `tests/test_dashboard.py` |
 | 금리 곡선(10년−3개월·10년−2년), 정책금리, 달러지수 수집과 월말 맥락(`macro_market_v1`), 타임라인 표시 | `tests/test_regime_market.py`, `tests/test_fred_connector.py` |
 | 국면별 과거 성과(월말 상황 라벨 뒤 1·3·6·12·24·36개월 누적 수익률의 평균·중앙값·범위·오른 비율·독립 표본 수, `regime_performance_v2`), 대시보드 payload의 `regime` 항목 | `tests/test_regime_performance.py`, `tests/test_dashboard.py` |
@@ -82,7 +84,8 @@ uv run asset-frame ingest-universe          # 처음엔 전체 이력(Starter �
 uv run asset-frame ingest-universe --full   # 전체 이력을 다시 받음
 uv run asset-frame universe verify          # 상장일 검증. ok만 config/universe.toml에 기록
 uv run asset-frame ingest-fred --series DTB3
-uv run asset-frame build-returns            # monthly_return, return_anomaly 테이블에 새 빌드 추가
+uv run asset-frame ingest-proxies           # config/proxies.toml의 대용 펀드 이력(약 1시간, 75초 간격)
+uv run asset-frame build-returns            # monthly_return, return_anomaly에 새 빌드 추가 + 대용 월·겹침 검사 저장
 uv run asset-frame universe status          # 콘솔 표 + var/reports/universe_status.csv
 uv run asset-frame universe analyze         # var/reports/analysis_risk.csv, analysis_correlation.csv
 uv run asset-frame dashboard                # var/reports/dashboard.html: 오프라인 대화형 대시보드(서버 불필요)

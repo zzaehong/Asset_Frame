@@ -55,6 +55,7 @@ class QualityStatus(StrEnum):
 class AssetType(StrEnum):
     EQUITY = "equity"
     ETF = "etf"
+    MUTUAL_FUND = "mutual_fund"
 
 
 class IdentifierType(StrEnum):

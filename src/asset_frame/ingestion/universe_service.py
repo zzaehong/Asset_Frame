@@ -46,6 +46,7 @@ def ingest_universe(
     api_key: str,
     end_date: date,
     full: bool = False,
+    asset_type: AssetType = AssetType.ETF,
     report: Callable[[str], None] = print,
 ) -> UniverseIngestResult:
     """Collect each ticker's history; a ticker done for end_date is skipped on rerun.
@@ -73,7 +74,7 @@ def ingest_universe(
             for window_start, window_end in collection_windows(start, end_date):
                 collector.collect(
                     ticker=asset.ticker,
-                    asset_type=AssetType.ETF,
+                    asset_type=asset_type,
                     api_key=api_key,
                     start_date=window_start,
                     end_date=window_end,

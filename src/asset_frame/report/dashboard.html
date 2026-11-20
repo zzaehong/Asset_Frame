@@ -94,6 +94,7 @@ footer { color: var(--muted); font-size: 12px; }
 .history th .now { display: inline-block; background: var(--accent); color: var(--bg); border-radius: 99px; padding: 0 7px; font-size: 11px; margin-top: 2px; }
 .history td { text-align: center; font-variant-numeric: tabular-nums; }
 .history td.base { background: color-mix(in srgb, var(--line) 35%, transparent); }
+.history .since { color: var(--muted); font-size: 11px; }
 .history td.thin { opacity: .72; font-style: italic; }
 .history td:first-child, .history th:first-child { text-align: left; cursor: default; }
 .dist .item { display: grid; grid-template-columns: 70px 1fr 340px; gap: 10px; align-items: center; padding: 3px 0; font-size: 14px; }
@@ -119,6 +120,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
   <p class="lead" id="lead"></p>
   <div class="bar">
     <div class="seg" id="tabs" role="tablist" aria-label="화면"></div>
+    <label class="row" id="long-wrap" hidden title="1962년부터 거시 규칙을 돌리고, 상장 전 자산 구간은 대용 펀드로 이은 결과를 보여 줍니다"><input type="checkbox" id="long-toggle"> 긴 기간 보기 (1962~, 대용 펀드 포함)</label>
     <span class="row" id="rules-wrap"><span class="muted">리밸런싱 규칙</span>
     <span class="seg" id="rules" role="group" aria-label="리밸런싱 규칙"></span></span>
   </div>
@@ -128,6 +130,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
     <section>
       <h2>지금의 거시 국면</h2>
       <p class="lead" id="regime-now"></p>
+      <p class="note long-note" hidden></p>
       <div class="tiles" id="regime-tiles"></div>
       <p class="muted">카드를 누르면 그 국면에서 과거에 자산이 어떻게 움직였는지 봅니다. 규칙은 월말에 이미 발표된 값만 씁니다(규칙 설명은 docs/concepts/regime_rules.md).</p>
     </section>
@@ -172,6 +175,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
         <span class="muted">상황을 나누는 기준</span>
         <div class="seg" id="history-axis" role="group" aria-label="상황을 나누는 기준"></div>
       </div>
+      <p class="note long-note" hidden></p>
       <p class="lead" id="history-now"></p>
       <div class="row">
         <label class="muted" for="history-horizon">매수 후 보유 기간</label>
@@ -329,7 +333,7 @@ const D = /*__DATA__*/null;
 <script>
 const RULE_LABEL = {monthly: "월간", quarterly: "분기", band: "밴드 ±5%p"};
 const TABS = [["regime", "① 시장 국면"], ["history", "② 국면별 과거 성과"], ["compare", "③ 전략 비교"], ["lab", "③ 포트폴리오 실험실"], ["assets", "자산·상관"]];
-const state = {rule: D.rules.includes("quarterly") ? "quarterly" : D.rules[0], tab: "compare", hidden: new Set(), sort: null, riskSort: null, more: false, axis: "quadrant", label: null, showAll: false, pinned: null, similar: false, horizon: 6};
+const state = {rule: D.rules.includes("quarterly") ? "quarterly" : D.rules[0], tab: "compare", hidden: new Set(), sort: null, riskSort: null, more: false, axis: "quadrant", label: null, showAll: false, pinned: null, similar: false, horizon: 6, long: false};
 const $ = (id) => document.getElementById(id);
 const nf = (digits) => (v) => (v == null ? "–" : v.toFixed(digits));
 const pct = (v) => (v == null ? "–" : (v * 100).toFixed(1) + "%");
@@ -937,6 +941,10 @@ function setupAssets() {
 }
 
 // ---------- 시장 국면 · 국면별 과거 성과 ----------
+function C() {
+  if (state.long && D.regime_long) return D.regime_long;
+  return {rows: D.regime.rows, performance: D.regime.performance, equity: D.equity, macro: D.macro, calendar: D.calendar, returns: D.returns};
+}
 const AXES = [["quadrant", "성장×물가"], ["indpro_sahm", "실물경제 침체 신호"], ["correlation_regime", "주식·채권 상관"]];
 const LABEL_TEXT = {
   "True": "신호 켜짐", "False": "신호 없음",
@@ -944,10 +952,10 @@ const LABEL_TEXT = {
   growth_down_inflation_up: "성장 ↓ · 물가 ↑", growth_down_inflation_down: "성장 ↓ · 물가 ↓",
     stock_bond_positive: "주식·채권 동행(+)", stock_bond_negative: "채권이 주식 헤지(−)",
 };
-const rowKey = {quadrant: "quadrant", indpro_sahm: "recession", correlation_regime: "correlation_regime"};
+const rowKey = {quadrant: "quadrant", quadrant_ip: "quadrant_ip", indpro_sahm: "recession", correlation_regime: "correlation_regime"};
 const MIN_INDEPENDENT = 5;
 const HISTORY_AXES = [
-  ["quadrant", "성장×물가"], ["indpro_sahm", "실물경제 침체"], ["bear", "주식시장 하락장"],
+  ["quadrant", "성장×물가(CFNAI 기준)"], ["quadrant_ip", "성장×물가(산업생산 기준)"], ["indpro_sahm", "실물경제 침체"], ["bear", "주식시장 하락장"],
   ["curve", "금리 곡선"], ["correlation_regime", "주식·채권 상관"],
 ];
 const HISTORY_LABELS = {
@@ -962,10 +970,10 @@ const rowLabel = (row, axis) => {
   return v == null ? null : v === true ? "True" : v === false ? "False" : String(v);
 };
 const labelColor = (axis, key) => {
-  const keys = Object.keys(D.regime.performance.axes[axis]).sort();
+  const keys = Object.keys(C().performance.axes[axis]).sort();
   return `var(--c${[3, 4, 5, 7][keys.indexOf(key) % 4]})`;
 };
-function currentRow() { return D.regime.rows[D.regime.rows.length - 1]; }
+function currentRow() { return C().rows[C().rows.length - 1]; }
 
 function selectRegime(axis, label) {
   state.axis = axis; state.label = label;
@@ -982,7 +990,7 @@ function renderRegimeTiles() {
   ];
   const host = $("regime-tiles");
   host.replaceChildren();
-  const m = D.macro && D.macro.latest;
+  const m = C().macro && C().macro.latest;
   if (m) {
     const sgn = (v, digits, unit) => (v == null ? "–" : (v >= 0 ? "+" : "") + v.toFixed(digits) + unit);
     const inverted = m.spread_10y3m != null && m.spread_10y3m < 0;
@@ -1009,7 +1017,7 @@ function renderRegimePick() {
   const host = $("regime-pick");
   host.replaceChildren();
   for (const [axis, axisName] of AXES) {
-    for (const label of Object.keys(D.regime.performance.axes[axis]).sort()) {
+    for (const label of Object.keys(C().performance.axes[axis]).sort()) {
       const chip = node("button", null, "chip");
       chip.type = "button";
       chip.setAttribute("aria-current", String(axis === state.axis && label === state.label));
@@ -1030,7 +1038,7 @@ const QUAD_COLOR = {
   growth_up_inflation_down: "#2f8f6b", growth_up_inflation_up: "#c9892b",
   growth_down_inflation_up: "#c2562f", growth_down_inflation_down: "#3d6fb4",
 };
-const laneColor = (axis, label) => (axis === "bear" ? "#7a1f3d" : axis === "quadrant" ? QUAD_COLOR[label] : axis === "indpro_sahm" ? "#b3402a" : label === "stock_bond_positive" ? "#8a3f9a" : "#4f7f96");
+const laneColor = (axis, label) => (axis === "bear" ? "#7a1f3d" : axis === "quadrant" || axis === "quadrant_ip" ? QUAD_COLOR[label] : axis === "indpro_sahm" ? "#b3402a" : label === "stock_bond_positive" ? "#8a3f9a" : "#4f7f96");
 
 function runs(values) {
   const out = [];
@@ -1045,12 +1053,12 @@ function renderRegimeTimeline() {
   renderRegimePick();
   const host = $("regime-timeline");
   host.replaceChildren();
-  const rows = D.regime.rows, n = rows.length;
-  const macro = D.macro && D.macro.months.length === n ? D.macro : null;
+  const rows = C().rows, n = rows.length;
+  const macro = C().macro && C().macro.months.length === n ? C().macro : null;
   // [이름, 값 배열, 표기, 0선 기준 면적 여부, [0 위 색, 0 아래 색]]
   const lines = [];
-  if (D.equity && D.equity.bear.length === n) {
-    lines.push(["SPY 고점 대비 낙폭", D.equity.month_end_drawdown, (v) => (v * 100).toFixed(0) + "%", true, ["#888", "#7a1f3d"], D.equity.entry]);
+  if (C().equity && C().equity.bear.length === n) {
+    lines.push(["SPY 고점 대비 낙폭", C().equity.month_end_drawdown, (v) => (v * 100).toFixed(0) + "%", true, ["#888", "#7a1f3d"], C().equity.entry]);
   }
   if (rows.some((row) => row.stock_bond_correlation != null)) {
     lines.push(["SPY–IEF 상관", rows.map((row) => row.stock_bond_correlation), (v) => v.toFixed(2), true, ["#8a3f9a", "#4f7f96"]]);
@@ -1063,8 +1071,8 @@ function renderRegimeTimeline() {
     ]) if (macro.series[id]) lines.push([name, macro.series[id], fmt, zero, ["var(--accent)", "var(--neg)"]]);
   }
   const left = 104, right = 64, laneH = 22, lineH = 58, gap = 8, top = 22;
-  const equity = D.equity && D.equity.bear.length === n ? D.equity : null;
-  const lanes = [["quadrant", "성장×물가"], ["indpro_sahm", "실물경제 침체 신호"]];
+  const equity = C().equity && C().equity.bear.length === n ? C().equity : null;
+  const lanes = [["quadrant_ip", "성장×물가(산업)"], ["quadrant", "성장×물가(CFNAI)"], ["indpro_sahm", "실물경제 침체 신호"]];
   if (equity) lanes.push(["bear", "주식시장 하락장"]);
   lanes.push(["correlation_regime", "주식·채권 상관"]);
   const height = top + lanes.length * (laneH + gap) + lines.length * (lineH + gap) + 22;
@@ -1077,7 +1085,8 @@ function renderRegimeTimeline() {
   rows.forEach((row, i) => {
     const [year, month] = row.month.split("-");
     if (month !== "01") return;
-    const major = Number(year) % 2 === 1;
+    const major = n > 300 ? Number(year) % 5 === 0 : Number(year) % 2 === 1;
+    if (n > 300 && !major) return;
     svg.appendChild(svgNode("line", {x1: X(i), x2: X(i), y1: top - 4, y2: bottom, stroke: "var(--line)", "stroke-dasharray": major ? "" : "2 3"}));
     if (major) { const t = svgNode("text", {x: X(i) + 2, y: height - 6}); t.textContent = year; svg.appendChild(t); }
   });
@@ -1182,7 +1191,8 @@ function renderRegimeTimeline() {
     const row = rows[i];
     cursor.setAttribute("x1", X(i) + w / 2); cursor.setAttribute("x2", X(i) + w / 2); cursor.setAttribute("visibility", "visible");
     const items = [
-      ["성장×물가", row.quadrant ? labelText(row.quadrant) : "판단 불가"],
+      ["성장×물가(CFNAI)", row.quadrant ? labelText(row.quadrant) : "–"],
+      ["성장×물가(산업)", row.quadrant_ip ? labelText(row.quadrant_ip) : "–"],
       ["실물경제 침체 신호", row.recession == null ? "판단 불가" : row.recession ? "켜짐" : "없음"],
       ["주식·채권", row.correlation_regime ? labelText(row.correlation_regime) : "–"],
       ...lines.map(([name, values, fmt]) => [name, values[i] == null ? "–" : fmt(values[i])]),
@@ -1208,51 +1218,52 @@ function renderRegimeTimeline() {
 
 // ---------- 선택한 달 ----------
 const AFTER_ASSETS = ["SPY", "TLT", "GLD", "DBC", "HYG", "BIL"];
-const monthIndex = (row) => D.calendar.indexOf(row.month);
+const monthIndex = (row) => C().calendar.indexOf(row.month);
 function pinMonth(i) {
-  state.pinned = Math.max(0, Math.min(D.regime.rows.length - 1, i));
+  state.pinned = Math.max(0, Math.min(C().rows.length - 1, i));
   renderRegimeTimeline(); renderMonthPanel();
 }
 function similarKey(i) {
-  const row = D.regime.rows[i];
-  if (row.quadrant == null || row.recession == null) return null;
-  const curve = D.macro && D.macro.series.T10Y3M && D.macro.series.T10Y3M[i] != null ? D.macro.series.T10Y3M[i] < 0 : "?";
-  return [row.quadrant, row.recession, curve].join("|");
+  const row = C().rows[i];
+  const quadrant = state.long ? row.quadrant_ip : row.quadrant;
+  if (quadrant == null || row.recession == null) return null;
+  const curve = C().macro && C().macro.series.T10Y3M && C().macro.series.T10Y3M[i] != null ? C().macro.series.T10Y3M[i] < 0 : "?";
+  return [quadrant, row.recession, curve].join("|");
 }
 function similarMonths(i) {
   const key = similarKey(i);
   if (key == null) return [];
-  return D.regime.rows.map((_, j) => j).filter((j) => j !== i && similarKey(j) === key);
+  return C().rows.map((_, j) => j).filter((j) => j !== i && similarKey(j) === key);
 }
 function forwardReturn(ticker, start, months) {
   let level = 1;
   for (let k = 1; k <= months; k++) {
-    const r = D.returns[ticker][start + k];
-    if (start + k >= D.calendar.length || r == null) return null;
+    const r = C().returns[ticker][start + k];
+    if (start + k >= C().calendar.length || r == null) return null;
     level *= 1 + r;
   }
   return level - 1;
 }
 function renderMonthPanel() {
   if (!D.regime) return;
-  const rows = D.regime.rows, i = state.pinned == null ? rows.length - 1 : state.pinned, row = rows[i];
+  const rows = C().rows, i = state.pinned == null ? rows.length - 1 : state.pinned, row = rows[i];
   const idx = monthIndex(row);
   $("month-title").textContent = row.month.slice(0, 7) + " 월말" + (i === rows.length - 1 ? " (현재)" : "");
   $("month-prev").disabled = i === 0; $("month-next").disabled = i === rows.length - 1;
-  const m = D.macro;
+  const m = C().macro;
   const at = (id, k = 0) => (m && m.series[id] && i - k >= 0 ? m.series[id][i - k] : null);
   const curve = at("T10Y3M"), fed = at("FEDFUNDS"), fed6 = at("FEDFUNDS", 6), usd = at("DTWEXBGS"), usd12 = at("DTWEXBGS", 12);
-  const quad = row.quadrant ? labelText(row.quadrant) : "성장×물가 판단 불가(2011-06 이전)";
+  const quad = row.quadrant ? labelText(row.quadrant) : row.quadrant_ip ? labelText(row.quadrant_ip) + "(산업생산 기준)" : "성장×물가 판단 불가";
   $("month-headline").textContent = `${quad}, ${row.recession == null ? "실물경제 침체 신호 판단 불가" : row.recession ? "실물경제 침체 신호 켜짐" : "실물경제 침체 신호 없음"}${curve == null ? "" : curve < 0 ? ", 금리 곡선 역전" : ", 금리 곡선 정상"}.`;
   const kv = [
-    ["성장×물가", quad], ["실물경제 침체 신호", row.recession == null ? "판단 불가" : row.recession ? "켜짐" : "없음"],
+    ["성장×물가(CFNAI)", row.quadrant ? labelText(row.quadrant) : "–(2011-06 이전)"], ["성장×물가(산업생산)", row.quadrant_ip ? labelText(row.quadrant_ip) : "–"], ["실물경제 침체 신호", row.recession == null ? "판단 불가" : row.recession ? "켜짐" : "없음"],
     ["Sahm 지표", row.sahm == null ? "–" : dec(row.sahm) + "%p"], ["산업생산 전년비", spct(row.indpro_yoy)],
     ["CFNAI-MA3", row.cfnai_ma3 == null ? "–" : dec(row.cfnai_ma3)],
     ["주식·채권 상관", row.correlation_regime ? labelText(row.correlation_regime) + (row.stock_bond_correlation == null ? "" : ` (${dec(row.stock_bond_correlation)})`) : "–"],
     ["10년−3개월 금리차", curve == null ? "–" : curve.toFixed(2) + "%p"],
     ["정책금리", fed == null ? "–" : fed.toFixed(2) + "%" + (fed6 == null ? "" : ` (6개월 ${fed - fed6 >= 0 ? "+" : ""}${(fed - fed6).toFixed(2)}%p)`)],
     ["달러지수", usd == null ? "–" : usd.toFixed(1) + (usd12 ? ` (12개월 ${spct(usd / usd12 - 1)})` : "")],
-    ["주식시장(SPY)", D.equity && D.equity.bear[i] != null ? `${D.equity.bear[i] ? "하락장" : "하락장 아님"} · 직전 고점 대비 ${(D.equity.month_end_drawdown[i] * 100).toFixed(1)}%` : "–"],
+    ["주식시장(SPY)", C().equity && C().equity.bear[i] != null ? `${C().equity.bear[i] ? "하락장" : "하락장 아님"} · 직전 고점 대비 ${(C().equity.month_end_drawdown[i] * 100).toFixed(1)}%` : "–"],
   ];
   const host = $("month-state");
   host.replaceChildren();
@@ -1261,8 +1272,8 @@ function renderMonthPanel() {
   renderSimilar(i);
 }
 function renderAfter(idx) {
-  const tickers = AFTER_ASSETS.filter((t) => D.returns[t]);
-  const available = Math.min(state.horizon, D.calendar.length - 1 - idx);
+  const tickers = AFTER_ASSETS.filter((t) => C().returns[t]);
+  const available = Math.min(state.horizon, C().calendar.length - 1 - idx);
   const chart = $("after-chart"), legend = $("after-legend");
   chart.replaceChildren(); legend.replaceChildren();
   if (idx < 0 || available < 1) { chart.appendChild(node("p", "이 달 뒤의 수익률이 아직 없습니다.", "muted")); return; }
@@ -1270,7 +1281,7 @@ function renderAfter(idx) {
   const series = tickers.map((t) => {
     const values = [100];
     for (let k = 1; k <= available; k++) {
-      const r = D.returns[t][idx + k];
+      const r = C().returns[t][idx + k];
       values.push(r == null || values[k - 1] == null ? null : values[k - 1] * (1 + r));
     }
     return {name: t, color: assetColors[t], values};
@@ -1289,12 +1300,12 @@ function renderSimilar(i) {
   const note = $("month-similar");
   note.hidden = !state.similar;
   if (!state.similar) return;
-  const row = D.regime.rows[i];
+  const row = C().rows[i];
   if (similarKey(i) == null) { note.textContent = "성장×물가나 실물경제 침체 신호를 판단할 수 없는 달은 비슷한 달을 찾지 않습니다."; return; }
   const matches = similarMonths(i);
-  const usable = matches.map((j) => monthIndex(D.regime.rows[j])).filter((idx) => idx >= 0);
+  const usable = matches.map((j) => monthIndex(C().rows[j])).filter((idx) => idx >= 0);
   const label = `같은 상태(성장×물가·실물경제 침체 신호·금리 곡선 역전 여부)였던 다른 달은 ${matches.length}개월입니다(타임라인의 주황 점).`;
-  const cells = AFTER_ASSETS.filter((t) => D.returns[t]).map((t) => {
+  const cells = AFTER_ASSETS.filter((t) => C().returns[t]).map((t) => {
     const values = usable.map((idx) => forwardReturn(t, idx, state.horizon)).filter((v) => v != null);
     return values.length >= 3 ? `${t} ${spct(values.reduce((a, b) => a + b, 0) / values.length)}(${values.length}개월)` : null;
   }).filter(Boolean);
@@ -1302,9 +1313,9 @@ function renderSimilar(i) {
 }
 
 function currentLabel(axis) {
-  const n = D.regime.rows.length;
-  if (axis === "bear") { const v = D.equity && D.equity.bear[n - 1]; return v == null ? null : v ? "True" : "False"; }
-  if (axis === "curve") { const v = D.macro && D.macro.series.T10Y3M && D.macro.series.T10Y3M[n - 1]; return v == null ? null : v < 0 ? "inverted" : "normal"; }
+  const n = C().rows.length;
+  if (axis === "bear") { const v = C().equity && C().equity.bear[n - 1]; return v == null ? null : v ? "True" : "False"; }
+  if (axis === "curve") { const v = C().macro && C().macro.series.T10Y3M && C().macro.series.T10Y3M[n - 1]; return v == null ? null : v < 0 ? "inverted" : "normal"; }
   return rowLabel(currentRow(), axis);
 }
 function setHorizon(h) {
@@ -1318,7 +1329,7 @@ const heatColor = (v, top) => {
 };
 
 function renderHistory() {
-  const perf = D.regime.performance, h = String(state.horizon);
+  const perf = C().performance, h = String(state.horizon);
   const axes = HISTORY_AXES.filter(([id]) => perf.axes[id]);
   if (!axes.some(([id]) => id === state.axis)) state.axis = axes[0][0];
   const labels = Object.keys(perf.axes[state.axis]).sort();
@@ -1364,6 +1375,10 @@ function renderHistory() {
   for (const t of tickers) {
     const tr = body.insertRow();
     const name = tr.insertCell(); name.textContent = t; name.title = (assetOf[t] || {}).name || "";
+    if (state.long) {
+      const first = C().returns[t].findIndex((v) => v != null);
+      if (first > 12) name.appendChild(node("small", ` ${C().calendar[first].slice(0, 4)}~`, "since"));
+    }
     for (const [key, label, cell, base] of cols) {
       const td = tr.insertCell();
       const st = statOf(cell, t);
@@ -1420,13 +1435,18 @@ function renderHistory() {
 
 function setupRegime() {
   if (!D.regime) return;
-  state.label = currentLabel("quadrant") || Object.keys(D.regime.performance.axes.quadrant).sort()[0];
+  state.label = currentLabel("quadrant") || Object.keys(C().performance.axes.quadrant).sort()[0];
   $("history-all").addEventListener("change", (e) => { state.showAll = e.target.checked; renderHistory(); });
   $("history-horizon").addEventListener("change", (e) => { e.target.blur(); setHorizon(Number(e.target.value)); });
-  state.pinned = D.regime.rows.length - 1;
+  state.pinned = C().rows.length - 1;
+  $("long-toggle").addEventListener("change", (e) => {
+    state.long = e.target.checked;
+    state.pinned = C().rows.length - 1; state.label = null;
+    renderRegimeTabs();
+  });
   $("month-prev").addEventListener("click", () => pinMonth(state.pinned - 1));
   $("month-next").addEventListener("click", () => pinMonth(state.pinned + 1));
-  $("month-now").addEventListener("click", () => pinMonth(D.regime.rows.length - 1));
+  $("month-now").addEventListener("click", () => pinMonth(C().rows.length - 1));
   $("horizon").addEventListener("change", (e) => { e.target.blur(); setHorizon(Number(e.target.value)); });
   $("similar-toggle").addEventListener("change", (e) => { state.similar = e.target.checked; renderRegimeTimeline(); renderMonthPanel(); });
   document.addEventListener("keydown", (event) => {
@@ -1435,6 +1455,25 @@ function setupRegime() {
     if (event.key === "ArrowRight") { event.preventDefault(); pinMonth(state.pinned + 1); }
   });
 }
+function renderLongNote() {
+  const notes = document.querySelectorAll(".long-note");
+  for (const note of notes) {
+    note.hidden = !state.long;
+    if (!state.long) continue;
+    const rows = C().rows;
+    const used = D.proxies.filter((p) => p.used), skipped = D.proxies.filter((p) => !p.used);
+    const kind = {index: "같은 지수", close: "비슷한 시장", rough: "거친 대용"};
+    const lines = used.map((p) => `${p.ticker} ← ${p.proxy}(${kind[p.fidelity] || p.fidelity}, 겹친 ${p.overlap_months}개월 상관 ${p.correlation == null ? "–" : p.correlation}) ${p.first_month ? p.first_month.slice(0, 7) + "~" + p.last_month.slice(0, 7) : ""}`);
+    note.replaceChildren();
+    note.append(node("b", `긴 기간 보기: ${rows[0].month.slice(0, 7)}부터 ${rows[rows.length - 1].month.slice(0, 7)}까지.`),
+      document.createTextNode(" 거시 규칙은 그날 발표된 값만으로 1962년부터 다시 돌렸고, 4분면은 2011년 전에는 산업생산 기준만 있습니다. 상장 전 자산 구간은 아래 대용 펀드로 이었으며 실제 ETF가 아닙니다. 자산마다 자료가 시작되는 해가 달라서(표의 \"1986~\" 표시) 자산끼리 평균을 비교할 때는 같은 기간이 아님에 주의하세요."));
+    if (lines.length) {
+      const details = node("details"); details.appendChild(node("summary", `사용한 대용 펀드 ${lines.length}개 보기`));
+      const ul = node("ul"); for (const text of lines) ul.appendChild(node("li", text)); details.appendChild(ul); note.appendChild(details);
+    }
+    if (skipped.length) note.appendChild(node("p", "대용을 쓰지 않은 자산: " + skipped.map((p) => `${p.ticker}(${p.reason})`).join(", ") + ". 대용이 없는 자산(은·원자재·섹터·스타일 등)은 상장 이후만 나옵니다.", "muted"));
+  }
+}
 function renderRegimeTabs() {
   for (const id of ["regime", "history"]) {
     const panel = $("tab-" + id);
@@ -1442,7 +1481,7 @@ function renderRegimeTabs() {
     panel.replaceChildren(node("p", "국면 데이터가 없습니다. asset-frame ingest-fred로 거시 시리즈를 받은 뒤 asset-frame dashboard를 다시 실행하세요.", "note"));
   }
   if (!D.regime) return;
-  renderRegimeTiles(); renderRegimeTimeline(); renderMonthPanel(); renderHistory();
+  renderLongNote(); renderRegimeTiles(); renderRegimeTimeline(); renderMonthPanel(); renderHistory();
 }
 
 // ---------- 공통 ----------
@@ -1451,6 +1490,7 @@ function showTab(tab) {
   for (const [id] of TABS) $("tab-" + id).hidden = id !== tab;
   renderTabs();
   $("rules-wrap").hidden = !["compare", "lab"].includes(tab);
+  $("long-wrap").hidden = !(D.regime_long && ["regime", "history"].includes(tab));
   $("lead").hidden = tab !== "compare";
   if (tab === "regime" || tab === "history") renderRegimeTabs();
   if (tab === "compare") renderCompare();

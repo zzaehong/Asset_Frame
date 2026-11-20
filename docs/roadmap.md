@@ -19,6 +19,7 @@
 | M2-3 | 해시 체인 원장([ADR-0007](adr/0007-ledger-hash-chain.md)): 추가 전용 `ledger_entry`, `ledger verify`, `ledger record-regime`(live 최근 월, `--replay` 전체 월). 2026-10 live 1건 기록함 | 완료(2026-11-19) |
 | M2-4 | 예측·채점(`prediction_scoring` 카드): 12개 앵커 3개월 순위와 상관 부호 확률, 모델 `momentum_12_1`·`equal_rank`와 사용자 입력, 순위 IC·스프레드·Brier·MDE. Sahm 결측 처리(`regime_v2`). 2026-10 모델 예측 2건 기록, 첫 채점은 2027-01 | 완료(2026-11-19) |
 | M6-0 | 금리 곡선(`T10Y3M`·`T10Y2Y`)·정책금리(`FEDFUNDS`)·달러지수(`DTWEXBGS`) 수집과 월말 맥락(`macro_market_context` 카드). 시장 국면 화면: 타임라인 재구성(국면 띠·실물경제 침체 신호·주식시장 하락장(`equity_bear_market`)·주식채권 상관·금리·달러), 달 클릭 패널(그때의 상태·이후 1~36개월 자산군 선 그래프·비슷했던 달 표시). ② 국면별 과거 성과를 상황 5종 비교 히트맵과 분포 그래프로 개편(`regime_performance_v2`) | 완료(2026-11-21) |
+| M7 | 데이터 기간 확장([ADR-0009](adr/0009-proxy-history-and-long-mode.md), `proxy_history` 카드): 대용 펀드(`config/proxies.toml`)로 상장 전 자산 구간을 이어 붙이고(`ingest-proxies`·`build-returns`), 거시 규칙을 1962년부터 replay, INDPRO/CPI 기준 4분면(`regime_ip_v1`)과 달러지수 연장. 대시보드 "긴 기간 보기" 토글(기본은 실제 ETF만) | 완료(2026-11-21) |
 | M5 | Mac 앱([ADR-0008](adr/0008-mac-app-read-only.md)): `app/` SwiftUI, DB 읽기 전용. 홈(지금 확인할 것·현재 국면)·① 시장 국면·② 국면별 과거 성과·③ 전략 비교·포트폴리오 실험실(기존 HTML 탭을 사이드바로)·원장·데이터. `app/build_app.sh`, `swift test` 9개 | 완료(2026-11-20) |
 | M2-5 | 국면별 과거 성과(`regime_performance` 카드): 월말 국면 라벨 다음 달 자산 평균·적중률·표본. 대시보드 ①시장 국면·②국면별 과거 성과 탭, 전략 비교 결론·핵심 4지표 | 완료(2026-11-20) |
 

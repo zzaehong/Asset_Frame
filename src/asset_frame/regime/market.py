@@ -9,11 +9,15 @@ from __future__ import annotations
 from bisect import bisect_right
 from collections.abc import Mapping, Sequence
 from datetime import date
+from statistics import fmean
 
 CALC_VERSION = "macro_market_v1"
 # Allowed age (days) of the observation used for a month end: daily series skip holidays and
 # weekends, FEDFUNDS is one value per month dated on the first day of that month.
 MAX_AGE_DAYS = {"T10Y3M": 10, "T10Y2Y": 10, "DTWEXBGS": 10, "FEDFUNDS": 31}
+# DTWEXM (major-currencies dollar index, 1973-2019, discontinued) extends DTWEXBGS (2006~).
+EXTENSION_SERIES = ("DTWEXM",)
+SPLICE_OBSERVATIONS = 60
 POLICY_CHANGE_MONTHS = 6
 DOLLAR_CHANGE_MONTHS = 12
 
@@ -34,10 +38,29 @@ def as_of_values(
     return values
 
 
+def splice_level_series(old: Sequence[Point], new: Sequence[Point]) -> list[Point]:
+    """`new` as is, preceded by `old` rescaled to `new`'s level.
+
+    The scale is the mean of new/old over the first SPLICE_OBSERVATIONS dates both have. Only dates
+    before the first `new` observation come from `old`. Returns `new` unchanged if nothing overlaps.
+    """
+    new_known = {d: v for d, v in new if v is not None}
+    old_known = {d: v for d, v in old if v is not None and v}
+    shared = sorted(new_known.keys() & old_known.keys())[:SPLICE_OBSERVATIONS]
+    if not shared or not new_known:
+        return list(new)
+    scale = fmean(new_known[d] / old_known[d] for d in shared)
+    first = min(new_known)
+    before = [(d, v * scale) for d, v in sorted(old_known.items()) if d < first]
+    return [*before, *new]
+
+
 def market_context(
     series: Mapping[str, Sequence[Point]], month_ends: Sequence[date]
 ) -> dict | None:
     """Monthly series plus the latest readings; None when no series has any data."""
+    if series.get("DTWEXM") and series.get("DTWEXBGS"):
+        series = {**series, "DTWEXBGS": splice_level_series(series["DTWEXM"], series["DTWEXBGS"])}
     monthly = {
         series_id: [
             None if v is None else round(v, 4) for v in as_of_values(points, month_ends, age)

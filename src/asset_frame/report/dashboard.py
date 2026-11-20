@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -30,6 +31,17 @@ _DATA_PLACEHOLDER = "/*__DATA__*/null"
 _ENGINE_PLACEHOLDER = "/*__ENGINE__*/"
 
 
+@dataclass(frozen=True, slots=True)
+class LongContext:
+    """Regime inputs over the long history: proxy-extended returns, macro rows from 1962."""
+
+    rows: Sequence[RegimeRow]
+    quadrants_ip: Sequence[str | None]
+    returns: Mapping[str, Mapping[date, float]]
+    equity_levels: Sequence[tuple[date, float]]
+    macro_points: Mapping[str, Sequence[tuple[date, float | None]]]
+
+
 def build_payload(
     result: BacktestResult,
     analysis: Analysis,
@@ -43,6 +55,9 @@ def build_payload(
     regime_rows: Sequence[RegimeRow] = (),
     macro_points: Mapping[str, Sequence[tuple[date, float | None]]] | None = None,
     equity_levels: Sequence[tuple[date, float]] = (),
+    quadrants_ip: Sequence[str | None] | None = None,
+    long_context: LongContext | None = None,
+    proxies: Sequence[dict] = (),
 ) -> dict:
     strategy_ids = [s.id for s in strategies]
     anchors = [a.ticker for a in universe if a.level == 1 and a.role == "anchor"]
@@ -172,7 +187,10 @@ def build_payload(
             {t: returns[t] for t in tickers_in(universe, returns)},
             equity=equity,
             macro=macro,
+            quadrants_ip=quadrants_ip,
         ),
+        "regime_long": _long_payload(long_context, universe) if long_context else None,
+        "proxies": list(proxies),
         "equity": equity,
         "macro": macro,
         "definitions": {
@@ -198,6 +216,7 @@ def _regime_payload(
     *,
     equity: dict | None,
     macro: dict | None,
+    quadrants_ip: Sequence[str | None] | None = None,
 ) -> dict | None:
     if not rows:
         return None
@@ -206,6 +225,8 @@ def _regime_payload(
         "indpro_sahm": [None if row.indpro_sahm is None else str(row.indpro_sahm) for row in rows],
         "correlation_regime": [row.correlation_regime for row in rows],
     }
+    if quadrants_ip is not None:
+        labels["quadrant_ip"] = list(quadrants_ip)
     if equity:
         labels["bear"] = [None if flag is None else str(flag) for flag in equity["bear"]]
     curve = macro["series"].get("T10Y3M") if macro else None
@@ -219,15 +240,42 @@ def _regime_payload(
                 "quadrant": row.quadrant,
                 "recession": row.indpro_sahm,
                 "correlation_regime": row.correlation_regime,
+                "quadrant_ip": None if quadrants_ip is None else quadrants_ip[i],
                 "sahm": row.sahm,
                 "cfnai_ma3": row.cfnai_ma3,
                 "indpro_yoy": row.indpro_yoy,
                 "stock_bond_correlation": row.stock_bond_correlation,
             }
-            for row in rows
+            for i, row in enumerate(rows)
         ],
         "performance": regime_performance(labels, [row.month_end for row in rows], returns),
     }
+
+
+def _long_payload(context: LongContext, universe: Sequence[UniverseAsset]) -> dict | None:
+    rows = context.rows
+    if not rows:
+        return None
+    month_ends = [row.month_end for row in rows]
+    returns = {t: context.returns[t] for t in tickers_in(universe, context.returns)}
+    equity = bear_state(context.equity_levels, month_ends)
+    macro = market_context(context.macro_points, month_ends)
+    payload = _regime_payload(
+        rows, returns, equity=equity, macro=macro, quadrants_ip=context.quadrants_ip
+    )
+    calendar = sorted({month for by_month in returns.values() for month in by_month})
+    position = {month: i for i, month in enumerate(calendar)}
+    assert payload is not None
+    payload |= {
+        "equity": equity,
+        "macro": macro,
+        "calendar": [month.isoformat() for month in calendar],
+        "returns": {
+            ticker: _aligned(by_month, position, len(calendar))
+            for ticker, by_month in returns.items()
+        },
+    }
+    return payload
 
 
 def _aligned(

@@ -32,6 +32,7 @@ implementation_status = "available"
 rate_limits_reviewed_at = "2026-11-18"
 rate_limits_url = "https://www.tiingo.com/about/pricing"
 rate_limits_starter = "50 requests/hour, 1000 requests/day, 500 unique symbols/month, 1 GB/month"
+# 2026-11-21: config/proxies.toml의 대용 뮤추얼펀드 11종도 같은 /tiingo/daily 엔드포인트로 받는다(월 고유 심볼 수에 포함).
 rate_limits_power = "10000 requests/hour, 100000 requests/day, 40 GB/month"
 
 [[sources]]

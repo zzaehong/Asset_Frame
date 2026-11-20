@@ -89,3 +89,30 @@ def test_quadrant_and_correlation_regime() -> None:
     assert correlation_regime(0.2) == "stock_bond_positive"
     assert correlation_regime(-0.2) == "stock_bond_negative"
     assert correlation_regime(None) is None
+
+
+def _series(values: dict[int, float]) -> dict[int, float]:
+    return values
+
+
+def test_ip_quadrant_compares_yoy_growth_with_its_own_trailing_trend() -> None:
+    from asset_frame.regime.rules import GROWTH_TREND_MONTHS, growth_inflation_quadrant_ip
+
+    months = GROWTH_TREND_MONTHS + 13  # latest month plus 120 prior year-over-year changes
+    # INDPRO grows 2% a year steadily, then the last year grows 6%: growth is above its trend.
+    indpro = {m: 100 * 1.02 ** (m / 12) for m in range(months - 12)}
+    for m in range(months - 12, months):
+        indpro[m] = indpro[m - 1] * 1.06 ** (1 / 12)
+    cpi_rising = {m: 100 * (1 + 0.0005 * m * m / 100) for m in range(months)}  # y/y accelerates
+
+    assert growth_inflation_quadrant_ip(indpro, cpi_rising) == "growth_up_inflation_up"
+
+    slowing = dict(indpro)
+    for m in range(months - 12, months):
+        slowing[m] = slowing[m - 1] * 1.001 ** (1 / 12)  # growth nearly stalls
+
+    assert growth_inflation_quadrant_ip(slowing, cpi_rising) == "growth_down_inflation_up"
+    assert (
+        growth_inflation_quadrant_ip({m: 1.0 for m in range(20)}, cpi_rising) is None
+    )  # too short
+    assert growth_inflation_quadrant_ip({}, cpi_rising) is None

@@ -13,6 +13,8 @@ CALC_VERSION = "regime_v2"  # v2: a 3-month average may use 2 of 3 months (missi
 SAHM_THRESHOLD = 0.5  # percentage points, Sahm's original definition
 CFNAI_MA3_THRESHOLD = -0.70  # Chicago Fed: below -0.70 after an expansion, rising recession odds
 INFLATION_DIRECTION_MONTHS = 3
+GROWTH_TREND_MONTHS = 120  # trailing window for the INDPRO growth trend (quadrant_ip)
+IP_CALC_VERSION = "regime_ip_v1"
 SERIES_FOR_RULES = ("INDPRO", "UNRATE", "CPIAUCSL", "CFNAIMA3")
 
 Series = Sequence[tuple[date, date, float]]
@@ -94,6 +96,27 @@ def growth_inflation_quadrant(cfnai_ma3: dict[int, float], cpi: dict[int, float]
     if not cfnai_ma3 or direction is None:
         return None
     growth = "growth_up" if cfnai_ma3[max(cfnai_ma3)] >= 0 else "growth_down"
+    return f"{growth}_{'inflation_up' if direction > 0 else 'inflation_down'}"
+
+
+def growth_inflation_quadrant_ip(indpro: dict[int, float], cpi: dict[int, float]) -> str | None:
+    """Growth above/below its own trend x inflation rising/falling, from vintage-long series.
+
+    Growth is up when INDPRO's year-over-year change is at least the mean of its year-over-year
+    changes over the previous GROWTH_TREND_MONTHS months (only past values). Inflation direction is
+    the same as in `growth_inflation_quadrant`. This is the CFNAI-free variant that reaches back to
+    1973 (CPI first releases start in 1972); it is a separate rule, not a replacement.
+    """
+    direction = inflation_direction(cpi)
+    if not indpro or direction is None:
+        return None
+    latest = max(indpro)
+    now = year_over_year(indpro, latest)
+    history = [year_over_year(indpro, latest - back) for back in range(1, GROWTH_TREND_MONTHS + 1)]
+    if now is None or None in history:
+        return None
+    trend = sum(history) / len(history)  # type: ignore[arg-type]
+    growth = "growth_up" if now >= trend else "growth_down"
     return f"{growth}_{'inflation_up' if direction > 0 else 'inflation_down'}"
 
 

@@ -1,0 +1,96 @@
+# 상장 전 구간을 이어 붙일 대용 펀드(Tiingo, 일간 총수익 지수). 대상(target)의 첫 수익률 달 이전에만 쓰고
+# 항상 대용으로 표시한다. fidelity: index(같은 지수) / close(같은 시장·비슷한 만기) / rough(사용자가 알고 고른 거친 대용).
+# 사용 여부는 겹치는 구간(대상 상장 후)의 월수익률 상관이 등급 기준(index 0.97, close 0.90) 이상이고 36개월 이상일 때만.
+# 대용이 없는 자산(은·원자재·섹터·스타일·SCHD 등)은 확장하지 않고 상장 이후만 쓴다(2026-11-21 결정).
+schema_version = 1
+
+[[proxies]]
+target = "SPY"
+proxy = "VFINX"
+name = "Vanguard 500 Index Fund Investor"
+expected_inception = "1976-08"
+fidelity = "index"
+
+[[proxies]]
+target = "TLT"
+proxy = "VUSTX"
+name = "Vanguard Long-Term Treasury Fund Investor"
+expected_inception = "1986-05"
+fidelity = "close"
+
+[[proxies]]
+target = "IEF"
+proxy = "VFITX"
+name = "Vanguard Intermediate-Term Treasury Fund Investor"
+expected_inception = "1991-10"
+fidelity = "close"
+
+[[proxies]]
+target = "SHY"
+proxy = "VFISX"
+name = "Vanguard Short-Term Treasury Fund Investor"
+expected_inception = "1991-10"
+fidelity = "close"
+
+[[proxies]]
+target = "LQD"
+proxy = "VWESX"
+name = "Vanguard Long-Term Investment-Grade Fund Investor"
+expected_inception = "1980-01"
+fidelity = "close"
+
+[[proxies]]
+target = "HYG"
+proxy = "VWEHX"
+name = "Vanguard High-Yield Corporate Fund Investor"
+expected_inception = "1980-01"
+fidelity = "close"
+
+[[proxies]]
+target = "VNQ"
+proxy = "VGSIX"
+name = "Vanguard Real Estate Index Fund Investor"
+expected_inception = "1996-05"
+fidelity = "index"
+
+[[proxies]]
+target = "TIP"
+proxy = "VIPSX"
+name = "Vanguard Inflation-Protected Securities Fund Investor"
+expected_inception = "2000-06"
+fidelity = "close"
+
+[[proxies]]
+target = "GLD"
+proxy = "FSAGX"
+name = "Fidelity Select Gold Portfolio (금광주 펀드, 금 가격과 다르게 움직임)"
+expected_inception = "1985-12"
+fidelity = "rough"
+
+[[proxies]]
+target = "VCSH"
+proxy = "VFSTX"
+name = "Vanguard Short-Term Investment-Grade Fund Investor"
+expected_inception = "1982-10"
+fidelity = "close"
+
+[[proxies]]
+target = "VCIT"
+proxy = "VFICX"
+name = "Vanguard Intermediate-Term Investment-Grade Fund Investor"
+expected_inception = "1993-10"
+fidelity = "close"
+
+[[proxies]]
+target = "VCLT"
+proxy = "VWESX"
+name = "Vanguard Long-Term Investment-Grade Fund Investor"
+expected_inception = "1980-01"
+fidelity = "close"
+
+[[proxies]]
+target = "SHYG"
+proxy = "VWEHX"
+name = "Vanguard High-Yield Corporate Fund Investor"
+expected_inception = "1980-01"
+fidelity = "close"

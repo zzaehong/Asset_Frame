@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from asset_frame.regime.market import as_of_values, market_context
+from asset_frame.regime.market import as_of_values, market_context, splice_level_series
 
 JAN, FEB, MAR = date(2020, 1, 31), date(2020, 2, 29), date(2020, 3, 31)
 
@@ -41,3 +41,14 @@ def test_market_context_reports_latest_levels_and_changes_hand_computed() -> Non
 def test_no_data_gives_no_section() -> None:
     assert market_context({}, [JAN]) is None
     assert market_context({"T10Y3M": []}, [JAN]) is None
+
+
+def test_splice_rescales_the_old_series_to_the_new_level_and_keeps_new_as_is() -> None:
+    old = [(date(2005, 12, 30), 90.0), (date(2006, 1, 2), 100.0), (date(2006, 1, 3), 110.0)]
+    new = [(date(2006, 1, 2), 50.0), (date(2006, 1, 3), 55.0), (date(2006, 1, 4), 60.0)]
+
+    result = splice_level_series(old, new)
+
+    assert result[0] == (date(2005, 12, 30), pytest.approx(45.0))  # 90 * (50/100)
+    assert result[1:] == new
+    assert splice_level_series(old[:1], new) == new  # nothing shared: leave new alone
