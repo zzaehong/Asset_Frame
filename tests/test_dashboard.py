@@ -173,3 +173,40 @@ def test_payload_regime_section_is_absent_without_rows_and_carries_performance_w
     cell = regime["performance"]["quadrant"]["growth_up_inflation_up"]
     assert cell["months"] == 10 and "SPY" in cell["assets"]
     json.dumps(regime, allow_nan=False)
+
+
+def test_payload_macro_section_follows_the_regime_months() -> None:
+    from asset_frame.regime.replay import RegimeRow
+
+    result, analysis, returns, calendar = make_inputs()
+    rows = [
+        RegimeRow(
+            month_end=calendar[i],
+            sahm=None,
+            indpro_yoy=None,
+            cfnai_ma3=None,
+            indpro_sahm=False,
+            cfnai_sahm=None,
+            quadrant=None,
+            stock_bond_correlation=None,
+            correlation_regime=None,
+            nber_recession=False,
+        )
+        for i in range(3)
+    ]
+    kwargs = dict(
+        universe=UNIVERSE,
+        strategies=STRATEGIES,
+        returns=returns,
+        proxy_months={},
+        cash_ticker="BIL",
+        generated_on=date(2026, 1, 1),
+        regime_rows=rows,
+    )
+    macro = build_payload(
+        result, analysis, macro_points={"T10Y3M": [(calendar[0], 0.5)]}, **kwargs
+    )["macro"]
+
+    assert macro["months"] == [row.month_end.isoformat() for row in rows]
+    assert macro["series"]["T10Y3M"][0] == 0.5
+    assert build_payload(result, analysis, **kwargs)["macro"] is None

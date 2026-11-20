@@ -77,6 +77,7 @@ footer { color: var(--muted); font-size: 12px; }
 .tile:hover { border-color: var(--accent); }
 .tile small { color: var(--muted); font-size: 12px; } .tile b { font-size: 18px; } .tile em { font-style: normal; color: var(--muted); font-size: 13px; }
 .tile.alert b { color: var(--neg); }
+.tile.static { cursor: default; } .tile.static:hover { border-color: var(--line); }
 .rbars .item { display: grid; grid-template-columns: 150px 1fr 190px; gap: 10px; align-items: center; font-size: 14px; padding: 2px 0; }
 .rbars .item.partial { opacity: .5; font-style: normal; }
 .rbars .zero { position: relative; height: 16px; }
@@ -111,7 +112,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
     </section>
     <section>
       <h2>국면 타임라인</h2>
-      <p class="muted">월별로 어떤 국면이었는지 띠로 보여 줍니다. 성장×물가 띠는 CFNAI 최초 발표 이력이 시작되는 2011-06부터 있습니다. 아래 이름을 누르면 해당 국면의 달만 진하게 표시되고, 다음 화면의 과거 성과도 그 국면으로 바뀝니다.</p>
+      <p class="muted">월별 국면과 금리·달러를 한 시간축에 겹쳐 봅니다. 음영은 NBER 침체이고, 마우스를 올리면 그 달의 값이 나옵니다. 성장×물가 띠는 CFNAI 최초 발표 이력이 시작되는 2011-06부터 있습니다. 아래 이름을 누르면 해당 국면이 진하게 표시되고 ② 화면의 과거 성과도 그 국면으로 바뀝니다. 금리 곡선은 0 아래(빨강)가 역전, 정책금리와 달러는 시장·월평균 값이며 개정되지 않습니다.</p>
       <div class="chips" id="regime-pick"></div>
       <div class="chart" id="regime-timeline"></div>
     </section>
@@ -880,7 +881,7 @@ function setupAssets() {
 // ---------- 시장 국면 · 국면별 과거 성과 ----------
 const AXES = [["quadrant", "성장×물가"], ["indpro_sahm", "침체 신호"], ["correlation_regime", "주식·채권 상관"]];
 const LABEL_TEXT = {
-  "True": "침체 신호", "False": "신호 없음",
+  "True": "신호 켜짐", "False": "신호 없음",
   growth_up_inflation_up: "성장 ↑ · 물가 ↑", growth_up_inflation_down: "성장 ↑ · 물가 ↓",
   growth_down_inflation_up: "성장 ↓ · 물가 ↑", growth_down_inflation_down: "성장 ↓ · 물가 ↓",
     stock_bond_positive: "주식·채권 동행(+)", stock_bond_negative: "채권이 주식 헤지(−)",
@@ -913,6 +914,20 @@ function renderRegimeTiles() {
   ];
   const host = $("regime-tiles");
   host.replaceChildren();
+  const m = D.macro && D.macro.latest;
+  if (m) {
+    const sgn = (v, digits, unit) => (v == null ? "–" : (v >= 0 ? "+" : "") + v.toFixed(digits) + unit);
+    const inverted = m.spread_10y3m != null && m.spread_10y3m < 0;
+    for (const [title, value, sub, alert] of [
+      ["금리 곡선(10년−3개월)", m.spread_10y3m == null ? "–" : sgn(m.spread_10y3m, 2, "%p"), `${inverted ? "역전 — 침체 선행 신호로 알려진 상태" : "정상(장기 금리가 더 높음)"} · 10년−2년 ${sgn(m.spread_10y2y, 2, "%p")}`, inverted],
+      ["정책금리(실효)", m.fed_funds == null ? "–" : m.fed_funds.toFixed(2) + "%", `6개월 변화 ${sgn(m.fed_funds_change_6m, 2, "%p")}`, false],
+      ["달러지수(광의)", m.dollar == null ? "–" : m.dollar.toFixed(1), `12개월 변화 ${m.dollar_change_12m == null ? "–" : spct(m.dollar_change_12m)}`, false],
+    ]) {
+      const t = node("div", null, "tile static" + (alert ? " alert" : ""));
+      t.append(node("small", title), node("b", value), node("em", sub));
+      host.appendChild(t);
+    }
+  }
   for (const [axis, label, title, sub, alert] of tiles) {
     const b = node("button", null, "tile" + (alert ? " alert" : ""));
     b.type = "button";
@@ -930,7 +945,7 @@ function renderRegimePick() {
       const chip = node("button", null, "chip");
       chip.type = "button";
       chip.setAttribute("aria-current", String(axis === state.axis && label === state.label));
-      const sw = node("i", null, "sq"); sw.style.background = labelColor(axis, label);
+      const sw = node("i", null, "sq"); sw.style.background = laneColor(axis, label);
       chip.append(sw, document.createTextNode(`${axisName}: ${labelText(label)}`));
       chip.addEventListener("click", () => selectRegime(axis, label));
       host.appendChild(chip);
@@ -938,39 +953,153 @@ function renderRegimePick() {
   }
 }
 
+const SHORT = {
+  growth_up_inflation_up: "성장↑ 물가↑", growth_up_inflation_down: "성장↑ 물가↓",
+  growth_down_inflation_up: "성장↓ 물가↑", growth_down_inflation_down: "성장↓ 물가↓",
+  True: "침체 신호", stock_bond_positive: "동행(+)", stock_bond_negative: "헤지(−)",
+};
+const QUAD_COLOR = {
+  growth_up_inflation_down: "#2f8f6b", growth_up_inflation_up: "#c9892b",
+  growth_down_inflation_up: "#c2562f", growth_down_inflation_down: "#3d6fb4",
+};
+const laneColor = (axis, label) => (axis === "quadrant" ? QUAD_COLOR[label] : axis === "indpro_sahm" ? "#b3402a" : label === "stock_bond_positive" ? "#8a3f9a" : "#4f7f96");
+
+function runs(values) {
+  const out = [];
+  values.forEach((v, i) => {
+    const last = out[out.length - 1];
+    if (last && last.label === v) last.end = i; else out.push({label: v, start: i, end: i});
+  });
+  return out;
+}
+
 function renderRegimeTimeline() {
   renderRegimePick();
   const host = $("regime-timeline");
   host.replaceChildren();
-  const rows = D.regime.rows;
-  const f = frame(host, 150);
-  const bands = [["quadrant", "성장×물가"], ["indpro_sahm", "침체 신호"], ["correlation_regime", "주식·채권"], ["nber", "NBER 침체"]];
-  const left = 78, bandH = 24, gap = 8;
-  const w = (f.width - left - 8) / rows.length;
-  bands.forEach(([axis, name], b) => {
-    const y = 8 + b * (bandH + gap);
-    const t = svgNode("text", {x: left - 6, y: y + bandH / 2 + 4, "text-anchor": "end"});
-    t.textContent = name;
-    f.svg.appendChild(t);
-    rows.forEach((row, i) => {
-      const label = axis === "nber" ? (row.nber ? "True" : null) : rowLabel(row, axis);
-      if (label == null || (axis === "indpro_sahm" && label === "False")) return;
-      const rect = svgNode("rect", {x: left + i * w, y, width: Math.max(w, 1), height: bandH});
-      rect.style.fill = axis === "nber" ? "var(--muted)" : axis === "indpro_sahm" ? "var(--neg)" : labelColor(axis, label);
-      rect.setAttribute("fill-opacity", axis === state.axis && label !== state.label ? 0.2 : 0.9);
-      const title = svgNode("title", {});
-      title.textContent = `${row.month.slice(0, 7)} ${name}: ${labelText(label)}`;
-      rect.appendChild(title);
-      f.svg.appendChild(rect);
-    });
+  const rows = D.regime.rows, n = rows.length;
+  const macro = D.macro && D.macro.months.length === n ? D.macro : null;
+  const lines = macro ? [
+    ["T10Y3M", "10년−3개월 금리차", (v) => v.toFixed(2) + "%p", true],
+    ["FEDFUNDS", "정책금리", (v) => v.toFixed(2) + "%", false],
+    ["DTWEXBGS", "달러지수", (v) => v.toFixed(1), false],
+  ].filter(([id]) => macro.series[id]) : [];
+  const left = 104, right = 64, laneH = 22, lineH = 58, gap = 8, top = 22;
+  const lanes = [["quadrant", "성장×물가"], ["indpro_sahm", "침체 신호"], ["correlation_regime", "주식·채권 상관"]];
+  const height = top + lanes.length * (laneH + gap) + lines.length * (lineH + gap) + 22;
+  const f = frame(host, height);
+  const w = (f.width - left - right) / n;
+  const X = (i) => left + i * w;
+  const bottom = height - 22;
+  const svg = f.svg;
+  // 연도 격자
+  rows.forEach((row, i) => {
+    const [year, month] = row.month.split("-");
+    if (month !== "01") return;
+    const major = Number(year) % 2 === 1;
+    svg.appendChild(svgNode("line", {x1: X(i), x2: X(i), y1: top - 4, y2: bottom, stroke: "var(--line)", "stroke-dasharray": major ? "" : "2 3"}));
+    if (major) { const t = svgNode("text", {x: X(i) + 2, y: height - 6}); t.textContent = year; svg.appendChild(t); }
   });
-  for (const [i, anchor] of [[0, "start"], [rows.length - 1, "end"]]) {
-    const t = svgNode("text", {x: i === 0 ? left : left + rows.length * w, y: 146, "text-anchor": anchor});
-    t.textContent = rows[i].month.slice(0, 7);
-    f.svg.appendChild(t);
+  // NBER 침체 음영
+  for (const r of runs(rows.map((row) => row.nber)).filter((r) => r.label)) {
+    const shade = svgNode("rect", {x: X(r.start), y: top - 4, width: (r.end - r.start + 1) * w, height: bottom - top + 4, fill: "var(--muted)", "fill-opacity": 0.16});
+    const title = svgNode("title", {}); title.textContent = `NBER 침체 ${rows[r.start].month.slice(0, 7)}~${rows[r.end].month.slice(0, 7)}`;
+    shade.appendChild(title); svg.appendChild(shade);
+    const t = svgNode("text", {x: X(r.start) + 3, y: 12}); t.textContent = "NBER 침체"; svg.appendChild(t);
   }
-  f.svg.setAttribute("aria-label", "월별 국면 타임라인");
-  host.appendChild(f.svg);
+  const laneLabel = (text, y, mid) => {
+    const t = svgNode("text", {x: left - 8, y: y + mid + 4, "text-anchor": "end"}); t.textContent = text; svg.appendChild(t);
+  };
+  // 범주 띠: 같은 국면이 이어진 구간을 한 덩어리로
+  lanes.forEach(([axis, name], k) => {
+    const y = top + k * (laneH + gap);
+    laneLabel(name, y, laneH / 2);
+    const labels = rows.map((row) => (axis === "indpro_sahm" && row.recession !== true ? null : rowLabel(row, axis)));
+    for (const r of runs(labels).filter((r) => r.label != null)) {
+      const x = X(r.start), width = (r.end - r.start + 1) * w;
+      const dim = axis === state.axis && r.label !== state.label;
+      const rect = svgNode("rect", {x: x + 0.5, y, width: Math.max(width - 1, 1), height: laneH, rx: 4, fill: laneColor(axis, r.label), "fill-opacity": dim ? 0.18 : 0.92});
+      const title = svgNode("title", {}); title.textContent = `${name}: ${labelText(r.label)} (${rows[r.start].month.slice(0, 7)}~${rows[r.end].month.slice(0, 7)}, ${r.end - r.start + 1}개월)`;
+      rect.appendChild(title); svg.appendChild(rect);
+      const text = SHORT[r.label];
+      if (text && width > text.length * 10 + 10) {
+        const t = svgNode("text", {x: x + width / 2, y: y + laneH / 2 + 4, "text-anchor": "middle"});
+        t.setAttribute("style", "fill:#fff;font-size:11px;font-weight:600;pointer-events:none"); t.textContent = text; svg.appendChild(t);
+      }
+    }
+  });
+  // 금리·달러 선
+  lines.forEach(([id, name, fmt, zero], k) => {
+    const y = top + lanes.length * (laneH + gap) + k * (lineH + gap);
+    const values = macro.series[id];
+    const known = values.filter((v) => v != null);
+    if (!known.length) return;
+    let lo = Math.min(...known, zero ? 0 : Infinity), hi = Math.max(...known, zero ? 0 : -Infinity);
+    if (hi - lo < 1e-9) { hi += 1; lo -= 1; }
+    const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+    const Y = (v) => y + lineH * (1 - (v - lo) / (hi - lo));
+    svg.appendChild(svgNode("rect", {x: left, y, width: n * w, height: lineH, fill: "var(--surface)", "fill-opacity": 0.5, rx: 4}));
+    laneLabel(name, y, lineH / 2);
+    for (const [v, dy] of [[hi - pad, 11], [lo + pad, lineH - 4]]) {
+      const t = svgNode("text", {x: left + 4, y: y + dy}); t.setAttribute("style", "font-size:10px;opacity:.75"); t.textContent = fmt(v); svg.appendChild(t);
+    }
+    if (zero) {
+      svg.appendChild(svgNode("line", {x1: left, x2: left + n * w, y1: Y(0), y2: Y(0), stroke: "var(--muted)", "stroke-dasharray": "4 3"}));
+      for (const [clip, color] of [[(v) => Math.max(v, 0), "var(--accent)"], [(v) => Math.min(v, 0), "var(--neg)"]]) {
+        let d = "", open = false, lastX = 0;
+        values.forEach((v, i) => {
+          if (v == null) { if (open) { d += `L${lastX},${Y(0)}Z`; open = false; } return; }
+          const x = X(i) + w / 2;
+          if (!open) { d += `M${x},${Y(0)}`; open = true; }
+          d += `L${x},${Y(clip(v))}`; lastX = x;
+        });
+        if (open) d += `L${lastX},${Y(0)}Z`;
+        const area = svgNode("path", {d, "fill-opacity": 0.28}); area.style.fill = color; svg.appendChild(area);
+      }
+    }
+    let d = "", open = false;
+    values.forEach((v, i) => {
+      if (v == null) { open = false; return; }
+      d += `${open ? "L" : "M"}${(X(i) + w / 2).toFixed(1)},${Y(v).toFixed(1)}`; open = true;
+    });
+    const path = svgNode("path", {d, fill: "none", "stroke-width": 1.6, "stroke-linejoin": "round"}); path.style.stroke = "var(--fg)"; svg.appendChild(path);
+    const lastIndex = values.map((v) => v != null).lastIndexOf(true);
+    if (lastIndex >= 0) {
+      svg.appendChild(svgNode("circle", {cx: X(lastIndex) + w / 2, cy: Y(values[lastIndex]), r: 3, fill: "var(--accent)"}));
+      const t = svgNode("text", {x: left + n * w + 6, y: Y(values[lastIndex]) + 4}); t.setAttribute("style", "fill:var(--fg);font-weight:600"); t.textContent = fmt(values[lastIndex]); svg.appendChild(t);
+    }
+  });
+  // 현재 월 표시
+  svg.appendChild(svgNode("line", {x1: X(n - 1) + w / 2, x2: X(n - 1) + w / 2, y1: top - 4, y2: bottom, stroke: "var(--accent)", "stroke-width": 1.5}));
+  const now = svgNode("text", {x: X(n - 1) + w / 2, y: 12, "text-anchor": "end"}); now.setAttribute("style", "fill:var(--accent);font-weight:600"); now.textContent = "현재"; svg.appendChild(now);
+  // 마우스 위치의 달 정보
+  const cursor = svgNode("line", {y1: top - 4, y2: bottom, stroke: "var(--fg)", "stroke-opacity": 0.5, visibility: "hidden"});
+  svg.appendChild(cursor);
+  const tip = node("div", null, "tip"); tip.hidden = true;
+  const hit = svgNode("rect", {x: left, y: top - 4, width: n * w, height: bottom - top + 4, fill: "transparent"});
+  hit.addEventListener("pointermove", (event) => {
+    const box = svg.getBoundingClientRect();
+    const px = ((event.clientX - box.left) / box.width) * f.width;
+    const i = Math.max(0, Math.min(n - 1, Math.floor((px - left) / w)));
+    const row = rows[i];
+    cursor.setAttribute("x1", X(i) + w / 2); cursor.setAttribute("x2", X(i) + w / 2); cursor.setAttribute("visibility", "visible");
+    const items = [
+      ["성장×물가", row.quadrant ? labelText(row.quadrant) : "판단 불가"],
+      ["침체 신호", row.recession == null ? "판단 불가" : row.recession ? "켜짐" : "없음"],
+      ["주식·채권", row.correlation_regime ? labelText(row.correlation_regime) : "–"],
+      ...lines.map(([id, name, fmt]) => [name, macro.series[id][i] == null ? "–" : fmt(macro.series[id][i])]),
+      ["NBER", row.nber ? "침체" : "–"],
+    ];
+    tip.replaceChildren(node("div", row.month.slice(0, 7)));
+    for (const [k, v] of items) { const line = node("div"); line.append(node("span", k), node("span", v)); tip.appendChild(line); }
+    tip.hidden = false;
+    const x = (X(i) + w / 2) * (box.width / f.width);
+    tip.style.left = (x + 14 + 200 > box.width ? Math.max(0, x - 214) : x + 14) + "px";
+  });
+  hit.addEventListener("pointerleave", () => { tip.hidden = true; cursor.setAttribute("visibility", "hidden"); });
+  svg.appendChild(hit);
+  svg.setAttribute("aria-label", "월별 국면과 금리·달러 타임라인");
+  host.append(svg, tip);
 }
 
 function renderHistory() {

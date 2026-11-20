@@ -28,6 +28,7 @@ from asset_frame.prediction.jobs import (
     scoreboard,
 )
 from asset_frame.regime.jobs import record_regime, run_regime
+from asset_frame.regime.market import MAX_AGE_DAYS as MARKET_SERIES
 from asset_frame.report.dashboard import build_payload, render_dashboard
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.backup import backup
@@ -409,6 +410,13 @@ def _dashboard() -> None:
         cash_ticker=cash_ticker,
         generated_on=datetime.now(UTC).date(),
         regime_rows=regime_rows,
+        macro_points={
+            series_id: [
+                (p.observation_date, None if p.value is None else float(p.value))
+                for p in store.macro_points(series_id)
+            ]
+            for series_id in MARKET_SERIES
+        },
     )
     _write_report("dashboard.html", render_dashboard(payload))
 
