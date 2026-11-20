@@ -33,7 +33,7 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | 예측·채점: 모멘텀(12-1)·무작위·사용자 순위와 상관 부호 확률을 원장에 기록(월당 모델별 1건), 3개월 뒤 순위 IC·상·하위 스프레드·Brier 채점, MDE 표시, 잘못된 입력 거부 | `tests/test_prediction.py` |
 | 주식시장 하락장(SPY 총수익 −20% 진입·저점 +20% 종료, `equity_bear_v1`)과 타임라인 표시 | `tests/test_regime_equity.py`, `tests/test_dashboard.py` |
 | 금리 곡선(10년−3개월·10년−2년), 정책금리, 달러지수 수집과 월말 맥락(`macro_market_v1`), 타임라인 표시 | `tests/test_regime_market.py`, `tests/test_fred_connector.py` |
-| 국면별 과거 성과(월말 국면 라벨 다음 달 자산 평균·적중률·표본 월수), 대시보드 payload의 `regime` 항목 | `tests/test_regime_performance.py`, `tests/test_dashboard.py` |
+| 국면별 과거 성과(월말 상황 라벨 뒤 1·3·6·12·24·36개월 누적 수익률의 평균·중앙값·범위·오른 비율·독립 표본 수, `regime_performance_v2`), 대시보드 payload의 `regime` 항목 | `tests/test_regime_performance.py`, `tests/test_dashboard.py` |
 | Mac 앱(`app/`, 읽기 전용): 파이썬이 쓴 해시 체인 검증과 변조·삭제 탐지, 원장 항목 해석, 성적표 평균, 데이터 상태 쿼리, 읽기 전용 연결 | `app/Tests/AssetFrameCoreTests/LedgerTests.swift` |
 | `backup`: SQLite 일관 복사(최근 4개 유지)와 raw 파일 추가 복사(기존 파일은 덮어쓰지 않음) | `tests/test_backup.py` |
 | 개념 레지스트리: 구현된 개념은 모듈·테스트·카드가 있음 | `tests/test_concept_registry.py` |

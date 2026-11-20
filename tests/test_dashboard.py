@@ -170,8 +170,10 @@ def test_payload_regime_section_is_absent_without_rows_and_carries_performance_w
     ]
     regime = build_payload(result, analysis, regime_rows=rows, **kwargs)["regime"]
 
-    cell = regime["performance"]["quadrant"]["growth_up_inflation_up"]
+    performance = regime["performance"]
+    cell = performance["axes"]["quadrant"]["growth_up_inflation_up"]
     assert cell["months"] == 10 and "SPY" in cell["assets"]
+    assert performance["horizons"] == [1, 3, 6, 12, 24, 36] and performance["all"]["months"] == 10
     json.dumps(regime, allow_nan=False)
 
 

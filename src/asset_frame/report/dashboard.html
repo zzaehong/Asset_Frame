@@ -88,6 +88,23 @@ footer { color: var(--muted); font-size: 12px; }
 .kv span:nth-child(odd) { color: var(--muted); } .kv span:nth-child(even) { font-variant-numeric: tabular-nums; }
 .pinbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .pinbar b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.history th.sel, .history td.sel { box-shadow: inset 0 0 0 2px var(--accent); }
+.history th { white-space: normal; text-align: center; vertical-align: bottom; cursor: pointer; min-width: 92px; }
+.history th small { display: block; color: var(--muted); font-weight: 400; }
+.history th .now { display: inline-block; background: var(--accent); color: var(--bg); border-radius: 99px; padding: 0 7px; font-size: 11px; margin-top: 2px; }
+.history td { text-align: center; font-variant-numeric: tabular-nums; }
+.history td.base { background: color-mix(in srgb, var(--line) 35%, transparent); }
+.history td.thin { opacity: .72; font-style: italic; }
+.history td:first-child, .history th:first-child { text-align: left; cursor: default; }
+.dist .item { display: grid; grid-template-columns: 70px 1fr 340px; gap: 10px; align-items: center; padding: 3px 0; font-size: 14px; }
+.dist .item.thin { opacity: .5; }
+.dist .track { position: relative; height: 22px; }
+.dist .track .zero { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--muted); }
+.dist .track .range { position: absolute; top: 10px; height: 2px; background: var(--muted); }
+.dist .track .med { position: absolute; top: 5px; height: 12px; width: 4px; border-radius: 2px; background: var(--fg); transform: translateX(-2px); }
+.dist .track .mean { position: absolute; top: 5px; width: 12px; height: 12px; border-radius: 50%; transform: translateX(-6px); border: 2px solid var(--bg); }
+.dist .track .base { position: absolute; top: 5px; width: 12px; height: 12px; border-radius: 50%; transform: translateX(-6px); border: 2px solid var(--muted); background: transparent; }
+.dist small { color: var(--muted); }
 .legend-note { font-size: 12px; color: var(--muted); }
 th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
 
@@ -130,8 +147,8 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
         <button class="plain" type="button" id="month-now">현재로</button>
         <label class="muted" for="horizon">이후 기간</label>
         <select id="horizon">
-          <option value="1">1개월</option><option value="3">3개월</option><option value="6">6개월</option>
-          <option value="12" selected>12개월</option><option value="24">24개월</option><option value="36">36개월</option>
+          <option value="1">1개월</option><option value="3">3개월</option><option value="6" selected>6개월</option>
+          <option value="12">12개월</option><option value="24">24개월</option><option value="36">36개월</option>
         </select>
         <label><input type="checkbox" id="similar-toggle"> 비슷했던 달 표시</label>
       </div>
@@ -149,18 +166,31 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
   <!-- ===== 국면별 과거 성과 ===== -->
   <div class="panel" id="tab-history" hidden>
     <section>
-      <h2>이 국면에서 자산은 어떻게 움직였나</h2>
-      <p class="muted">고른 국면이 확인된 달의 <b>다음 달</b> 월수익률 평균입니다(그 시점에 알 수 있던 정보만 사용). 과거 평균이며 앞으로를 보장하지 않습니다.</p>
+      <h2>상황별로 자산이 어땠나</h2>
+      <p class="muted">어떤 상황이 확인된 달 말에 자산을 샀다면, 그 뒤 일정 기간 동안 얼마나 올랐거나 내렸는지를 모았습니다. 그 시점에 알 수 있던 정보만으로 상황을 정했고, 과거 기록일 뿐 앞으로를 보장하지 않습니다.</p>
       <div class="row">
-        <div class="seg" id="history-axis" role="group" aria-label="국면 기준"></div>
-        <div class="seg" id="history-label" role="group" aria-label="국면"></div>
+        <span class="muted">상황을 나누는 기준</span>
+        <div class="seg" id="history-axis" role="group" aria-label="상황을 나누는 기준"></div>
       </div>
+      <p class="lead" id="history-now"></p>
       <div class="row">
-        <div class="seg" id="history-sort" role="group" aria-label="정렬"></div>
+        <label class="muted" for="history-horizon">매수 후 보유 기간</label>
+        <select id="history-horizon">
+          <option value="1">1개월</option><option value="3">3개월</option><option value="6" selected>6개월</option><option value="12">12개월</option><option value="24">24개월</option><option value="36">36개월</option>
+        </select>
         <label><input type="checkbox" id="history-all"> 앵커 12개 외 전체 자산</label>
       </div>
+    </section>
+    <section>
+      <h2 id="heat-title"></h2>
+      <p class="muted">칸의 숫자는 그 상황에서 산 뒤 보유 기간이 지난 시점의 평균 누적 수익률입니다. 초록은 평균적으로 오른 곳, 빨강은 내린 곳입니다. "전체 기간"은 상황과 관계없이 늘 샀을 때의 평균이라, 각 칸이 이 기준선보다 얼마나 나은지 비교하세요. 열 이름을 누르면 아래에 분포가 나옵니다.</p>
+      <div class="scroll"><table class="heat history" id="history-heat"></table></div>
+    </section>
+    <section>
+      <h2 id="dist-title"></h2>
+      <p class="muted">가는 선은 가장 나빴던 때부터 가장 좋았던 때까지의 범위(너무 크면 잘라서 그리며 실제 값은 오른쪽 글자), 굵은 막대는 중앙값, 색 점은 평균, 속 빈 동그라미는 전체 기간 평균입니다. 평균 하나만 보면 몇 번의 큰 사건에 좌우된 것을 알 수 없어서 범위를 함께 봅니다.</p>
       <p class="note" id="history-note"></p>
-      <div class="rbars" id="history-bars"></div>
+      <div class="dist" id="history-dist"></div>
       <p class="note" id="history-mine"></p>
     </section>
   </div>
@@ -299,7 +329,7 @@ const D = /*__DATA__*/null;
 <script>
 const RULE_LABEL = {monthly: "월간", quarterly: "분기", band: "밴드 ±5%p"};
 const TABS = [["regime", "① 시장 국면"], ["history", "② 국면별 과거 성과"], ["compare", "③ 전략 비교"], ["lab", "③ 포트폴리오 실험실"], ["assets", "자산·상관"]];
-const state = {rule: D.rules.includes("quarterly") ? "quarterly" : D.rules[0], tab: "compare", hidden: new Set(), sort: null, riskSort: null, more: false, axis: "quadrant", label: null, showAll: false, historySort: "mean", pinned: null, similar: false, horizon: 12};
+const state = {rule: D.rules.includes("quarterly") ? "quarterly" : D.rules[0], tab: "compare", hidden: new Set(), sort: null, riskSort: null, more: false, axis: "quadrant", label: null, showAll: false, pinned: null, similar: false, horizon: 6};
 const $ = (id) => document.getElementById(id);
 const nf = (digits) => (v) => (v == null ? "–" : v.toFixed(digits));
 const pct = (v) => (v == null ? "–" : (v * 100).toFixed(1) + "%");
@@ -915,14 +945,24 @@ const LABEL_TEXT = {
     stock_bond_positive: "주식·채권 동행(+)", stock_bond_negative: "채권이 주식 헤지(−)",
 };
 const rowKey = {quadrant: "quadrant", indpro_sahm: "recession", correlation_regime: "correlation_regime"};
-const MIN_SAMPLE = 12;
+const MIN_INDEPENDENT = 5;
+const HISTORY_AXES = [
+  ["quadrant", "성장×물가"], ["indpro_sahm", "실물경제 침체"], ["bear", "주식시장 하락장"],
+  ["curve", "금리 곡선"], ["correlation_regime", "주식·채권 상관"],
+];
+const HISTORY_LABELS = {
+  bear: {True: "하락장", False: "하락장 아님"},
+  curve: {inverted: "역전", normal: "정상"},
+  indpro_sahm: {True: "침체 신호 켜짐", False: "침체 신호 없음"},
+};
+const histLabel = (axis, key) => (HISTORY_LABELS[axis] && HISTORY_LABELS[axis][key]) || labelText(key);
 const labelText = (key) => LABEL_TEXT[key] || key;
 const rowLabel = (row, axis) => {
   const v = row[rowKey[axis]];
   return v == null ? null : v === true ? "True" : v === false ? "False" : String(v);
 };
 const labelColor = (axis, key) => {
-  const keys = Object.keys(D.regime.performance[axis]).sort();
+  const keys = Object.keys(D.regime.performance.axes[axis]).sort();
   return `var(--c${[3, 4, 5, 7][keys.indexOf(key) % 4]})`;
 };
 function currentRow() { return D.regime.rows[D.regime.rows.length - 1]; }
@@ -969,7 +1009,7 @@ function renderRegimePick() {
   const host = $("regime-pick");
   host.replaceChildren();
   for (const [axis, axisName] of AXES) {
-    for (const label of Object.keys(D.regime.performance[axis]).sort()) {
+    for (const label of Object.keys(D.regime.performance.axes[axis]).sort()) {
       const chip = node("button", null, "chip");
       chip.type = "button";
       chip.setAttribute("aria-current", String(axis === state.axis && label === state.label));
@@ -1270,82 +1310,133 @@ function renderSimilar(i) {
   note.textContent = label + (cells.length ? ` 그 달들의 다음 ${state.horizon}개월 평균 수익률: ${cells.join(", ")}. 달 수가 적고 서로 이어진 달이 많아 우연의 영향이 큽니다.` : ` ${state.horizon}개월 수익률을 낼 수 있는 달이 3개월 미만이라 평균을 숨깁니다.`);
 }
 
+function currentLabel(axis) {
+  const n = D.regime.rows.length;
+  if (axis === "bear") { const v = D.equity && D.equity.bear[n - 1]; return v == null ? null : v ? "True" : "False"; }
+  if (axis === "curve") { const v = D.macro && D.macro.series.T10Y3M && D.macro.series.T10Y3M[n - 1]; return v == null ? null : v < 0 ? "inverted" : "normal"; }
+  return rowLabel(currentRow(), axis);
+}
+function setHorizon(h) {
+  state.horizon = h;
+  $("horizon").value = String(h); $("history-horizon").value = String(h);
+  renderRegimeTimeline(); renderMonthPanel(); renderHistory();
+}
+const heatColor = (v, top) => {
+  const a = Math.min(Math.abs(v) / top, 1) * 0.55;
+  return `color-mix(in srgb, ${v >= 0 ? "var(--pos)" : "var(--neg)"} ${Math.round(a * 100)}%, transparent)`;
+};
+
 function renderHistory() {
-  const perf = D.regime.performance;
-  const labels = Object.keys(perf[state.axis]).sort();
-  if (!labels.includes(state.label)) state.label = labels.includes(String(currentLabel(state.axis))) ? String(currentLabel(state.axis)) : labels[0];
+  const perf = D.regime.performance, h = String(state.horizon);
+  const axes = HISTORY_AXES.filter(([id]) => perf.axes[id]);
+  if (!axes.some(([id]) => id === state.axis)) state.axis = axes[0][0];
+  const labels = Object.keys(perf.axes[state.axis]).sort();
+  const now = currentLabel(state.axis);
+  if (!labels.includes(state.label)) state.label = labels.includes(now) ? now : labels[0];
+  const axisName = axes.find(([id]) => id === state.axis)[1];
+
   const axisHost = $("history-axis");
   axisHost.replaceChildren();
-  for (const [axis, name] of AXES) {
+  for (const [id, name] of axes) {
     const b = node("button", name); b.type = "button";
-    b.setAttribute("aria-pressed", String(axis === state.axis));
-    b.addEventListener("click", () => { state.axis = axis; state.label = null; renderHistory(); });
+    b.setAttribute("aria-pressed", String(id === state.axis));
+    b.addEventListener("click", () => { state.axis = id; state.label = null; renderHistory(); });
     axisHost.appendChild(b);
   }
-  const labelHost = $("history-label");
-  labelHost.replaceChildren();
-  for (const label of labels) {
-    const b = node("button", `${labelText(label)} (${perf[state.axis][label].months}개월)`); b.type = "button";
-    b.setAttribute("aria-pressed", String(label === state.label));
-    b.addEventListener("click", () => { state.label = label; renderHistory(); });
-    labelHost.appendChild(b);
-  }
-  const sortHost = $("history-sort");
-  sortHost.replaceChildren();
-  for (const [key, name] of [["mean", "평균 월수익순"], ["hit_rate", "오른 달 비율순"]]) {
-    const b = node("button", name); b.type = "button";
-    b.setAttribute("aria-pressed", String(key === state.historySort));
-    b.addEventListener("click", () => { state.historySort = key; renderHistory(); });
-    sortHost.appendChild(b);
-  }
-  const cell = perf[state.axis][state.label];
-  const first = D.regime.rows[0].month.slice(0, 7), last = D.regime.rows[D.regime.rows.length - 1].month.slice(0, 7);
-  $("history-note").textContent = `${AXES.find((a) => a[0] === state.axis)[1]}: ${labelText(state.label)} — 확인된 ${cell.months}개월(${first}~${last} 중). ` +
-    (cell.months < MIN_SAMPLE ? "표본이 12개월 미만이라 우연의 영향이 큽니다. " : "") +
-    "국면은 소수의 사건에 몰려 있을 수 있어 평균이 한두 사건에 좌우될 수 있습니다. 흐린 줄은 표본 12개월 미만 자산입니다.";
+  $("history-now").textContent = now == null
+    ? `${axisName}: 지금은 판단할 수 없습니다.`
+    : `지금(${currentRow().month.slice(0, 7)})은 "${histLabel(state.axis, now)}" 상황입니다. 아래 표에서 "지금" 표시가 붙은 열이 같은 상황이었던 과거 기록입니다.`;
+
+  // 히트맵: 행=자산, 열=전체 기간 + 상황별
   const anchors = new Set(D.assets.filter((a) => a.anchor).map((a) => a.ticker));
-  const entries = Object.entries(cell.assets).filter(([t]) => state.showAll || anchors.has(t))
-    .sort((a, b) => b[1][state.historySort] - a[1][state.historySort]);
-  const top = Math.max(...entries.map(([, v]) => Math.abs(v.mean)), 1e-9);
-  const host = $("history-bars");
+  const tickers = Object.keys(perf.all.assets).filter((t) => state.showAll || anchors.has(t));
+  const statOf = (cell, t) => (cell.assets[t] && cell.assets[t][h]) || null;
+  const selected = perf.axes[state.axis][state.label];
+  tickers.sort((a, b) => ((statOf(selected, b) || {mean: -9}).mean) - ((statOf(selected, a) || {mean: -9}).mean));
+  const cols = [["all", "전체 기간", perf.all, true], ...labels.map((l) => [l, histLabel(state.axis, l), perf.axes[state.axis][l], false])];
+  let top = 0.01;
+  for (const [, , cell] of cols) for (const t of tickers) { const st = statOf(cell, t); if (st) top = Math.max(top, Math.abs(st.mean)); }
+  $("heat-title").textContent = `${axisName}별 매수 후 ${state.horizon}개월 평균 수익률`;
+  const table = $("history-heat");
+  table.replaceChildren();
+  const head = table.createTHead().insertRow();
+  head.appendChild(node("th", "자산"));
+  for (const [key, name, cell, base] of cols) {
+    const th = node("th");
+    th.append(document.createTextNode(name), node("small", `${cell.months}개월`));
+    if (!base && key === now) th.appendChild(node("span", "지금", "now"));
+    if (!base) { th.tabIndex = 0; th.addEventListener("click", () => { state.label = key; renderHistory(); }); th.addEventListener("keydown", (e) => { if (e.key === "Enter") { state.label = key; renderHistory(); } }); }
+    if (key === state.label && !base) th.classList.add("sel");
+    head.appendChild(th);
+  }
+  const body = table.createTBody();
+  for (const t of tickers) {
+    const tr = body.insertRow();
+    const name = tr.insertCell(); name.textContent = t; name.title = (assetOf[t] || {}).name || "";
+    for (const [key, label, cell, base] of cols) {
+      const td = tr.insertCell();
+      const st = statOf(cell, t);
+      if (base) td.classList.add("base");
+      if (!st) { td.textContent = "–"; continue; }
+      td.textContent = spct(st.mean);
+      td.style.background = heatColor(st.mean, top);
+      if (st.independent < MIN_INDEPENDENT && !base) td.classList.add("thin");
+      if (key === state.label && !base) td.classList.add("sel");
+      td.title = `${t} · ${label}: 평균 ${spct(st.mean)}, 중앙값 ${spct(st.median)}, 범위 ${spct(st.min)} ~ ${spct(st.max)}, 오른 비율 ${Math.round(st.hit_rate * 100)}%, 표본 ${st.n}개월(서로 겹치지 않는 표본 약 ${st.independent}개)`;
+    }
+  }
+
+  // 분포: 선택한 상황
+  $("dist-title").textContent = `"${histLabel(state.axis, state.label)}" 상황에서 산 뒤 ${state.horizon}개월 결과의 분포`;
+  const rowsData = tickers.map((t) => [t, statOf(selected, t), statOf(perf.all, t)]).filter(([, st]) => st);
+  // 극단값 하나가 축을 늘리지 않도록 평균 크기의 2.5배(최소 ±20%)까지만 그린다. 실제 범위는 오른쪽 글자에 있다.
+  const limit = Math.max(0.2, 2.5 * Math.max(...rowsData.map(([, st]) => Math.abs(st.mean)), 0));
+  const lo = Math.max(Math.min(...rowsData.map(([, st]) => st.min), 0), -limit), hi = Math.min(Math.max(...rowsData.map(([, st]) => st.max), 0), limit);
+  const pos = (v) => (Math.min(Math.max(v, lo), hi) - lo) / (hi - lo || 1) * 100;
+  const typical = rowsData.length ? rowsData[0][1] : null;
+  $("history-note").textContent = `이 상황이었던 달은 ${selected.months}개월입니다. 연달아 이어진 달의 ${state.horizon}개월 결과는 서로 많이 겹쳐서 실제로 독립적인 표본은 약 ${typical ? typical.independent : 0}개뿐입니다. ` +
+    (typical && typical.independent < MIN_INDEPENDENT ? "표본이 5개 미만이라 우연의 영향이 큽니다(흐리게 표시). " : "") +
+    "과거에 몇 번 일어난 일을 모은 것이라, 같은 상황이 와도 같은 결과가 나온다는 뜻이 아닙니다.";
+  const host = $("history-dist");
   host.replaceChildren();
-  for (const [ticker, v] of entries) {
-    const row = node("div", null, "item" + (v.months < MIN_SAMPLE ? " partial" : ""));
-    const name = node("span", ticker); name.title = (assetOf[ticker] || {}).name || "";
-    const track = node("div", null, "zero");
-    const bar = node("i");
-    const width = (Math.abs(v.mean) / top) * 50;
-    bar.style.width = width + "%";
-    bar.style.left = v.mean >= 0 ? "50%" : (50 - width) + "%";
-    bar.style.background = v.mean >= 0 ? "var(--pos)" : "var(--neg)";
-    track.appendChild(bar);
-    row.append(name, track, node("small", `${spct(v.mean)} · 오른 달 ${Math.round(v.hit_rate * 100)}% · ${v.months}개월`));
-    host.appendChild(row);
+  for (const [t, st, base] of rowsData) {
+    const item = node("div", null, "item" + (st.independent < MIN_INDEPENDENT ? " thin" : ""));
+    const label = node("span", t); label.title = (assetOf[t] || {}).name || "";
+    const track = node("div", null, "track");
+    const zero = node("div", null, "zero"); zero.style.left = pos(0) + "%";
+    const range = node("div", null, "range"); range.style.left = pos(st.min) + "%"; range.style.width = (pos(st.max) - pos(st.min)) + "%";
+    const med = node("div", null, "med"); med.style.left = pos(st.median) + "%";
+    const mean = node("div", null, "mean"); mean.style.left = pos(st.mean) + "%"; mean.style.background = st.mean >= 0 ? "var(--pos)" : "var(--neg)";
+    track.append(zero, range, med, mean);
+    if (base) { const b = node("div", null, "base"); b.style.left = pos(base.mean) + "%"; track.appendChild(b); }
+    item.append(label, track, node("small", `평균 ${spct(st.mean)} · 오른 비율 ${Math.round(st.hit_rate * 100)}% · 범위 ${spct(st.min)}~${spct(st.max)}`));
+    host.appendChild(item);
   }
   const total = totalWeight();
   const mine = $("history-mine");
   if (total > 0) {
     let used = 0, sum = 0;
     for (const [t, w] of Object.entries(lab.weights)) {
-      if (w > 0 && cell.assets[t]) { used += w; sum += w * cell.assets[t].mean; }
+      const st = w > 0 ? statOf(selected, t) : null;
+      if (st) { used += w; sum += w * st.mean; }
     }
-    mine.textContent = used > 0 ? `실험실에서 만든 비중으로는 이 국면 다음 달 평균 월수익이 약 ${spct(sum / used)}였습니다(매달 같은 비중으로 리밸런싱한 경우의 단순 가중평균${used < total - 1e-9 ? ", 데이터가 없는 자산 제외" : ""}).` : "";
+    mine.textContent = used > 0 ? `실험실에서 만든 비중으로 이 상황에서 사서 ${state.horizon}개월 그대로 들고 있었다면 평균 약 ${spct(sum / used)}였습니다(리밸런싱 없는 단순 가중평균${used < total - 1e-9 ? ", 데이터가 없는 자산 제외" : ""}).` : "";
   } else {
-    mine.textContent = "③ 포트폴리오 실험실에서 비중을 만들면 이 국면에서 그 비중이 어땠는지도 여기에 표시됩니다.";
+    mine.textContent = "③ 포트폴리오 실험실에서 비중을 만들면 이 상황에서 그 비중이 어땠는지도 여기에 표시됩니다.";
   }
   renderRegimePick();
 }
-function currentLabel(axis) { return rowLabel(currentRow(), axis); }
 
 function setupRegime() {
   if (!D.regime) return;
-  state.label = currentLabel("quadrant") || Object.keys(D.regime.performance.quadrant).sort()[0];
+  state.label = currentLabel("quadrant") || Object.keys(D.regime.performance.axes.quadrant).sort()[0];
   $("history-all").addEventListener("change", (e) => { state.showAll = e.target.checked; renderHistory(); });
+  $("history-horizon").addEventListener("change", (e) => { e.target.blur(); setHorizon(Number(e.target.value)); });
   state.pinned = D.regime.rows.length - 1;
   $("month-prev").addEventListener("click", () => pinMonth(state.pinned - 1));
   $("month-next").addEventListener("click", () => pinMonth(state.pinned + 1));
   $("month-now").addEventListener("click", () => pinMonth(D.regime.rows.length - 1));
-  $("horizon").addEventListener("change", (e) => { state.horizon = Number(e.target.value); e.target.blur(); renderRegimeTimeline(); renderMonthPanel(); });
+  $("horizon").addEventListener("change", (e) => { e.target.blur(); setHorizon(Number(e.target.value)); });
   $("similar-toggle").addEventListener("change", (e) => { state.similar = e.target.checked; renderRegimeTimeline(); renderMonthPanel(); });
   document.addEventListener("keydown", (event) => {
     if (state.tab !== "regime" || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;

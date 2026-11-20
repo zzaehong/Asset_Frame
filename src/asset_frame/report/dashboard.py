@@ -109,6 +109,9 @@ def build_payload(
     calendar = sorted(returns["SPY"])
     position = {month: i for i, month in enumerate(calendar)}
     tickers = [t for t in anchors if (t, t) in analysis.correlation]
+    month_ends = [row.month_end for row in regime_rows]
+    equity = bear_state(equity_levels, month_ends) if regime_rows else None
+    macro = market_context(macro_points or {}, month_ends)
     return {
         "generated_on": generated_on.isoformat(),
         "as_of": analysis.as_of.isoformat(),
@@ -165,12 +168,13 @@ def build_payload(
             if months
         },
         "regime": _regime_payload(
-            regime_rows, {t: returns[t] for t in tickers_in(universe, returns)}
+            regime_rows,
+            {t: returns[t] for t in tickers_in(universe, returns)},
+            equity=equity,
+            macro=macro,
         ),
-        "equity": bear_state(equity_levels, [row.month_end for row in regime_rows])
-        if regime_rows
-        else None,
-        "macro": market_context(macro_points or {}, [row.month_end for row in regime_rows]),
+        "equity": equity,
+        "macro": macro,
         "definitions": {
             s.id: {
                 "kind": s.kind,
@@ -189,10 +193,24 @@ def tickers_in(universe: Sequence[UniverseAsset], returns: Mapping[str, object])
 
 
 def _regime_payload(
-    rows: Sequence[RegimeRow], returns: Mapping[str, Mapping[date, float]]
+    rows: Sequence[RegimeRow],
+    returns: Mapping[str, Mapping[date, float]],
+    *,
+    equity: dict | None,
+    macro: dict | None,
 ) -> dict | None:
     if not rows:
         return None
+    labels: dict[str, list[str | None]] = {
+        "quadrant": [row.quadrant for row in rows],
+        "indpro_sahm": [None if row.indpro_sahm is None else str(row.indpro_sahm) for row in rows],
+        "correlation_regime": [row.correlation_regime for row in rows],
+    }
+    if equity:
+        labels["bear"] = [None if flag is None else str(flag) for flag in equity["bear"]]
+    curve = macro["series"].get("T10Y3M") if macro else None
+    if curve:
+        labels["curve"] = [None if v is None else "inverted" if v < 0 else "normal" for v in curve]
     return {
         "calc_version": REGIME_PERFORMANCE_VERSION,
         "rows": [
@@ -209,7 +227,7 @@ def _regime_payload(
             }
             for row in rows
         ],
-        "performance": regime_performance(rows, returns),
+        "performance": regime_performance(labels, [row.month_end for row in rows], returns),
     }
 
 
