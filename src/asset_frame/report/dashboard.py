@@ -223,7 +223,6 @@ def _regime_payload(
                 "cfnai_ma3": row.cfnai_ma3,
                 "indpro_yoy": row.indpro_yoy,
                 "stock_bond_correlation": row.stock_bond_correlation,
-                "nber": row.nber_recession,
             }
             for row in rows
         ],

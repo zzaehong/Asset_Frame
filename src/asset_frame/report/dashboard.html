@@ -133,7 +133,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
     </section>
     <section>
       <h2>국면 타임라인</h2>
-      <p class="muted">월별 국면과 금리·달러를 한 시간축에 겹쳐 봅니다. "주식시장 하락장"은 SPY(배당 포함)가 직전 고점보다 20% 이상 낮게 마감하면 시작하고, 그 저점에서 20% 이상 오르면 끝나는 통상 기준이며 실물경제와는 별개입니다. 음영은 NBER이 나중에 확정한 공식 침체 기간(사후 판정, 발표까지 보통 수개월~1년 이상 걸림)이고, 마우스를 올리면 그 달의 값이 나옵니다. 성장×물가 띠는 CFNAI 최초 발표 이력이 시작되는 2011-06부터 있습니다. 아래 이름을 누르면 해당 국면이 진하게 표시되고 ② 화면의 과거 성과도 그 국면으로 바뀝니다. 금리 곡선은 0 아래(빨강)가 역전, 주식·채권 상관은 0 위(보라)면 채권이 주식 하락을 헤지하지 못한 때이며, 정책금리와 달러는 시장·월평균 값이며 개정되지 않습니다.</p>
+      <p class="muted">월별 국면과 금리·달러를 한 시간축에 겹쳐 봅니다. "주식시장 하락장"은 SPY(배당 포함)가 직전 고점보다 20% 이상 낮게 마감하면 시작하고, 그 저점에서 20% 이상 오르면 끝나는 통상 기준이며 실물경제와는 별개입니다. 마우스를 올리면 그 달의 값이 나옵니다. 성장×물가 띠는 CFNAI 최초 발표 이력이 시작되는 2011-06부터 있습니다. 아래 이름을 누르면 해당 국면이 진하게 표시되고 ② 화면의 과거 성과도 그 국면으로 바뀝니다. 금리 곡선은 0 아래(빨강)가 역전, 주식·채권 상관은 0 위(보라)면 채권이 주식 하락을 헤지하지 못한 때이며, 정책금리와 달러는 시장·월평균 값이며 개정되지 않습니다.</p>
       <div class="chips" id="regime-pick"></div>
       <div class="chart" id="regime-timeline"></div>
     </section>
@@ -1081,13 +1081,6 @@ function renderRegimeTimeline() {
     svg.appendChild(svgNode("line", {x1: X(i), x2: X(i), y1: top - 4, y2: bottom, stroke: "var(--line)", "stroke-dasharray": major ? "" : "2 3"}));
     if (major) { const t = svgNode("text", {x: X(i) + 2, y: height - 6}); t.textContent = year; svg.appendChild(t); }
   });
-  // NBER 침체 음영
-  for (const r of runs(rows.map((row) => row.nber)).filter((r) => r.label)) {
-    const shade = svgNode("rect", {x: X(r.start), y: top - 4, width: (r.end - r.start + 1) * w, height: bottom - top + 4, fill: "var(--muted)", "fill-opacity": 0.16});
-    const title = svgNode("title", {}); title.textContent = `NBER 공식 침체(사후 판정) ${rows[r.start].month.slice(0, 7)}~${rows[r.end].month.slice(0, 7)}`;
-    shade.appendChild(title); svg.appendChild(shade);
-    const t = svgNode("text", {x: X(r.start) + 3, y: 12}); t.textContent = "NBER 공식 침체"; svg.appendChild(t);
-  }
   const laneLabel = (text, y, mid) => {
     const t = svgNode("text", {x: left - 8, y: y + mid + 4, "text-anchor": "end"}); t.textContent = text; svg.appendChild(t);
   };
@@ -1194,7 +1187,6 @@ function renderRegimeTimeline() {
       ["주식·채권", row.correlation_regime ? labelText(row.correlation_regime) : "–"],
       ...lines.map(([name, values, fmt]) => [name, values[i] == null ? "–" : fmt(values[i])]),
       ["주식시장", equity ? (equity.bear[i] ? "하락장" : "–") : "–"],
-      ["NBER 공식(사후)", row.nber ? "침체 기간" : "–"],
     ];
     tip.replaceChildren(node("div", row.month.slice(0, 7)));
     for (const [k, v] of items) { const line = node("div"); line.append(node("span", k), node("span", v)); tip.appendChild(line); }
@@ -1261,7 +1253,6 @@ function renderMonthPanel() {
     ["정책금리", fed == null ? "–" : fed.toFixed(2) + "%" + (fed6 == null ? "" : ` (6개월 ${fed - fed6 >= 0 ? "+" : ""}${(fed - fed6).toFixed(2)}%p)`)],
     ["달러지수", usd == null ? "–" : usd.toFixed(1) + (usd12 ? ` (12개월 ${spct(usd / usd12 - 1)})` : "")],
     ["주식시장(SPY)", D.equity && D.equity.bear[i] != null ? `${D.equity.bear[i] ? "하락장" : "하락장 아님"} · 직전 고점 대비 ${(D.equity.month_end_drawdown[i] * 100).toFixed(1)}%` : "–"],
-    ["NBER 공식 판정(사후)", row.nber ? "침체 기간" : "–"],
   ];
   const host = $("month-state");
   host.replaceChildren();
