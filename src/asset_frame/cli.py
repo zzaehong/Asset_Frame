@@ -13,7 +13,7 @@ from asset_frame.backtest.jobs import BENCHMARKS, run_backtest
 from asset_frame.backtest.strategies import load_strategies
 from asset_frame.connectors.fred import FRED_SOURCE_ID, SUPPORTED_SERIES
 from asset_frame.connectors.krx import KRX_SOURCE_ID, KrxDataset
-from asset_frame.connectors.tiingo import TIINGO_SOURCE_ID
+from asset_frame.connectors.tiingo import TIINGO_SOURCE_ID, tiingo_asset_id
 from asset_frame.domain.models import AssetType, SourceDefinition
 from asset_frame.ingestion.fred_service import FredCollector
 from asset_frame.ingestion.krx_service import KrxCollector
@@ -28,7 +28,9 @@ from asset_frame.prediction.jobs import (
     scoreboard,
 )
 from asset_frame.regime.jobs import record_regime, run_regime
+from asset_frame.regime.market import MAX_AGE_DAYS as MARKET_SERIES
 from asset_frame.report.dashboard import build_payload, render_dashboard
+from asset_frame.returns.series import total_return_index
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.backup import backup
 from asset_frame.storage.ledger import LedgerStore
@@ -409,6 +411,17 @@ def _dashboard() -> None:
         cash_ticker=cash_ticker,
         generated_on=datetime.now(UTC).date(),
         regime_rows=regime_rows,
+        equity_levels=[
+            (point.trading_date, float(point.level))
+            for point in total_return_index(store.price_points(tiingo_asset_id("SPY")))
+        ],
+        macro_points={
+            series_id: [
+                (p.observation_date, None if p.value is None else float(p.value))
+                for p in store.macro_points(series_id)
+            ]
+            for series_id in MARKET_SERIES
+        },
     )
     _write_report("dashboard.html", render_dashboard(payload))
 

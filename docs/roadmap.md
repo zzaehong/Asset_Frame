@@ -18,6 +18,7 @@
 | M2-2 | 국면 규칙: Sahm, `indpro_sahm`·`cfnai_sahm` 침체 규칙, L3 4분면, 주식채권 상관 국면. 발표일 이후 값만 쓰는 2007년~ 월말 replay와 NBER 채점(`regime`, `regime_rules` 카드). 규칙은 결과를 보기 전에 고정(시도 1회). | 완료(2026-11-19) |
 | M2-3 | 해시 체인 원장([ADR-0007](adr/0007-ledger-hash-chain.md)): 추가 전용 `ledger_entry`, `ledger verify`, `ledger record-regime`(live 최근 월, `--replay` 전체 월). 2026-10 live 1건 기록함 | 완료(2026-11-19) |
 | M2-4 | 예측·채점(`prediction_scoring` 카드): 12개 앵커 3개월 순위와 상관 부호 확률, 모델 `momentum_12_1`·`equal_rank`와 사용자 입력, 순위 IC·스프레드·Brier·MDE. Sahm 결측 처리(`regime_v2`). 2026-10 모델 예측 2건 기록, 첫 채점은 2027-01 | 완료(2026-11-19) |
+| M6-0 | 금리 곡선(`T10Y3M`·`T10Y2Y`)·정책금리(`FEDFUNDS`)·달러지수(`DTWEXBGS`) 수집과 월말 맥락(`macro_market_context` 카드). 시장 국면 화면: 타임라인 재구성, 달 클릭 패널(그때의 상태·이후 12개월 자산군 선 그래프·비슷했던 달 표시) | 구현(병합 승인 대기) |
 | M5 | Mac 앱([ADR-0008](adr/0008-mac-app-read-only.md)): `app/` SwiftUI, DB 읽기 전용. 홈(지금 확인할 것·현재 국면)·① 시장 국면·② 국면별 과거 성과·③ 전략 비교·포트폴리오 실험실(기존 HTML 탭을 사이드바로)·원장·데이터. `app/build_app.sh`, `swift test` 9개 | 완료(2026-11-20) |
 | M2-5 | 국면별 과거 성과(`regime_performance` 카드): 월말 국면 라벨 다음 달 자산 평균·적중률·표본. 대시보드 ①시장 국면·②국면별 과거 성과 탭, 전략 비교 결론·핵심 4지표 | 완료(2026-11-20) |
 

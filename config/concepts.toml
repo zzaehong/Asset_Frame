@@ -164,3 +164,21 @@ status = "implemented"
 module = "asset_frame.regime.performance"
 tests = ["tests/test_regime_performance.py", "tests/test_dashboard.py"]
 card = "docs/concepts/regime_performance.md"
+
+[[concepts]]
+id = "macro_market_context"
+name = "금리·달러 맥락"
+domain = "거시경제분석"
+status = "implemented"
+module = "asset_frame.regime.market"
+tests = ["tests/test_regime_market.py", "tests/test_dashboard.py", "tests/test_fred_connector.py"]
+card = "docs/concepts/macro_market_context.md"
+
+[[concepts]]
+id = "equity_bear_market"
+name = "주식시장 하락장"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.regime.equity"
+tests = ["tests/test_regime_equity.py", "tests/test_dashboard.py"]
+card = "docs/concepts/equity_bear_market.md"

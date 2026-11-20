@@ -10,9 +10,12 @@ from asset_frame.domain.models import FetchRequest, MacroObservation, RawSnapsho
 FRED_SOURCE_ID = "fred"
 FRED_OBSERVATIONS_URL = "https://api.stlouisfed.org/fred/series/observations"
 # Series replayed as first published (output_type=4: initial release only; realtime_start is the
-# release date). DTB3 is a market rate and USREC is NBER dating used only to score: current vintage.
+# release date). DTB3, the yield-curve spreads and the dollar index are market series that FRED does
+# not revise, FEDFUNDS is a monthly average of the policy rate, and USREC is NBER dating used only
+# to score: all of these are read at the current vintage.
 FIRST_RELEASE_SERIES = ("INDPRO", "CFNAIMA3", "UNRATE", "CPIAUCSL")
-SUPPORTED_SERIES = ("DTB3", *FIRST_RELEASE_SERIES, "USREC")
+RATE_SERIES = ("DTB3", "T10Y3M", "T10Y2Y", "FEDFUNDS", "DTWEXBGS")
+SUPPORTED_SERIES = (*RATE_SERIES, *FIRST_RELEASE_SERIES, "USREC")
 _EARLIEST_REALTIME = "1776-07-04"  # FRED's documented lower bound for realtime_start
 _LATEST_REALTIME = "9999-12-31"
 _MISSING_VALUE = "."

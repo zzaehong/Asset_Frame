@@ -52,6 +52,13 @@ def test_request_targets_official_endpoint_and_only_approved_series() -> None:
         build_observations_request("GDP", "secret")
 
 
+@pytest.mark.parametrize("series_id", ["T10Y3M", "T10Y2Y", "FEDFUNDS", "DTWEXBGS"])
+def test_market_rate_series_are_approved_and_read_at_the_current_vintage(series_id: str) -> None:
+    url = build_observations_request(series_id, "secret").url
+
+    assert f"series_id={series_id}" in url and "output_type" not in url
+
+
 def test_only_replayed_series_request_the_initial_release() -> None:
     first = build_observations_request("INDPRO", "secret").url
     assert "output_type=4" in first and "realtime_end=9999-12-31" in first

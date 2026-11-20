@@ -77,12 +77,34 @@ footer { color: var(--muted); font-size: 12px; }
 .tile:hover { border-color: var(--accent); }
 .tile small { color: var(--muted); font-size: 12px; } .tile b { font-size: 18px; } .tile em { font-style: normal; color: var(--muted); font-size: 13px; }
 .tile.alert b { color: var(--neg); }
+.tile.static { cursor: default; } .tile.static:hover { border-color: var(--line); }
 .rbars .item { display: grid; grid-template-columns: 150px 1fr 190px; gap: 10px; align-items: center; font-size: 14px; padding: 2px 0; }
 .rbars .item.partial { opacity: .5; font-style: normal; }
 .rbars .zero { position: relative; height: 16px; }
 .rbars .zero::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px solid var(--muted); }
 .rbars .zero i { position: absolute; top: 2px; bottom: 2px; border-radius: 2px; }
 .rbars .item small { color: var(--muted); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 14px; }
+.kv span:nth-child(odd) { color: var(--muted); } .kv span:nth-child(even) { font-variant-numeric: tabular-nums; }
+.pinbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.pinbar b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.history th.sel, .history td.sel { box-shadow: inset 0 0 0 2px var(--accent); }
+.history th { white-space: normal; text-align: center; vertical-align: bottom; cursor: pointer; min-width: 92px; }
+.history th small { display: block; color: var(--muted); font-weight: 400; }
+.history th .now { display: inline-block; background: var(--accent); color: var(--bg); border-radius: 99px; padding: 0 7px; font-size: 11px; margin-top: 2px; }
+.history td { text-align: center; font-variant-numeric: tabular-nums; }
+.history td.base { background: color-mix(in srgb, var(--line) 35%, transparent); }
+.history td.thin { opacity: .72; font-style: italic; }
+.history td:first-child, .history th:first-child { text-align: left; cursor: default; }
+.dist .item { display: grid; grid-template-columns: 70px 1fr 340px; gap: 10px; align-items: center; padding: 3px 0; font-size: 14px; }
+.dist .item.thin { opacity: .5; }
+.dist .track { position: relative; height: 22px; }
+.dist .track .zero { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--muted); }
+.dist .track .range { position: absolute; top: 10px; height: 2px; background: var(--muted); }
+.dist .track .med { position: absolute; top: 5px; height: 12px; width: 4px; border-radius: 2px; background: var(--fg); transform: translateX(-2px); }
+.dist .track .mean { position: absolute; top: 5px; width: 12px; height: 12px; border-radius: 50%; transform: translateX(-6px); border: 2px solid var(--bg); }
+.dist .track .base { position: absolute; top: 5px; width: 12px; height: 12px; border-radius: 50%; transform: translateX(-6px); border: 2px solid var(--muted); background: transparent; }
+.dist small { color: var(--muted); }
 .legend-note { font-size: 12px; color: var(--muted); }
 th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
 
@@ -111,27 +133,64 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
     </section>
     <section>
       <h2>국면 타임라인</h2>
-      <p class="muted">월별로 어떤 국면이었는지 띠로 보여 줍니다. 성장×물가 띠는 CFNAI 최초 발표 이력이 시작되는 2011-06부터 있습니다. 아래 이름을 누르면 해당 국면의 달만 진하게 표시되고, 다음 화면의 과거 성과도 그 국면으로 바뀝니다.</p>
+      <p class="muted">월별 국면과 금리·달러를 한 시간축에 겹쳐 봅니다. "주식시장 하락장"은 SPY(배당 포함)가 직전 고점보다 20% 이상 낮게 마감하면 시작하고, 그 저점에서 20% 이상 오르면 끝나는 통상 기준이며 실물경제와는 별개입니다. 음영은 NBER이 나중에 확정한 공식 침체 기간(사후 판정, 발표까지 보통 수개월~1년 이상 걸림)이고, 마우스를 올리면 그 달의 값이 나옵니다. 성장×물가 띠는 CFNAI 최초 발표 이력이 시작되는 2011-06부터 있습니다. 아래 이름을 누르면 해당 국면이 진하게 표시되고 ② 화면의 과거 성과도 그 국면으로 바뀝니다. 금리 곡선은 0 아래(빨강)가 역전, 주식·채권 상관은 0 위(보라)면 채권이 주식 하락을 헤지하지 못한 때이며, 정책금리와 달러는 시장·월평균 값이며 개정되지 않습니다.</p>
       <div class="chips" id="regime-pick"></div>
       <div class="chart" id="regime-timeline"></div>
+    </section>
+    <section>
+      <h2>선택한 달</h2>
+      <p class="muted">타임라인에서 달을 누르면 고정됩니다(←/→ 키로 한 달씩 이동). 왼쪽은 그 달에 알 수 있던 값, 오른쪽은 그 뒤 실제 결과입니다.</p>
+      <div class="pinbar">
+        <button class="plain" type="button" id="month-prev" aria-label="이전 달">←</button>
+        <b id="month-title"></b>
+        <button class="plain" type="button" id="month-next" aria-label="다음 달">→</button>
+        <button class="plain" type="button" id="month-now">현재로</button>
+        <label class="muted" for="horizon">이후 기간</label>
+        <select id="horizon">
+          <option value="1">1개월</option><option value="3">3개월</option><option value="6" selected>6개월</option>
+          <option value="12">12개월</option><option value="24">24개월</option><option value="36">36개월</option>
+        </select>
+        <label><input type="checkbox" id="similar-toggle"> 비슷했던 달 표시</label>
+      </div>
+      <p class="lead" id="month-headline"></p>
+      <div class="grid2">
+        <div><h3>그때의 상태 <span class="muted">(그 시점에 알 수 있던 값)</span></h3><div class="kv" id="month-state"></div></div>
+        <div><h3>이 달 이후 실제 결과 <span class="muted">(사후, 첫 달=100)</span></h3>
+          <div class="chips" id="after-legend"></div><div class="chart" id="after-chart"></div></div>
+      </div>
+      <p class="note" id="month-similar"></p>
+      <p class="muted">규칙 판단(거시·차트)과 그 결과는 규칙 신호 단계(M6-1) 이후 이 자리에 추가합니다.</p>
     </section>
   </div>
 
   <!-- ===== 국면별 과거 성과 ===== -->
   <div class="panel" id="tab-history" hidden>
     <section>
-      <h2>이 국면에서 자산은 어떻게 움직였나</h2>
-      <p class="muted">고른 국면이 확인된 달의 <b>다음 달</b> 월수익률 평균입니다(그 시점에 알 수 있던 정보만 사용). 과거 평균이며 앞으로를 보장하지 않습니다.</p>
+      <h2>상황별로 자산이 어땠나</h2>
+      <p class="muted">어떤 상황이 확인된 달 말에 자산을 샀다면, 그 뒤 일정 기간 동안 얼마나 올랐거나 내렸는지를 모았습니다. 그 시점에 알 수 있던 정보만으로 상황을 정했고, 과거 기록일 뿐 앞으로를 보장하지 않습니다.</p>
       <div class="row">
-        <div class="seg" id="history-axis" role="group" aria-label="국면 기준"></div>
-        <div class="seg" id="history-label" role="group" aria-label="국면"></div>
+        <span class="muted">상황을 나누는 기준</span>
+        <div class="seg" id="history-axis" role="group" aria-label="상황을 나누는 기준"></div>
       </div>
+      <p class="lead" id="history-now"></p>
       <div class="row">
-        <div class="seg" id="history-sort" role="group" aria-label="정렬"></div>
+        <label class="muted" for="history-horizon">매수 후 보유 기간</label>
+        <select id="history-horizon">
+          <option value="1">1개월</option><option value="3">3개월</option><option value="6" selected>6개월</option><option value="12">12개월</option><option value="24">24개월</option><option value="36">36개월</option>
+        </select>
         <label><input type="checkbox" id="history-all"> 앵커 12개 외 전체 자산</label>
       </div>
+    </section>
+    <section>
+      <h2 id="heat-title"></h2>
+      <p class="muted">칸의 숫자는 그 상황에서 산 뒤 보유 기간이 지난 시점의 평균 누적 수익률입니다. 초록은 평균적으로 오른 곳, 빨강은 내린 곳입니다. "전체 기간"은 상황과 관계없이 늘 샀을 때의 평균이라, 각 칸이 이 기준선보다 얼마나 나은지 비교하세요. 열 이름을 누르면 아래에 분포가 나옵니다.</p>
+      <div class="scroll"><table class="heat history" id="history-heat"></table></div>
+    </section>
+    <section>
+      <h2 id="dist-title"></h2>
+      <p class="muted">가는 선은 가장 나빴던 때부터 가장 좋았던 때까지의 범위(너무 크면 잘라서 그리며 실제 값은 오른쪽 글자), 굵은 막대는 중앙값, 색 점은 평균, 속 빈 동그라미는 전체 기간 평균입니다. 평균 하나만 보면 몇 번의 큰 사건에 좌우된 것을 알 수 없어서 범위를 함께 봅니다.</p>
       <p class="note" id="history-note"></p>
-      <div class="rbars" id="history-bars"></div>
+      <div class="dist" id="history-dist"></div>
       <p class="note" id="history-mine"></p>
     </section>
   </div>
@@ -270,7 +329,7 @@ const D = /*__DATA__*/null;
 <script>
 const RULE_LABEL = {monthly: "월간", quarterly: "분기", band: "밴드 ±5%p"};
 const TABS = [["regime", "① 시장 국면"], ["history", "② 국면별 과거 성과"], ["compare", "③ 전략 비교"], ["lab", "③ 포트폴리오 실험실"], ["assets", "자산·상관"]];
-const state = {rule: D.rules.includes("quarterly") ? "quarterly" : D.rules[0], tab: "compare", hidden: new Set(), sort: null, riskSort: null, more: false, axis: "quadrant", label: null, showAll: false, historySort: "mean"};
+const state = {rule: D.rules.includes("quarterly") ? "quarterly" : D.rules[0], tab: "compare", hidden: new Set(), sort: null, riskSort: null, more: false, axis: "quadrant", label: null, showAll: false, pinned: null, similar: false, horizon: 6};
 const $ = (id) => document.getElementById(id);
 const nf = (digits) => (v) => (v == null ? "–" : v.toFixed(digits));
 const pct = (v) => (v == null ? "–" : (v * 100).toFixed(1) + "%");
@@ -878,22 +937,32 @@ function setupAssets() {
 }
 
 // ---------- 시장 국면 · 국면별 과거 성과 ----------
-const AXES = [["quadrant", "성장×물가"], ["indpro_sahm", "침체 신호"], ["correlation_regime", "주식·채권 상관"]];
+const AXES = [["quadrant", "성장×물가"], ["indpro_sahm", "실물경제 침체 신호"], ["correlation_regime", "주식·채권 상관"]];
 const LABEL_TEXT = {
-  "True": "침체 신호", "False": "신호 없음",
+  "True": "신호 켜짐", "False": "신호 없음",
   growth_up_inflation_up: "성장 ↑ · 물가 ↑", growth_up_inflation_down: "성장 ↑ · 물가 ↓",
   growth_down_inflation_up: "성장 ↓ · 물가 ↑", growth_down_inflation_down: "성장 ↓ · 물가 ↓",
     stock_bond_positive: "주식·채권 동행(+)", stock_bond_negative: "채권이 주식 헤지(−)",
 };
 const rowKey = {quadrant: "quadrant", indpro_sahm: "recession", correlation_regime: "correlation_regime"};
-const MIN_SAMPLE = 12;
+const MIN_INDEPENDENT = 5;
+const HISTORY_AXES = [
+  ["quadrant", "성장×물가"], ["indpro_sahm", "실물경제 침체"], ["bear", "주식시장 하락장"],
+  ["curve", "금리 곡선"], ["correlation_regime", "주식·채권 상관"],
+];
+const HISTORY_LABELS = {
+  bear: {True: "하락장", False: "하락장 아님"},
+  curve: {inverted: "역전", normal: "정상"},
+  indpro_sahm: {True: "침체 신호 켜짐", False: "침체 신호 없음"},
+};
+const histLabel = (axis, key) => (HISTORY_LABELS[axis] && HISTORY_LABELS[axis][key]) || labelText(key);
 const labelText = (key) => LABEL_TEXT[key] || key;
 const rowLabel = (row, axis) => {
   const v = row[rowKey[axis]];
   return v == null ? null : v === true ? "True" : v === false ? "False" : String(v);
 };
 const labelColor = (axis, key) => {
-  const keys = Object.keys(D.regime.performance[axis]).sort();
+  const keys = Object.keys(D.regime.performance.axes[axis]).sort();
   return `var(--c${[3, 4, 5, 7][keys.indexOf(key) % 4]})`;
 };
 function currentRow() { return D.regime.rows[D.regime.rows.length - 1]; }
@@ -905,14 +974,28 @@ function selectRegime(axis, label) {
 
 function renderRegimeTiles() {
   const row = currentRow();
-  $("regime-now").textContent = `${row.month.slice(0, 7)} 월말 기준 — ${row.quadrant ? labelText(row.quadrant) : "성장×물가 판단 불가"}, ${row.recession ? "침체 신호가 켜져 있습니다" : "침체 신호는 없습니다"}.`;
+  $("regime-now").textContent = `${row.month.slice(0, 7)} 월말 기준 — ${row.quadrant ? labelText(row.quadrant) : "성장×물가 판단 불가"}, ${row.recession ? "실물경제 침체 신호가 켜져 있습니다" : "실물경제 침체 신호는 없습니다"}.`;
   const tiles = [
     ["quadrant", row.quadrant, "성장×물가", row.cfnai_ma3 == null ? "" : `CFNAI-MA3 ${dec(row.cfnai_ma3)} (0 이상이면 성장 ↑)`, false],
-    ["indpro_sahm", rowLabel(row, "indpro_sahm"), "침체 신호", `Sahm ${row.sahm == null ? "계산 불가(결측)" : dec(row.sahm) + "%p (0.5 이상이면 신호)"} · 산업생산 전년비 ${spct(row.indpro_yoy)}`, row.recession === true],
+    ["indpro_sahm", rowLabel(row, "indpro_sahm"), "실물경제 침체 신호", `실물경제 기준(주식시장 하락과 다름): 산업생산 전년비 < 0 그리고 Sahm(실업률) ≥ 0.5%p. 지금 Sahm ${row.sahm == null ? "계산 불가(결측)" : dec(row.sahm) + "%p"} · 산업생산 전년비 ${spct(row.indpro_yoy)}`, row.recession === true],
     ["correlation_regime", row.correlation_regime, "주식·채권 상관", row.stock_bond_correlation == null ? "" : `SPY–IEF 36개월 상관 ${dec(row.stock_bond_correlation)}`, false],
   ];
   const host = $("regime-tiles");
   host.replaceChildren();
+  const m = D.macro && D.macro.latest;
+  if (m) {
+    const sgn = (v, digits, unit) => (v == null ? "–" : (v >= 0 ? "+" : "") + v.toFixed(digits) + unit);
+    const inverted = m.spread_10y3m != null && m.spread_10y3m < 0;
+    for (const [title, value, sub, alert] of [
+      ["금리 곡선(10년−3개월)", m.spread_10y3m == null ? "–" : sgn(m.spread_10y3m, 2, "%p"), `${inverted ? "역전 — 침체 선행 신호로 알려진 상태" : "정상(장기 금리가 더 높음)"} · 10년−2년 ${sgn(m.spread_10y2y, 2, "%p")}`, inverted],
+      ["정책금리(실효)", m.fed_funds == null ? "–" : m.fed_funds.toFixed(2) + "%", `6개월 변화 ${sgn(m.fed_funds_change_6m, 2, "%p")}`, false],
+      ["달러지수(광의)", m.dollar == null ? "–" : m.dollar.toFixed(1), `12개월 변화 ${m.dollar_change_12m == null ? "–" : spct(m.dollar_change_12m)}`, false],
+    ]) {
+      const t = node("div", null, "tile static" + (alert ? " alert" : ""));
+      t.append(node("small", title), node("b", value), node("em", sub));
+      host.appendChild(t);
+    }
+  }
   for (const [axis, label, title, sub, alert] of tiles) {
     const b = node("button", null, "tile" + (alert ? " alert" : ""));
     b.type = "button";
@@ -926,11 +1009,11 @@ function renderRegimePick() {
   const host = $("regime-pick");
   host.replaceChildren();
   for (const [axis, axisName] of AXES) {
-    for (const label of Object.keys(D.regime.performance[axis]).sort()) {
+    for (const label of Object.keys(D.regime.performance.axes[axis]).sort()) {
       const chip = node("button", null, "chip");
       chip.type = "button";
       chip.setAttribute("aria-current", String(axis === state.axis && label === state.label));
-      const sw = node("i", null, "sq"); sw.style.background = labelColor(axis, label);
+      const sw = node("i", null, "sq"); sw.style.background = laneColor(axis, label);
       chip.append(sw, document.createTextNode(`${axisName}: ${labelText(label)}`));
       chip.addEventListener("click", () => selectRegime(axis, label));
       host.appendChild(chip);
@@ -938,112 +1021,428 @@ function renderRegimePick() {
   }
 }
 
+const SHORT = {
+  growth_up_inflation_up: "성장↑ 물가↑", growth_up_inflation_down: "성장↑ 물가↓",
+  growth_down_inflation_up: "성장↓ 물가↑", growth_down_inflation_down: "성장↓ 물가↓",
+  True: "실물 침체", stock_bond_positive: "동행(+)", stock_bond_negative: "헤지(−)",
+};
+const QUAD_COLOR = {
+  growth_up_inflation_down: "#2f8f6b", growth_up_inflation_up: "#c9892b",
+  growth_down_inflation_up: "#c2562f", growth_down_inflation_down: "#3d6fb4",
+};
+const laneColor = (axis, label) => (axis === "bear" ? "#7a1f3d" : axis === "quadrant" ? QUAD_COLOR[label] : axis === "indpro_sahm" ? "#b3402a" : label === "stock_bond_positive" ? "#8a3f9a" : "#4f7f96");
+
+function runs(values) {
+  const out = [];
+  values.forEach((v, i) => {
+    const last = out[out.length - 1];
+    if (last && last.label === v) last.end = i; else out.push({label: v, start: i, end: i});
+  });
+  return out;
+}
+
 function renderRegimeTimeline() {
   renderRegimePick();
   const host = $("regime-timeline");
   host.replaceChildren();
-  const rows = D.regime.rows;
-  const f = frame(host, 150);
-  const bands = [["quadrant", "성장×물가"], ["indpro_sahm", "침체 신호"], ["correlation_regime", "주식·채권"], ["nber", "NBER 침체"]];
-  const left = 78, bandH = 24, gap = 8;
-  const w = (f.width - left - 8) / rows.length;
-  bands.forEach(([axis, name], b) => {
-    const y = 8 + b * (bandH + gap);
-    const t = svgNode("text", {x: left - 6, y: y + bandH / 2 + 4, "text-anchor": "end"});
-    t.textContent = name;
-    f.svg.appendChild(t);
-    rows.forEach((row, i) => {
-      const label = axis === "nber" ? (row.nber ? "True" : null) : rowLabel(row, axis);
-      if (label == null || (axis === "indpro_sahm" && label === "False")) return;
-      const rect = svgNode("rect", {x: left + i * w, y, width: Math.max(w, 1), height: bandH});
-      rect.style.fill = axis === "nber" ? "var(--muted)" : axis === "indpro_sahm" ? "var(--neg)" : labelColor(axis, label);
-      rect.setAttribute("fill-opacity", axis === state.axis && label !== state.label ? 0.2 : 0.9);
-      const title = svgNode("title", {});
-      title.textContent = `${row.month.slice(0, 7)} ${name}: ${labelText(label)}`;
-      rect.appendChild(title);
-      f.svg.appendChild(rect);
-    });
-  });
-  for (const [i, anchor] of [[0, "start"], [rows.length - 1, "end"]]) {
-    const t = svgNode("text", {x: i === 0 ? left : left + rows.length * w, y: 146, "text-anchor": anchor});
-    t.textContent = rows[i].month.slice(0, 7);
-    f.svg.appendChild(t);
+  const rows = D.regime.rows, n = rows.length;
+  const macro = D.macro && D.macro.months.length === n ? D.macro : null;
+  // [이름, 값 배열, 표기, 0선 기준 면적 여부, [0 위 색, 0 아래 색]]
+  const lines = [];
+  if (D.equity && D.equity.bear.length === n) {
+    lines.push(["SPY 고점 대비 낙폭", D.equity.month_end_drawdown, (v) => (v * 100).toFixed(0) + "%", true, ["#888", "#7a1f3d"], D.equity.entry]);
   }
-  f.svg.setAttribute("aria-label", "월별 국면 타임라인");
-  host.appendChild(f.svg);
+  if (rows.some((row) => row.stock_bond_correlation != null)) {
+    lines.push(["SPY–IEF 상관", rows.map((row) => row.stock_bond_correlation), (v) => v.toFixed(2), true, ["#8a3f9a", "#4f7f96"]]);
+  }
+  if (macro) {
+    for (const [id, name, fmt, zero] of [
+      ["T10Y3M", "10년−3개월 금리차", (v) => v.toFixed(2) + "%p", true],
+      ["FEDFUNDS", "정책금리", (v) => v.toFixed(2) + "%", false],
+      ["DTWEXBGS", "달러지수", (v) => v.toFixed(1), false],
+    ]) if (macro.series[id]) lines.push([name, macro.series[id], fmt, zero, ["var(--accent)", "var(--neg)"]]);
+  }
+  const left = 104, right = 64, laneH = 22, lineH = 58, gap = 8, top = 22;
+  const equity = D.equity && D.equity.bear.length === n ? D.equity : null;
+  const lanes = [["quadrant", "성장×물가"], ["indpro_sahm", "실물경제 침체 신호"]];
+  if (equity) lanes.push(["bear", "주식시장 하락장"]);
+  lanes.push(["correlation_regime", "주식·채권 상관"]);
+  const height = top + lanes.length * (laneH + gap) + lines.length * (lineH + gap) + 22;
+  const f = frame(host, height);
+  const w = (f.width - left - right) / n;
+  const X = (i) => left + i * w;
+  const bottom = height - 22;
+  const svg = f.svg;
+  // 연도 격자
+  rows.forEach((row, i) => {
+    const [year, month] = row.month.split("-");
+    if (month !== "01") return;
+    const major = Number(year) % 2 === 1;
+    svg.appendChild(svgNode("line", {x1: X(i), x2: X(i), y1: top - 4, y2: bottom, stroke: "var(--line)", "stroke-dasharray": major ? "" : "2 3"}));
+    if (major) { const t = svgNode("text", {x: X(i) + 2, y: height - 6}); t.textContent = year; svg.appendChild(t); }
+  });
+  // NBER 침체 음영
+  for (const r of runs(rows.map((row) => row.nber)).filter((r) => r.label)) {
+    const shade = svgNode("rect", {x: X(r.start), y: top - 4, width: (r.end - r.start + 1) * w, height: bottom - top + 4, fill: "var(--muted)", "fill-opacity": 0.16});
+    const title = svgNode("title", {}); title.textContent = `NBER 공식 침체(사후 판정) ${rows[r.start].month.slice(0, 7)}~${rows[r.end].month.slice(0, 7)}`;
+    shade.appendChild(title); svg.appendChild(shade);
+    const t = svgNode("text", {x: X(r.start) + 3, y: 12}); t.textContent = "NBER 공식 침체"; svg.appendChild(t);
+  }
+  const laneLabel = (text, y, mid) => {
+    const t = svgNode("text", {x: left - 8, y: y + mid + 4, "text-anchor": "end"}); t.textContent = text; svg.appendChild(t);
+  };
+  // 범주 띠: 같은 국면이 이어진 구간을 한 덩어리로
+  lanes.forEach(([axis, name], k) => {
+    const y = top + k * (laneH + gap);
+    laneLabel(name, y, laneH / 2);
+    const labels = rows.map((row, i) => (axis === "bear" ? (equity.bear[i] === true ? "True" : null) : axis === "indpro_sahm" && row.recession !== true ? null : rowLabel(row, axis)));
+    for (const r of runs(labels).filter((r) => r.label != null)) {
+      const x = X(r.start), width = (r.end - r.start + 1) * w;
+      const dim = axis === state.axis && r.label !== state.label;
+      const rect = svgNode("rect", {x: x + 0.5, y, width: Math.max(width - 1, 1), height: laneH, rx: 4, fill: laneColor(axis, r.label), "fill-opacity": dim ? 0.18 : 0.92});
+      const title = svgNode("title", {}); title.textContent = `${name}: ${axis === "bear" ? "하락장" : labelText(r.label)} (${rows[r.start].month.slice(0, 7)}~${rows[r.end].month.slice(0, 7)}, ${r.end - r.start + 1}개월)`;
+      rect.appendChild(title); svg.appendChild(rect);
+      const text = axis === "bear" ? "하락장" : SHORT[r.label];
+      if (text && width > text.length * 10 + 10) {
+        const t = svgNode("text", {x: x + width / 2, y: y + laneH / 2 + 4, "text-anchor": "middle"});
+        t.setAttribute("style", "fill:#fff;font-size:11px;font-weight:600;pointer-events:none"); t.textContent = text; svg.appendChild(t);
+      }
+    }
+  });
+  // 금리·달러 선
+  lines.forEach(([name, values, fmt, zero, colors, threshold], k) => {
+    const y = top + lanes.length * (laneH + gap) + k * (lineH + gap);
+    const known = values.filter((v) => v != null);
+    if (!known.length) return;
+    let lo = Math.min(...known, zero ? 0 : Infinity), hi = Math.max(...known, zero ? 0 : -Infinity);
+    if (hi - lo < 1e-9) { hi += 1; lo -= 1; }
+    const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+    const Y = (v) => y + lineH * (1 - (v - lo) / (hi - lo));
+    svg.appendChild(svgNode("rect", {x: left, y, width: n * w, height: lineH, fill: "var(--surface)", "fill-opacity": 0.5, rx: 4}));
+    laneLabel(name, y, lineH / 2);
+    for (const [v, dy] of [[hi - pad, 11], [lo + pad, lineH - 4]]) {
+      const t = svgNode("text", {x: left + 4, y: y + dy}); t.setAttribute("style", "font-size:10px;opacity:.75"); t.textContent = fmt(v); svg.appendChild(t);
+    }
+    if (threshold != null) {
+      svg.appendChild(svgNode("line", {x1: left, x2: left + n * w, y1: Y(threshold), y2: Y(threshold), stroke: "#7a1f3d", "stroke-dasharray": "2 3", "stroke-opacity": 0.8}));
+      const t = svgNode("text", {x: left + n * w - 3, y: Y(threshold) - 3, "text-anchor": "end"}); t.setAttribute("style", "font-size:10px;fill:#7a1f3d"); t.textContent = "하락장 진입선 " + fmt(threshold); svg.appendChild(t);
+    }
+    if (zero) {
+      svg.appendChild(svgNode("line", {x1: left, x2: left + n * w, y1: Y(0), y2: Y(0), stroke: "var(--muted)", "stroke-dasharray": "4 3"}));
+      for (const [clip, color] of [[(v) => Math.max(v, 0), colors[0]], [(v) => Math.min(v, 0), colors[1]]]) {
+        let d = "", open = false, lastX = 0;
+        values.forEach((v, i) => {
+          if (v == null) { if (open) { d += `L${lastX},${Y(0)}Z`; open = false; } return; }
+          const x = X(i) + w / 2;
+          if (!open) { d += `M${x},${Y(0)}`; open = true; }
+          d += `L${x},${Y(clip(v))}`; lastX = x;
+        });
+        if (open) d += `L${lastX},${Y(0)}Z`;
+        const area = svgNode("path", {d, "fill-opacity": 0.28}); area.style.fill = color; svg.appendChild(area);
+      }
+    }
+    let d = "", open = false;
+    values.forEach((v, i) => {
+      if (v == null) { open = false; return; }
+      d += `${open ? "L" : "M"}${(X(i) + w / 2).toFixed(1)},${Y(v).toFixed(1)}`; open = true;
+    });
+    const path = svgNode("path", {d, fill: "none", "stroke-width": 1.6, "stroke-linejoin": "round"}); path.style.stroke = "var(--fg)"; svg.appendChild(path);
+    const lastIndex = values.map((v) => v != null).lastIndexOf(true);
+    if (lastIndex >= 0) {
+      svg.appendChild(svgNode("circle", {cx: X(lastIndex) + w / 2, cy: Y(values[lastIndex]), r: 3, fill: "var(--accent)"}));
+      const t = svgNode("text", {x: left + n * w + 6, y: Y(values[lastIndex]) + 4}); t.setAttribute("style", "fill:var(--fg);font-weight:600"); t.textContent = fmt(values[lastIndex]); svg.appendChild(t);
+    }
+  });
+  // 현재 월 표시
+  svg.appendChild(svgNode("line", {x1: X(n - 1) + w / 2, x2: X(n - 1) + w / 2, y1: top - 4, y2: bottom, stroke: "var(--accent)", "stroke-width": 1.5}));
+  const now = svgNode("text", {x: X(n - 1) + w / 2, y: 12, "text-anchor": "end"}); now.setAttribute("style", "fill:var(--accent);font-weight:600"); now.textContent = "현재"; svg.appendChild(now);
+  // 고정한 달과 비슷했던 달
+  if (state.pinned != null) {
+    const px = X(state.pinned) + w / 2;
+    const endIndex = Math.min(state.pinned + state.horizon, n - 1);
+    if (endIndex > state.pinned) {
+      const x0 = X(state.pinned) + w / 2, x1 = X(endIndex) + w;
+      svg.appendChild(svgNode("rect", {x: x0, y: top - 4, width: x1 - x0, height: bottom - top + 4, fill: "var(--accent)", "fill-opacity": 0.09}));
+      svg.appendChild(svgNode("line", {x1: x1, x2: x1, y1: top - 4, y2: bottom, stroke: "var(--accent)", "stroke-opacity": 0.5, "stroke-dasharray": "3 3"}));
+      const span = svgNode("text", {x: Math.min(x1, X(n - 1)) - 3, y: bottom - 4, "text-anchor": "end"});
+      span.setAttribute("style", "fill:var(--accent);font-size:10px;opacity:.9");
+      span.textContent = `이후 ${endIndex - state.pinned}개월` + (endIndex - state.pinned < state.horizon ? ` (선택 ${state.horizon}개월)` : "");
+      svg.appendChild(span);
+    }
+    svg.appendChild(svgNode("rect", {x: X(state.pinned), y: top - 4, width: Math.max(w, 2), height: bottom - top + 4, fill: "var(--accent)", "fill-opacity": 0.18}));
+    svg.appendChild(svgNode("line", {x1: px, x2: px, y1: top - 4, y2: bottom, stroke: "var(--accent)", "stroke-width": 2}));
+    const mark = svgNode("path", {d: `M${px - 5},${top - 12} L${px + 5},${top - 12} L${px},${top - 5} Z`, fill: "var(--accent)"});
+    svg.appendChild(mark);
+    if (state.similar) for (const i of similarMonths(state.pinned)) {
+      svg.appendChild(svgNode("circle", {cx: X(i) + w / 2, cy: top - 8, r: 2.6, fill: "var(--c4)"}));
+    }
+  }
+  // 마우스 위치의 달 정보
+  const cursor = svgNode("line", {y1: top - 4, y2: bottom, stroke: "var(--fg)", "stroke-opacity": 0.5, visibility: "hidden"});
+  svg.appendChild(cursor);
+  const tip = node("div", null, "tip"); tip.hidden = true;
+  const hit = svgNode("rect", {x: left, y: top - 4, width: n * w, height: bottom - top + 4, fill: "transparent"});
+  hit.addEventListener("pointermove", (event) => {
+    const box = svg.getBoundingClientRect();
+    const px = ((event.clientX - box.left) / box.width) * f.width;
+    const i = Math.max(0, Math.min(n - 1, Math.floor((px - left) / w)));
+    const row = rows[i];
+    cursor.setAttribute("x1", X(i) + w / 2); cursor.setAttribute("x2", X(i) + w / 2); cursor.setAttribute("visibility", "visible");
+    const items = [
+      ["성장×물가", row.quadrant ? labelText(row.quadrant) : "판단 불가"],
+      ["실물경제 침체 신호", row.recession == null ? "판단 불가" : row.recession ? "켜짐" : "없음"],
+      ["주식·채권", row.correlation_regime ? labelText(row.correlation_regime) : "–"],
+      ...lines.map(([name, values, fmt]) => [name, values[i] == null ? "–" : fmt(values[i])]),
+      ["주식시장", equity ? (equity.bear[i] ? "하락장" : "–") : "–"],
+      ["NBER 공식(사후)", row.nber ? "침체 기간" : "–"],
+    ];
+    tip.replaceChildren(node("div", row.month.slice(0, 7)));
+    for (const [k, v] of items) { const line = node("div"); line.append(node("span", k), node("span", v)); tip.appendChild(line); }
+    tip.hidden = false;
+    const x = (X(i) + w / 2) * (box.width / f.width);
+    tip.style.left = (x + 14 + 200 > box.width ? Math.max(0, x - 214) : x + 14) + "px";
+  });
+  hit.addEventListener("pointerleave", () => { tip.hidden = true; cursor.setAttribute("visibility", "hidden"); });
+  hit.style.cursor = "pointer";
+  hit.addEventListener("click", (event) => {
+    const box = svg.getBoundingClientRect();
+    const px = ((event.clientX - box.left) / box.width) * f.width;
+    pinMonth(Math.max(0, Math.min(n - 1, Math.floor((px - left) / w))));
+  });
+  svg.appendChild(hit);
+  svg.setAttribute("aria-label", "월별 국면과 금리·달러 타임라인. 달을 누르면 아래에 그 달의 상세가 나옵니다");
+  host.append(svg, tip);
 }
 
+// ---------- 선택한 달 ----------
+const AFTER_ASSETS = ["SPY", "TLT", "GLD", "DBC", "HYG", "BIL"];
+const monthIndex = (row) => D.calendar.indexOf(row.month);
+function pinMonth(i) {
+  state.pinned = Math.max(0, Math.min(D.regime.rows.length - 1, i));
+  renderRegimeTimeline(); renderMonthPanel();
+}
+function similarKey(i) {
+  const row = D.regime.rows[i];
+  if (row.quadrant == null || row.recession == null) return null;
+  const curve = D.macro && D.macro.series.T10Y3M && D.macro.series.T10Y3M[i] != null ? D.macro.series.T10Y3M[i] < 0 : "?";
+  return [row.quadrant, row.recession, curve].join("|");
+}
+function similarMonths(i) {
+  const key = similarKey(i);
+  if (key == null) return [];
+  return D.regime.rows.map((_, j) => j).filter((j) => j !== i && similarKey(j) === key);
+}
+function forwardReturn(ticker, start, months) {
+  let level = 1;
+  for (let k = 1; k <= months; k++) {
+    const r = D.returns[ticker][start + k];
+    if (start + k >= D.calendar.length || r == null) return null;
+    level *= 1 + r;
+  }
+  return level - 1;
+}
+function renderMonthPanel() {
+  if (!D.regime) return;
+  const rows = D.regime.rows, i = state.pinned == null ? rows.length - 1 : state.pinned, row = rows[i];
+  const idx = monthIndex(row);
+  $("month-title").textContent = row.month.slice(0, 7) + " 월말" + (i === rows.length - 1 ? " (현재)" : "");
+  $("month-prev").disabled = i === 0; $("month-next").disabled = i === rows.length - 1;
+  const m = D.macro;
+  const at = (id, k = 0) => (m && m.series[id] && i - k >= 0 ? m.series[id][i - k] : null);
+  const curve = at("T10Y3M"), fed = at("FEDFUNDS"), fed6 = at("FEDFUNDS", 6), usd = at("DTWEXBGS"), usd12 = at("DTWEXBGS", 12);
+  const quad = row.quadrant ? labelText(row.quadrant) : "성장×물가 판단 불가(2011-06 이전)";
+  $("month-headline").textContent = `${quad}, ${row.recession == null ? "실물경제 침체 신호 판단 불가" : row.recession ? "실물경제 침체 신호 켜짐" : "실물경제 침체 신호 없음"}${curve == null ? "" : curve < 0 ? ", 금리 곡선 역전" : ", 금리 곡선 정상"}.`;
+  const kv = [
+    ["성장×물가", quad], ["실물경제 침체 신호", row.recession == null ? "판단 불가" : row.recession ? "켜짐" : "없음"],
+    ["Sahm 지표", row.sahm == null ? "–" : dec(row.sahm) + "%p"], ["산업생산 전년비", spct(row.indpro_yoy)],
+    ["CFNAI-MA3", row.cfnai_ma3 == null ? "–" : dec(row.cfnai_ma3)],
+    ["주식·채권 상관", row.correlation_regime ? labelText(row.correlation_regime) + (row.stock_bond_correlation == null ? "" : ` (${dec(row.stock_bond_correlation)})`) : "–"],
+    ["10년−3개월 금리차", curve == null ? "–" : curve.toFixed(2) + "%p"],
+    ["정책금리", fed == null ? "–" : fed.toFixed(2) + "%" + (fed6 == null ? "" : ` (6개월 ${fed - fed6 >= 0 ? "+" : ""}${(fed - fed6).toFixed(2)}%p)`)],
+    ["달러지수", usd == null ? "–" : usd.toFixed(1) + (usd12 ? ` (12개월 ${spct(usd / usd12 - 1)})` : "")],
+    ["주식시장(SPY)", D.equity && D.equity.bear[i] != null ? `${D.equity.bear[i] ? "하락장" : "하락장 아님"} · 직전 고점 대비 ${(D.equity.month_end_drawdown[i] * 100).toFixed(1)}%` : "–"],
+    ["NBER 공식 판정(사후)", row.nber ? "침체 기간" : "–"],
+  ];
+  const host = $("month-state");
+  host.replaceChildren();
+  for (const [k, v] of kv) host.append(node("span", k), node("span", v));
+  renderAfter(idx);
+  renderSimilar(i);
+}
+function renderAfter(idx) {
+  const tickers = AFTER_ASSETS.filter((t) => D.returns[t]);
+  const available = Math.min(state.horizon, D.calendar.length - 1 - idx);
+  const chart = $("after-chart"), legend = $("after-legend");
+  chart.replaceChildren(); legend.replaceChildren();
+  if (idx < 0 || available < 1) { chart.appendChild(node("p", "이 달 뒤의 수익률이 아직 없습니다.", "muted")); return; }
+  const labels = ["기준", ...Array.from({length: available}, (_, k) => `+${k + 1}개월`)];
+  const series = tickers.map((t) => {
+    const values = [100];
+    for (let k = 1; k <= available; k++) {
+      const r = D.returns[t][idx + k];
+      values.push(r == null || values[k - 1] == null ? null : values[k - 1] * (1 + r));
+    }
+    return {name: t, color: assetColors[t], values};
+  });
+  for (const s of series) {
+    const end = s.values[s.values.length - 1];
+    const chip = node("span", null, "chip");
+    const sw = node("i"); sw.style.background = s.color;
+    chip.append(sw, document.createTextNode(`${s.name} ${end == null ? "–" : spct(end / 100 - 1)}`));
+    legend.appendChild(chip);
+  }
+  legend.appendChild(node("span", `${available}개월 경과` + (available < state.horizon ? ` (선택한 ${state.horizon}개월 미만)` : ""), "legend-note"));
+  lineChart(chart, labels, series, {height: 240, tick: (v) => String(Math.round(v)), fmt: (v) => spct(v / 100 - 1), label: "선택한 달 이후 자산군 누적 수익률"});
+}
+function renderSimilar(i) {
+  const note = $("month-similar");
+  note.hidden = !state.similar;
+  if (!state.similar) return;
+  const row = D.regime.rows[i];
+  if (similarKey(i) == null) { note.textContent = "성장×물가나 실물경제 침체 신호를 판단할 수 없는 달은 비슷한 달을 찾지 않습니다."; return; }
+  const matches = similarMonths(i);
+  const usable = matches.map((j) => monthIndex(D.regime.rows[j])).filter((idx) => idx >= 0);
+  const label = `같은 상태(성장×물가·실물경제 침체 신호·금리 곡선 역전 여부)였던 다른 달은 ${matches.length}개월입니다(타임라인의 주황 점).`;
+  const cells = AFTER_ASSETS.filter((t) => D.returns[t]).map((t) => {
+    const values = usable.map((idx) => forwardReturn(t, idx, state.horizon)).filter((v) => v != null);
+    return values.length >= 3 ? `${t} ${spct(values.reduce((a, b) => a + b, 0) / values.length)}(${values.length}개월)` : null;
+  }).filter(Boolean);
+  note.textContent = label + (cells.length ? ` 그 달들의 다음 ${state.horizon}개월 평균 수익률: ${cells.join(", ")}. 달 수가 적고 서로 이어진 달이 많아 우연의 영향이 큽니다.` : ` ${state.horizon}개월 수익률을 낼 수 있는 달이 3개월 미만이라 평균을 숨깁니다.`);
+}
+
+function currentLabel(axis) {
+  const n = D.regime.rows.length;
+  if (axis === "bear") { const v = D.equity && D.equity.bear[n - 1]; return v == null ? null : v ? "True" : "False"; }
+  if (axis === "curve") { const v = D.macro && D.macro.series.T10Y3M && D.macro.series.T10Y3M[n - 1]; return v == null ? null : v < 0 ? "inverted" : "normal"; }
+  return rowLabel(currentRow(), axis);
+}
+function setHorizon(h) {
+  state.horizon = h;
+  $("horizon").value = String(h); $("history-horizon").value = String(h);
+  renderRegimeTimeline(); renderMonthPanel(); renderHistory();
+}
+const heatColor = (v, top) => {
+  const a = Math.min(Math.abs(v) / top, 1) * 0.55;
+  return `color-mix(in srgb, ${v >= 0 ? "var(--pos)" : "var(--neg)"} ${Math.round(a * 100)}%, transparent)`;
+};
+
 function renderHistory() {
-  const perf = D.regime.performance;
-  const labels = Object.keys(perf[state.axis]).sort();
-  if (!labels.includes(state.label)) state.label = labels.includes(String(currentLabel(state.axis))) ? String(currentLabel(state.axis)) : labels[0];
+  const perf = D.regime.performance, h = String(state.horizon);
+  const axes = HISTORY_AXES.filter(([id]) => perf.axes[id]);
+  if (!axes.some(([id]) => id === state.axis)) state.axis = axes[0][0];
+  const labels = Object.keys(perf.axes[state.axis]).sort();
+  const now = currentLabel(state.axis);
+  if (!labels.includes(state.label)) state.label = labels.includes(now) ? now : labels[0];
+  const axisName = axes.find(([id]) => id === state.axis)[1];
+
   const axisHost = $("history-axis");
   axisHost.replaceChildren();
-  for (const [axis, name] of AXES) {
+  for (const [id, name] of axes) {
     const b = node("button", name); b.type = "button";
-    b.setAttribute("aria-pressed", String(axis === state.axis));
-    b.addEventListener("click", () => { state.axis = axis; state.label = null; renderHistory(); });
+    b.setAttribute("aria-pressed", String(id === state.axis));
+    b.addEventListener("click", () => { state.axis = id; state.label = null; renderHistory(); });
     axisHost.appendChild(b);
   }
-  const labelHost = $("history-label");
-  labelHost.replaceChildren();
-  for (const label of labels) {
-    const b = node("button", `${labelText(label)} (${perf[state.axis][label].months}개월)`); b.type = "button";
-    b.setAttribute("aria-pressed", String(label === state.label));
-    b.addEventListener("click", () => { state.label = label; renderHistory(); });
-    labelHost.appendChild(b);
-  }
-  const sortHost = $("history-sort");
-  sortHost.replaceChildren();
-  for (const [key, name] of [["mean", "평균 월수익순"], ["hit_rate", "오른 달 비율순"]]) {
-    const b = node("button", name); b.type = "button";
-    b.setAttribute("aria-pressed", String(key === state.historySort));
-    b.addEventListener("click", () => { state.historySort = key; renderHistory(); });
-    sortHost.appendChild(b);
-  }
-  const cell = perf[state.axis][state.label];
-  const first = D.regime.rows[0].month.slice(0, 7), last = D.regime.rows[D.regime.rows.length - 1].month.slice(0, 7);
-  $("history-note").textContent = `${AXES.find((a) => a[0] === state.axis)[1]}: ${labelText(state.label)} — 확인된 ${cell.months}개월(${first}~${last} 중). ` +
-    (cell.months < MIN_SAMPLE ? "표본이 12개월 미만이라 우연의 영향이 큽니다. " : "") +
-    "국면은 소수의 사건에 몰려 있을 수 있어 평균이 한두 사건에 좌우될 수 있습니다. 흐린 줄은 표본 12개월 미만 자산입니다.";
+  $("history-now").textContent = now == null
+    ? `${axisName}: 지금은 판단할 수 없습니다.`
+    : `지금(${currentRow().month.slice(0, 7)})은 "${histLabel(state.axis, now)}" 상황입니다. 아래 표에서 "지금" 표시가 붙은 열이 같은 상황이었던 과거 기록입니다.`;
+
+  // 히트맵: 행=자산, 열=전체 기간 + 상황별
   const anchors = new Set(D.assets.filter((a) => a.anchor).map((a) => a.ticker));
-  const entries = Object.entries(cell.assets).filter(([t]) => state.showAll || anchors.has(t))
-    .sort((a, b) => b[1][state.historySort] - a[1][state.historySort]);
-  const top = Math.max(...entries.map(([, v]) => Math.abs(v.mean)), 1e-9);
-  const host = $("history-bars");
+  const tickers = Object.keys(perf.all.assets).filter((t) => state.showAll || anchors.has(t));
+  const statOf = (cell, t) => (cell.assets[t] && cell.assets[t][h]) || null;
+  const selected = perf.axes[state.axis][state.label];
+  tickers.sort((a, b) => ((statOf(selected, b) || {mean: -9}).mean) - ((statOf(selected, a) || {mean: -9}).mean));
+  const cols = [["all", "전체 기간", perf.all, true], ...labels.map((l) => [l, histLabel(state.axis, l), perf.axes[state.axis][l], false])];
+  let top = 0.01;
+  for (const [, , cell] of cols) for (const t of tickers) { const st = statOf(cell, t); if (st) top = Math.max(top, Math.abs(st.mean)); }
+  $("heat-title").textContent = `${axisName}별 매수 후 ${state.horizon}개월 평균 수익률`;
+  const table = $("history-heat");
+  table.replaceChildren();
+  const head = table.createTHead().insertRow();
+  head.appendChild(node("th", "자산"));
+  for (const [key, name, cell, base] of cols) {
+    const th = node("th");
+    th.append(document.createTextNode(name), node("small", `${cell.months}개월`));
+    if (!base && key === now) th.appendChild(node("span", "지금", "now"));
+    if (!base) { th.tabIndex = 0; th.addEventListener("click", () => { state.label = key; renderHistory(); }); th.addEventListener("keydown", (e) => { if (e.key === "Enter") { state.label = key; renderHistory(); } }); }
+    if (key === state.label && !base) th.classList.add("sel");
+    head.appendChild(th);
+  }
+  const body = table.createTBody();
+  for (const t of tickers) {
+    const tr = body.insertRow();
+    const name = tr.insertCell(); name.textContent = t; name.title = (assetOf[t] || {}).name || "";
+    for (const [key, label, cell, base] of cols) {
+      const td = tr.insertCell();
+      const st = statOf(cell, t);
+      if (base) td.classList.add("base");
+      if (!st) { td.textContent = "–"; continue; }
+      td.textContent = spct(st.mean);
+      td.style.background = heatColor(st.mean, top);
+      if (st.independent < MIN_INDEPENDENT && !base) td.classList.add("thin");
+      if (key === state.label && !base) td.classList.add("sel");
+      td.title = `${t} · ${label}: 평균 ${spct(st.mean)}, 중앙값 ${spct(st.median)}, 범위 ${spct(st.min)} ~ ${spct(st.max)}, 오른 비율 ${Math.round(st.hit_rate * 100)}%, 표본 ${st.n}개월(서로 겹치지 않는 표본 약 ${st.independent}개)`;
+    }
+  }
+
+  // 분포: 선택한 상황
+  $("dist-title").textContent = `"${histLabel(state.axis, state.label)}" 상황에서 산 뒤 ${state.horizon}개월 결과의 분포`;
+  const rowsData = tickers.map((t) => [t, statOf(selected, t), statOf(perf.all, t)]).filter(([, st]) => st);
+  // 극단값 하나가 축을 늘리지 않도록 평균 크기의 2.5배(최소 ±20%)까지만 그린다. 실제 범위는 오른쪽 글자에 있다.
+  const limit = Math.max(0.2, 2.5 * Math.max(...rowsData.map(([, st]) => Math.abs(st.mean)), 0));
+  const lo = Math.max(Math.min(...rowsData.map(([, st]) => st.min), 0), -limit), hi = Math.min(Math.max(...rowsData.map(([, st]) => st.max), 0), limit);
+  const pos = (v) => (Math.min(Math.max(v, lo), hi) - lo) / (hi - lo || 1) * 100;
+  const typical = rowsData.length ? rowsData[0][1] : null;
+  $("history-note").textContent = `이 상황이었던 달은 ${selected.months}개월입니다. 연달아 이어진 달의 ${state.horizon}개월 결과는 서로 많이 겹쳐서 실제로 독립적인 표본은 약 ${typical ? typical.independent : 0}개뿐입니다. ` +
+    (typical && typical.independent < MIN_INDEPENDENT ? "표본이 5개 미만이라 우연의 영향이 큽니다(흐리게 표시). " : "") +
+    "과거에 몇 번 일어난 일을 모은 것이라, 같은 상황이 와도 같은 결과가 나온다는 뜻이 아닙니다.";
+  const host = $("history-dist");
   host.replaceChildren();
-  for (const [ticker, v] of entries) {
-    const row = node("div", null, "item" + (v.months < MIN_SAMPLE ? " partial" : ""));
-    const name = node("span", ticker); name.title = (assetOf[ticker] || {}).name || "";
-    const track = node("div", null, "zero");
-    const bar = node("i");
-    const width = (Math.abs(v.mean) / top) * 50;
-    bar.style.width = width + "%";
-    bar.style.left = v.mean >= 0 ? "50%" : (50 - width) + "%";
-    bar.style.background = v.mean >= 0 ? "var(--pos)" : "var(--neg)";
-    track.appendChild(bar);
-    row.append(name, track, node("small", `${spct(v.mean)} · 오른 달 ${Math.round(v.hit_rate * 100)}% · ${v.months}개월`));
-    host.appendChild(row);
+  for (const [t, st, base] of rowsData) {
+    const item = node("div", null, "item" + (st.independent < MIN_INDEPENDENT ? " thin" : ""));
+    const label = node("span", t); label.title = (assetOf[t] || {}).name || "";
+    const track = node("div", null, "track");
+    const zero = node("div", null, "zero"); zero.style.left = pos(0) + "%";
+    const range = node("div", null, "range"); range.style.left = pos(st.min) + "%"; range.style.width = (pos(st.max) - pos(st.min)) + "%";
+    const med = node("div", null, "med"); med.style.left = pos(st.median) + "%";
+    const mean = node("div", null, "mean"); mean.style.left = pos(st.mean) + "%"; mean.style.background = st.mean >= 0 ? "var(--pos)" : "var(--neg)";
+    track.append(zero, range, med, mean);
+    if (base) { const b = node("div", null, "base"); b.style.left = pos(base.mean) + "%"; track.appendChild(b); }
+    item.append(label, track, node("small", `평균 ${spct(st.mean)} · 오른 비율 ${Math.round(st.hit_rate * 100)}% · 범위 ${spct(st.min)}~${spct(st.max)}`));
+    host.appendChild(item);
   }
   const total = totalWeight();
   const mine = $("history-mine");
   if (total > 0) {
     let used = 0, sum = 0;
     for (const [t, w] of Object.entries(lab.weights)) {
-      if (w > 0 && cell.assets[t]) { used += w; sum += w * cell.assets[t].mean; }
+      const st = w > 0 ? statOf(selected, t) : null;
+      if (st) { used += w; sum += w * st.mean; }
     }
-    mine.textContent = used > 0 ? `실험실에서 만든 비중으로는 이 국면 다음 달 평균 월수익이 약 ${spct(sum / used)}였습니다(매달 같은 비중으로 리밸런싱한 경우의 단순 가중평균${used < total - 1e-9 ? ", 데이터가 없는 자산 제외" : ""}).` : "";
+    mine.textContent = used > 0 ? `실험실에서 만든 비중으로 이 상황에서 사서 ${state.horizon}개월 그대로 들고 있었다면 평균 약 ${spct(sum / used)}였습니다(리밸런싱 없는 단순 가중평균${used < total - 1e-9 ? ", 데이터가 없는 자산 제외" : ""}).` : "";
   } else {
-    mine.textContent = "③ 포트폴리오 실험실에서 비중을 만들면 이 국면에서 그 비중이 어땠는지도 여기에 표시됩니다.";
+    mine.textContent = "③ 포트폴리오 실험실에서 비중을 만들면 이 상황에서 그 비중이 어땠는지도 여기에 표시됩니다.";
   }
   renderRegimePick();
 }
-function currentLabel(axis) { return rowLabel(currentRow(), axis); }
 
 function setupRegime() {
   if (!D.regime) return;
-  state.label = currentLabel("quadrant") || Object.keys(D.regime.performance.quadrant).sort()[0];
+  state.label = currentLabel("quadrant") || Object.keys(D.regime.performance.axes.quadrant).sort()[0];
   $("history-all").addEventListener("change", (e) => { state.showAll = e.target.checked; renderHistory(); });
+  $("history-horizon").addEventListener("change", (e) => { e.target.blur(); setHorizon(Number(e.target.value)); });
+  state.pinned = D.regime.rows.length - 1;
+  $("month-prev").addEventListener("click", () => pinMonth(state.pinned - 1));
+  $("month-next").addEventListener("click", () => pinMonth(state.pinned + 1));
+  $("month-now").addEventListener("click", () => pinMonth(D.regime.rows.length - 1));
+  $("horizon").addEventListener("change", (e) => { e.target.blur(); setHorizon(Number(e.target.value)); });
+  $("similar-toggle").addEventListener("change", (e) => { state.similar = e.target.checked; renderRegimeTimeline(); renderMonthPanel(); });
+  document.addEventListener("keydown", (event) => {
+    if (state.tab !== "regime" || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+    if (event.key === "ArrowLeft") { event.preventDefault(); pinMonth(state.pinned - 1); }
+    if (event.key === "ArrowRight") { event.preventDefault(); pinMonth(state.pinned + 1); }
+  });
 }
 function renderRegimeTabs() {
   for (const id of ["regime", "history"]) {
@@ -1052,7 +1451,7 @@ function renderRegimeTabs() {
     panel.replaceChildren(node("p", "국면 데이터가 없습니다. asset-frame ingest-fred로 거시 시리즈를 받은 뒤 asset-frame dashboard를 다시 실행하세요.", "note"));
   }
   if (!D.regime) return;
-  renderRegimeTiles(); renderRegimeTimeline(); renderHistory();
+  renderRegimeTiles(); renderRegimeTimeline(); renderMonthPanel(); renderHistory();
 }
 
 // ---------- 공통 ----------
