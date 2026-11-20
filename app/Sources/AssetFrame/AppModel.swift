@@ -10,6 +10,7 @@ final class AppModel: ObservableObject {
     @Published var error: String?
     @Published var loadedAt: Date?
     @Published var webReloadToken = 0
+    @Published var screen: Screen = Screen.initial
 
     func load() {
         guard let location else { return }

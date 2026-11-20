@@ -155,3 +155,12 @@ status = "implemented"
 module = "asset_frame.prediction.scoring"
 tests = ["tests/test_prediction.py"]
 card = "docs/concepts/prediction_scoring.md"
+
+[[concepts]]
+id = "regime_performance"
+name = "국면별 과거 성과"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.regime.performance"
+tests = ["tests/test_regime_performance.py", "tests/test_dashboard.py"]
+card = "docs/concepts/regime_performance.md"

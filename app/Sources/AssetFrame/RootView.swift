@@ -1,39 +1,69 @@
 import SwiftUI
 
-enum Section: String, CaseIterable, Identifiable {
-    case overview = "개요"
-    case dashboard = "대시보드"
+enum Screen: String, CaseIterable, Identifiable {
+    case home = "홈"
+    case regime = "① 시장 국면"
+    case history = "② 국면별 과거 성과"
+    case compare = "③ 전략 비교"
+    case lab = "③ 포트폴리오 실험실"
     case ledger = "원장"
     case data = "데이터"
 
     var id: String { rawValue }
-    /// ASSET_FRAME_SECTION=개요|대시보드|원장|데이터 picks the first screen (used to check each screen).
-    static var initial: Section {
-        ProcessInfo.processInfo.environment["ASSET_FRAME_SECTION"].flatMap(Section.init(rawValue:)) ?? .overview
+    /// Name of the dashboard tab this screen shows; nil for native screens.
+    var webTab: String? {
+        switch self {
+        case .regime: "regime"
+        case .history: "history"
+        case .compare: "compare"
+        case .lab: "lab"
+        default: nil
+        }
+    }
+    static let analysis: [Screen] = [.regime, .history, .compare, .lab]
+    static let records: [Screen] = [.ledger, .data]
+    /// ASSET_FRAME_SECTION=<screen title> picks the first screen (used to check each screen).
+    static var initial: Screen {
+        ProcessInfo.processInfo.environment["ASSET_FRAME_SECTION"].flatMap(Screen.init(rawValue:)) ?? .home
     }
     var icon: String {
         switch self {
-        case .overview: "gauge.with.dots.needle.33percent"
-        case .dashboard: "chart.xyaxis.line"
+        case .home: "house"
+        case .regime: "globe.asia.australia"
+        case .history: "clock.arrow.circlepath"
+        case .compare: "chart.xyaxis.line"
+        case .lab: "slider.horizontal.3"
         case .ledger: "list.bullet.rectangle"
         case .data: "externaldrive"
         }
     }
+    /// ⌘1…⌘7 in sidebar order.
+    var shortcut: KeyEquivalent { KeyEquivalent(Character(String(Screen.sidebarOrder.firstIndex(of: self)! + 1))) }
+    static let sidebarOrder: [Screen] = [.home] + analysis + records
 }
 
 struct RootView: View {
     @EnvironmentObject var model: AppModel
-    @State private var selection: Section? = Section.initial
 
     var body: some View {
         if model.location == nil {
             ChooseProjectView()
         } else {
             NavigationSplitView {
-                List(Section.allCases, selection: $selection) { section in
-                    Label(section.rawValue, systemImage: section.icon).tag(section)
+                List(selection: $model.screen) {
+                    Label(Screen.home.rawValue, systemImage: Screen.home.icon).tag(Screen.home)
+                    SwiftUI.Section("분석 흐름") {
+                        ForEach(Screen.analysis) { screen in
+                            Label(screen.rawValue, systemImage: screen.icon).tag(screen)
+                        }
+                    }
+                    SwiftUI.Section("기록") {
+                        ForEach(Screen.records) { screen in
+                            Label(screen.rawValue, systemImage: screen.icon).tag(screen)
+                        }
+                    }
                 }
-                .navigationSplitViewColumnWidth(min: 150, ideal: 170)
+                .navigationSplitViewColumnWidth(min: 190, ideal: 210)
             } detail: {
                 VStack(spacing: 0) {
                     if let message = model.error {
@@ -43,9 +73,9 @@ struct RootView: View {
                             .padding(10)
                             .background(.red.opacity(0.1))
                     }
-                    switch selection ?? .overview {
-                    case .overview: OverviewView()
-                    case .dashboard: DashboardView()
+                    switch model.screen {
+                    case .home: OverviewView()
+                    case .regime, .history, .compare, .lab: DashboardView(tab: model.screen.webTab ?? "regime")
                     case .ledger: LedgerView()
                     case .data: DataView()
                     }
