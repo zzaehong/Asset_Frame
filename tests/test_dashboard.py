@@ -210,3 +210,44 @@ def test_payload_macro_section_follows_the_regime_months() -> None:
     assert macro["months"] == [row.month_end.isoformat() for row in rows]
     assert macro["series"]["T10Y3M"][0] == 0.5
     assert build_payload(result, analysis, **kwargs)["macro"] is None
+
+
+def test_payload_equity_section_flags_a_bear_market_from_levels() -> None:
+    from asset_frame.regime.replay import RegimeRow
+
+    result, analysis, returns, calendar = make_inputs()
+    rows = [
+        RegimeRow(
+            month_end=calendar[i],
+            sahm=None,
+            indpro_yoy=None,
+            cfnai_ma3=None,
+            indpro_sahm=False,
+            cfnai_sahm=None,
+            quadrant=None,
+            stock_bond_correlation=None,
+            correlation_regime=None,
+            nber_recession=False,
+        )
+        for i in range(2)
+    ]
+    levels = [
+        (date(2000, 1, 3), 100.0),
+        (calendar[0], 100.0),
+        (date(2000, 2, 10), 70.0),
+        (calendar[1], 75.0),
+    ]
+    kwargs = dict(
+        universe=UNIVERSE,
+        strategies=STRATEGIES,
+        returns=returns,
+        proxy_months={},
+        cash_ticker="BIL",
+        generated_on=date(2026, 1, 1),
+        regime_rows=rows,
+    )
+
+    equity = build_payload(result, analysis, equity_levels=levels, **kwargs)["equity"]
+
+    assert equity["bear"] == [False, True]
+    assert build_payload(result, analysis, **kwargs)["equity"] is None

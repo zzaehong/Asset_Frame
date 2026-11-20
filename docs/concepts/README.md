@@ -26,6 +26,7 @@
 | `mean_variance` | 평균-분산(최소분산 포트폴리오) | 분산투자기법 | [mean_variance.md](mean_variance.md) |
 | `macro_first_release` | 거시 지표의 최초 발표값 | 거시경제분석 | [macro_first_release.md](macro_first_release.md) |
 | `regime_rules` | 경기 국면 규칙 | 거시경제분석 | [regime_rules.md](regime_rules.md) |
+| `equity_bear_market` | 주식시장 하락장 | 투자운용결과분석 | [equity_bear_market.md](equity_bear_market.md) |
 | `macro_market_context` | 금리·달러 맥락 | 거시경제분석 | [macro_market_context.md](macro_market_context.md) |
 | `regime_performance` | 국면별 과거 성과 | 투자운용결과분석 | [regime_performance.md](regime_performance.md) |
 | `prediction_scoring` | 예측과 채점 | 투자운용결과분석 | [prediction_scoring.md](prediction_scoring.md) |

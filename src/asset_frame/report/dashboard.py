@@ -15,6 +15,7 @@ from asset_frame.backtest.engine import CALC_VERSION as BACKTEST_CALC_VERSION
 from asset_frame.backtest.engine import RULES
 from asset_frame.backtest.jobs import CRISIS_WINDOWS, BacktestResult, window_stat
 from asset_frame.backtest.strategies import Strategy
+from asset_frame.regime.equity import bear_state
 from asset_frame.regime.market import market_context
 from asset_frame.regime.performance import CALC_VERSION as REGIME_PERFORMANCE_VERSION
 from asset_frame.regime.performance import regime_performance
@@ -41,6 +42,7 @@ def build_payload(
     generated_on: date,
     regime_rows: Sequence[RegimeRow] = (),
     macro_points: Mapping[str, Sequence[tuple[date, float | None]]] | None = None,
+    equity_levels: Sequence[tuple[date, float]] = (),
 ) -> dict:
     strategy_ids = [s.id for s in strategies]
     anchors = [a.ticker for a in universe if a.level == 1 and a.role == "anchor"]
@@ -165,6 +167,9 @@ def build_payload(
         "regime": _regime_payload(
             regime_rows, {t: returns[t] for t in tickers_in(universe, returns)}
         ),
+        "equity": bear_state(equity_levels, [row.month_end for row in regime_rows])
+        if regime_rows
+        else None,
         "macro": market_context(macro_points or {}, [row.month_end for row in regime_rows]),
         "definitions": {
             s.id: {
