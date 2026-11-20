@@ -27,9 +27,17 @@ from asset_frame.prediction.jobs import (
     score_due,
     scoreboard,
 )
-from asset_frame.regime.jobs import record_regime, run_regime
-from asset_frame.regime.market import MAX_AGE_DAYS as MARKET_SERIES
-from asset_frame.report.dashboard import build_payload, render_dashboard
+from asset_frame.proxies import ProxySpec, load_proxies, proxy_universe
+from asset_frame.proxy_jobs import build_proxy_returns, spliced_levels
+from asset_frame.regime.jobs import (
+    first_release_series,
+    record_regime,
+    run_regime,
+    run_regime_long,
+)
+from asset_frame.regime.market import EXTENSION_SERIES, MAX_AGE_DAYS
+from asset_frame.regime.replay import ip_quadrants
+from asset_frame.report.dashboard import LongContext, build_payload, render_dashboard
 from asset_frame.returns.series import total_return_index
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.backup import backup
@@ -50,6 +58,8 @@ SOURCES_PATH = Path("config/sources.toml")
 UNIVERSE_PATH = Path("config/universe.toml")
 REPORT_DIR = Path("var/reports")
 STRATEGIES_PATH = Path("config/strategies.toml")
+PROXIES_PATH = Path("config/proxies.toml")
+MARKET_INPUT_SERIES = (*MAX_AGE_DAYS, *EXTENSION_SERIES)
 STATUS_CSV_PATH = REPORT_DIR / "universe_status.csv"
 DEFAULT_DATABASE_PATH = "var/asset_frame.sqlite3"
 DEFAULT_RAW_STORE_PATH = "var/raw"
@@ -96,6 +106,17 @@ def main(argv: list[str] | None = None) -> None:
     universe_commands.add_parser("verify", help="compare inception dates with Tiingo data")
     universe_commands.add_parser("status", help="print per-ticker data status")
     universe_commands.add_parser("analyze", help="risk table and 36-month correlation matrix")
+
+    proxy_ingest_parser = subparsers.add_parser(
+        "ingest-proxies",
+        help="collect Tiingo history for the proxy funds in config/proxies.toml",
+    )
+    proxy_ingest_parser.add_argument(
+        "--end-date", type=date.fromisoformat, default=datetime.now(UTC).date()
+    )
+    proxy_ingest_parser.add_argument(
+        "--min-interval-seconds", type=float, default=TIINGO_STARTER_INTERVAL_SECONDS
+    )
 
     fred_parser = subparsers.add_parser("ingest-fred", help="collect a FRED series")
     fred_parser.add_argument("--series", required=True, choices=SUPPORTED_SERIES)
@@ -144,6 +165,8 @@ def main(argv: list[str] | None = None) -> None:
         _ingest_krx(arguments.dataset, arguments.date)
     elif arguments.command == "ingest-universe":
         _ingest_universe(arguments.end_date, arguments.min_interval_seconds, arguments.full)
+    elif arguments.command == "ingest-proxies":
+        _ingest_proxies(arguments.end_date, arguments.min_interval_seconds)
     elif arguments.command == "universe" and arguments.universe_command == "verify":
         _verify_universe()
     elif arguments.command == "universe" and arguments.universe_command == "analyze":
@@ -235,6 +258,33 @@ def _ingest_universe(end_date: date, min_interval_seconds: float, full: bool) ->
     )
     if result.failed:
         raise SystemExit("rerun the same command to resume failed tickers")
+
+
+def _ingest_proxies(end_date: date, min_interval_seconds: float) -> None:
+    api_key = _required_environment("TIINGO_API_KEY")
+    collector = TiingoEodCollector(
+        source=_source(TIINGO_SOURCE_ID),
+        transport=RateLimitedRetryTransport(
+            UrllibHttpTransport(), minimum_interval_seconds=min_interval_seconds
+        ),
+        raw_store=_raw_store(),
+        repository=_repository(),
+    )
+    specs = load_proxies(PROXIES_PATH, load_universe(UNIVERSE_PATH))
+    result = ingest_universe(
+        proxy_universe(specs),
+        collector=collector,
+        store=_research_store(),
+        api_key=api_key,
+        end_date=end_date,
+        asset_type=AssetType.MUTUAL_FUND,
+    )
+    print(
+        f"proxy ingest through {end_date}: {len(result.collected)} collected, "
+        f"{len(result.skipped)} already done, {len(result.failed)} failed"
+    )
+    if result.failed:
+        raise SystemExit("rerun the same command to resume failed funds")
 
 
 def _verify_universe() -> None:
@@ -396,11 +446,33 @@ def _dashboard() -> None:
     returns = _float_returns(store)
     cash_ticker = _cash_ticker(universe)
     months, _ = store.latest_build()
+    specs = load_proxies(PROXIES_PATH, universe)
+    macro_points = {
+        series_id: [
+            (p.observation_date, None if p.value is None else float(p.value))
+            for p in store.macro_points(series_id)
+        ]
+        for series_id in MARKET_INPUT_SERIES
+    }
     try:
         regime_rows, _ = run_regime(store)
+        quadrants_ip = ip_quadrants(first_release_series(store), [r.month_end for r in regime_rows])
     except SystemExit as error:
         print(f"regime section skipped: {error}")
-        regime_rows = ()
+        regime_rows, quadrants_ip = (), None
+    long_context = None
+    if regime_rows:
+        try:
+            long_rows, long_ip, long_returns = run_regime_long(store)
+            long_context = LongContext(
+                long_rows,
+                long_ip,
+                long_returns,
+                spliced_levels(specs, store=store, ticker="SPY"),
+                macro_points,
+            )
+        except SystemExit as error:
+            print(f"long-history section skipped: {error}")
     payload = build_payload(
         run_backtest(strategies, returns, cash_ticker=cash_ticker),
         analyze_universe(universe, store=store),
@@ -411,19 +483,43 @@ def _dashboard() -> None:
         cash_ticker=cash_ticker,
         generated_on=datetime.now(UTC).date(),
         regime_rows=regime_rows,
+        quadrants_ip=quadrants_ip,
         equity_levels=[
             (point.trading_date, float(point.level))
             for point in total_return_index(store.price_points(tiingo_asset_id("SPY")))
         ],
-        macro_points={
-            series_id: [
-                (p.observation_date, None if p.value is None else float(p.value))
-                for p in store.macro_points(series_id)
-            ]
-            for series_id in MARKET_SERIES
-        },
+        macro_points=macro_points,
+        long_context=long_context,
+        proxies=_proxy_summary(store, specs),
     )
     _write_report("dashboard.html", render_dashboard(payload))
+
+
+def _proxy_summary(store: ResearchStore, specs: tuple[ProxySpec, ...]) -> list[dict]:
+    proxy_months = store.latest_proxy_returns()
+    name_of = {spec.target: spec.name for spec in specs}
+    summary = []
+    for row in store.latest_proxy_checks():
+        months = sorted(proxy_months.get(row.ticker, {}))
+        summary.append(
+            {
+                "ticker": row.ticker,
+                "proxy": row.proxy_ticker,
+                "name": name_of.get(row.ticker, ""),
+                "fidelity": row.fidelity,
+                "used": row.used,
+                "reason": row.reason,
+                "overlap_months": row.overlap_months,
+                "correlation": None if row.correlation is None else round(row.correlation, 3),
+                "tracking_difference": None
+                if row.annual_tracking_difference is None
+                else round(row.annual_tracking_difference, 4),
+                "first_month": months[0].isoformat() if months else None,
+                "last_month": months[-1].isoformat() if months else None,
+                "months": len(months),
+            }
+        )
+    return summary
 
 
 def _write_report(name: str, html: str) -> None:
@@ -469,6 +565,33 @@ def _build_returns() -> None:
         print(f"{ticker}: not built ({reason})")
     if not any(item.is_proxy for items in result.returns.values() for item in items):
         print("no DTB3 cash proxy months: run `asset-frame ingest-fred --series DTB3` first")
+    _build_proxy_returns()
+
+
+def _build_proxy_returns() -> None:
+    specs = load_proxies(PROXIES_PATH, load_universe(UNIVERSE_PATH))
+    store = _research_store()
+    returns, checks, calc_version = build_proxy_returns(specs, store=store)
+    store.save_proxy_build(
+        returns,
+        checks,
+        proxy_by_target={spec.target: (spec.proxy, spec.fidelity) for spec in specs},
+        calc_version=calc_version,
+    )
+    months = sum(len(items) for items in returns.values())
+    print(f"built {months} proxy months for {len(returns)} of {len(specs)} targets")
+    for row in checks:
+        correlation = "-" if row.correlation is None else f"{row.correlation:.3f}"
+        tracking = (
+            "-"
+            if row.annual_tracking_difference is None
+            else f"{row.annual_tracking_difference:+.2%}"
+        )
+        verdict = "USED" if row.used else f"not used: {row.reason}"
+        print(
+            f"  {row.ticker:<5} <- {row.proxy_ticker:<6} {row.fidelity:<6} "
+            f"overlap {row.overlap_months:>3} corr {correlation} tracking {tracking}/yr {verdict}"
+        )
 
 
 def _cell(value: object) -> str:

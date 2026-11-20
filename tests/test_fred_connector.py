@@ -52,7 +52,7 @@ def test_request_targets_official_endpoint_and_only_approved_series() -> None:
         build_observations_request("GDP", "secret")
 
 
-@pytest.mark.parametrize("series_id", ["T10Y3M", "T10Y2Y", "FEDFUNDS", "DTWEXBGS"])
+@pytest.mark.parametrize("series_id", ["T10Y3M", "T10Y2Y", "FEDFUNDS", "DTWEXBGS", "DTWEXM"])
 def test_market_rate_series_are_approved_and_read_at_the_current_vintage(series_id: str) -> None:
     url = build_observations_request(series_id, "secret").url
 

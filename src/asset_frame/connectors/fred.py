@@ -14,7 +14,7 @@ FRED_OBSERVATIONS_URL = "https://api.stlouisfed.org/fred/series/observations"
 # not revise, FEDFUNDS is a monthly average of the policy rate, and USREC is NBER dating used only
 # to score: all of these are read at the current vintage.
 FIRST_RELEASE_SERIES = ("INDPRO", "CFNAIMA3", "UNRATE", "CPIAUCSL")
-RATE_SERIES = ("DTB3", "T10Y3M", "T10Y2Y", "FEDFUNDS", "DTWEXBGS")
+RATE_SERIES = ("DTB3", "T10Y3M", "T10Y2Y", "FEDFUNDS", "DTWEXBGS", "DTWEXM")
 SUPPORTED_SERIES = (*RATE_SERIES, *FIRST_RELEASE_SERIES, "USREC")
 _EARLIEST_REALTIME = "1776-07-04"  # FRED's documented lower bound for realtime_start
 _LATEST_REALTIME = "9999-12-31"

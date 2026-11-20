@@ -182,3 +182,12 @@ status = "implemented"
 module = "asset_frame.regime.equity"
 tests = ["tests/test_regime_equity.py", "tests/test_dashboard.py"]
 card = "docs/concepts/equity_bear_market.md"
+
+[[concepts]]
+id = "proxy_history"
+name = "대용 펀드 이력"
+domain = "데이터품질"
+status = "implemented"
+module = "asset_frame.returns.proxy"
+tests = ["tests/test_proxy.py", "tests/test_proxies_config.py"]
+card = "docs/concepts/proxy_history.md"
