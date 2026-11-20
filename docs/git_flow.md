@@ -195,6 +195,7 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 uv run asset-frame sources
+(cd app && swift test)   # app/을 바꿨을 때
 ```
 
 실제 API 호출 확인은 위 회귀 테스트와 별도로 수행하고, 운영 DB가 아닌 임시 `DATABASE_PATH`·`RAW_STORE_PATH`를 사용한다.

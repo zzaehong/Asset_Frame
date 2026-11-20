@@ -14,3 +14,10 @@ kind = "development"
 official_docs = "https://docs.astral.sh/ruff/"
 changelog = "https://github.com/astral-sh/ruff/releases"
 source_repository = "https://github.com/astral-sh/ruff"
+
+[[dependencies]]
+distribution = "swift"
+kind = "development"
+official_docs = "https://www.swift.org/documentation/"
+changelog = "https://github.com/swiftlang/swift/blob/main/CHANGELOG.md"
+source_repository = "https://github.com/swiftlang/swift"

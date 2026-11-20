@@ -6,3 +6,7 @@ __pycache__/
 .ruff_cache/
 var/
 .DS_Store
+
+# Swift app build output
+app/.build/
+app/build/
