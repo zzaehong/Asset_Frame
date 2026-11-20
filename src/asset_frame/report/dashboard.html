@@ -116,7 +116,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
     </section>
     <section>
       <h2>국면 타임라인</h2>
-      <p class="muted">월별 국면과 금리·달러를 한 시간축에 겹쳐 봅니다. 음영은 NBER 침체이고, 마우스를 올리면 그 달의 값이 나옵니다. 성장×물가 띠는 CFNAI 최초 발표 이력이 시작되는 2011-06부터 있습니다. 아래 이름을 누르면 해당 국면이 진하게 표시되고 ② 화면의 과거 성과도 그 국면으로 바뀝니다. 금리 곡선은 0 아래(빨강)가 역전, 정책금리와 달러는 시장·월평균 값이며 개정되지 않습니다.</p>
+      <p class="muted">월별 국면과 금리·달러를 한 시간축에 겹쳐 봅니다. 음영은 NBER 침체이고, 마우스를 올리면 그 달의 값이 나옵니다. 성장×물가 띠는 CFNAI 최초 발표 이력이 시작되는 2011-06부터 있습니다. 아래 이름을 누르면 해당 국면이 진하게 표시되고 ② 화면의 과거 성과도 그 국면으로 바뀝니다. 금리 곡선은 0 아래(빨강)가 역전, 주식·채권 상관은 0 위(보라)면 채권이 주식 하락을 헤지하지 못한 때이며, 정책금리와 달러는 시장·월평균 값이며 개정되지 않습니다.</p>
       <div class="chips" id="regime-pick"></div>
       <div class="chart" id="regime-timeline"></div>
     </section>
@@ -937,7 +937,7 @@ function renderRegimeTiles() {
   $("regime-now").textContent = `${row.month.slice(0, 7)} 월말 기준 — ${row.quadrant ? labelText(row.quadrant) : "성장×물가 판단 불가"}, ${row.recession ? "침체 신호가 켜져 있습니다" : "침체 신호는 없습니다"}.`;
   const tiles = [
     ["quadrant", row.quadrant, "성장×물가", row.cfnai_ma3 == null ? "" : `CFNAI-MA3 ${dec(row.cfnai_ma3)} (0 이상이면 성장 ↑)`, false],
-    ["indpro_sahm", rowLabel(row, "indpro_sahm"), "침체 신호", `Sahm ${row.sahm == null ? "계산 불가(결측)" : dec(row.sahm) + "%p (0.5 이상이면 신호)"} · 산업생산 전년비 ${spct(row.indpro_yoy)}`, row.recession === true],
+    ["indpro_sahm", rowLabel(row, "indpro_sahm"), "침체 신호", `규칙: 산업생산 전년비 < 0 그리고 Sahm ≥ 0.5%p. 지금 Sahm ${row.sahm == null ? "계산 불가(결측)" : dec(row.sahm) + "%p"} · 산업생산 전년비 ${spct(row.indpro_yoy)}`, row.recession === true],
     ["correlation_regime", row.correlation_regime, "주식·채권 상관", row.stock_bond_correlation == null ? "" : `SPY–IEF 36개월 상관 ${dec(row.stock_bond_correlation)}`, false],
   ];
   const host = $("regime-tiles");
@@ -1007,11 +1007,18 @@ function renderRegimeTimeline() {
   host.replaceChildren();
   const rows = D.regime.rows, n = rows.length;
   const macro = D.macro && D.macro.months.length === n ? D.macro : null;
-  const lines = macro ? [
-    ["T10Y3M", "10년−3개월 금리차", (v) => v.toFixed(2) + "%p", true],
-    ["FEDFUNDS", "정책금리", (v) => v.toFixed(2) + "%", false],
-    ["DTWEXBGS", "달러지수", (v) => v.toFixed(1), false],
-  ].filter(([id]) => macro.series[id]) : [];
+  // [이름, 값 배열, 표기, 0선 기준 면적 여부, [0 위 색, 0 아래 색]]
+  const lines = [];
+  if (rows.some((row) => row.stock_bond_correlation != null)) {
+    lines.push(["SPY–IEF 상관", rows.map((row) => row.stock_bond_correlation), (v) => v.toFixed(2), true, ["#8a3f9a", "#4f7f96"]]);
+  }
+  if (macro) {
+    for (const [id, name, fmt, zero] of [
+      ["T10Y3M", "10년−3개월 금리차", (v) => v.toFixed(2) + "%p", true],
+      ["FEDFUNDS", "정책금리", (v) => v.toFixed(2) + "%", false],
+      ["DTWEXBGS", "달러지수", (v) => v.toFixed(1), false],
+    ]) if (macro.series[id]) lines.push([name, macro.series[id], fmt, zero, ["var(--accent)", "var(--neg)"]]);
+  }
   const left = 104, right = 64, laneH = 22, lineH = 58, gap = 8, top = 22;
   const lanes = [["quadrant", "성장×물가"], ["indpro_sahm", "침체 신호"], ["correlation_regime", "주식·채권 상관"]];
   const height = top + lanes.length * (laneH + gap) + lines.length * (lineH + gap) + 22;
@@ -1057,9 +1064,8 @@ function renderRegimeTimeline() {
     }
   });
   // 금리·달러 선
-  lines.forEach(([id, name, fmt, zero], k) => {
+  lines.forEach(([name, values, fmt, zero, colors], k) => {
     const y = top + lanes.length * (laneH + gap) + k * (lineH + gap);
-    const values = macro.series[id];
     const known = values.filter((v) => v != null);
     if (!known.length) return;
     let lo = Math.min(...known, zero ? 0 : Infinity), hi = Math.max(...known, zero ? 0 : -Infinity);
@@ -1073,7 +1079,7 @@ function renderRegimeTimeline() {
     }
     if (zero) {
       svg.appendChild(svgNode("line", {x1: left, x2: left + n * w, y1: Y(0), y2: Y(0), stroke: "var(--muted)", "stroke-dasharray": "4 3"}));
-      for (const [clip, color] of [[(v) => Math.max(v, 0), "var(--accent)"], [(v) => Math.min(v, 0), "var(--neg)"]]) {
+      for (const [clip, color] of [[(v) => Math.max(v, 0), colors[0]], [(v) => Math.min(v, 0), colors[1]]]) {
         let d = "", open = false, lastX = 0;
         values.forEach((v, i) => {
           if (v == null) { if (open) { d += `L${lastX},${Y(0)}Z`; open = false; } return; }
@@ -1136,7 +1142,7 @@ function renderRegimeTimeline() {
       ["성장×물가", row.quadrant ? labelText(row.quadrant) : "판단 불가"],
       ["침체 신호", row.recession == null ? "판단 불가" : row.recession ? "켜짐" : "없음"],
       ["주식·채권", row.correlation_regime ? labelText(row.correlation_regime) : "–"],
-      ...lines.map(([id, name, fmt]) => [name, macro.series[id][i] == null ? "–" : fmt(macro.series[id][i])]),
+      ...lines.map(([name, values, fmt]) => [name, values[i] == null ? "–" : fmt(values[i])]),
       ["NBER", row.nber ? "침체" : "–"],
     ];
     tip.replaceChildren(node("div", row.month.slice(0, 7)));
