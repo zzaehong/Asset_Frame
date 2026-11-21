@@ -24,6 +24,7 @@
 | M8 | 개별주 차트 분석([ADR-0010](adr/0010-stock-watchlist-chart-analysis.md), 계획): ① 관찰 목록 확정·수집(후보 `config/stock_candidates.toml` → 사용자 선택 `config/stocks.toml`) ② 4단계 차트 판단(추세·강도·과열·거래량) 규칙 확정·구현 ③ ETF를 배분 보조 정보(추세 필터·상대강도·낙폭 경고)로 전환 | PRD 개정·ADR 작성(2026-11-22). M8-1 수집 선택 화면·`ingest-stocks` 구현(종목 선택·수집 대기) |
 | M8-1b | API 키를 앱에서 macOS 키체인에 저장([ADR-0011](adr/0011-api-keys-in-macos-keychain.md)): 앱 "API 키" 화면(저장·교체·삭제, 값 비표시), CLI는 환경변수 → 키체인 순으로 조회 | 완료(2026-11-22, 병합 대기) |
 | M9 | 자동 갱신([ADR-0012](adr/0012-scheduled-update.md)): `asset-frame update`(FRED·ETF·개별주 → 수익률 → 월말 국면 기록 → 대시보드 → 백업, 실패 시 원장 기록 건너뜀), `schedule install`로 launchd 매일 07:30 등록(이 Mac에 등록함, 2026-11-22) | 완료(2026-11-22, 병합 대기) |
+| M8-1c | 앱에서 개별주 선택 저장·지금 수집([ADR-0013](adr/0013-app-saves-stock-selection-and-starts-collection.md)): 앱이 stocks.toml만 쓰고 `update --steps stocks,dashboard`를 자식 프로세스로 실행(로그 파일, 잠금 확인, 중단) | 완료(2026-11-22, 병합 대기) |
 | M7-3 | Mac 앱을 일반 앱처럼 실행: `build_app.sh --install`이 ~/Applications에 설치하고, 빌드 때 저장소 경로를 앱에 넣어 환경변수 없이 열린다 | 완료(2026-11-21) |
 | M7-1 | 포트폴리오 실험실 비중 화면 개편: 자산별 슬라이더+숫자칸, 현재 구성 막대, 분류 묶음(주식·채권·회사채·금·원자재·현금), 자산 31종 한 줄 설명, 세분 자산 접기, 비중 합 100% 상한(넘기면 나머지 비율대로 축소)과 남은 비중 표시 | 완료(2026-11-21) |
 | M7-2 | 자산별 배당수익률(`dividend_yield` 카드): 최근 12개월 분배금÷기준일 종가를 `dividends` payload로 만들어 실험실 자산 행에 표시. 분할 보정·중복 배당락일 처리. 백테스트 입력은 아님 | 완료(2026-11-21) |

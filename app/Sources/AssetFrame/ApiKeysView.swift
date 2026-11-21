@@ -39,7 +39,7 @@ struct ApiKeysView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("• 터미널이 키체인 키를 처음 읽을 때 접근 허용 창이 뜨면 \"항상 허용\"을 누르세요.")
                         Text("• 앱을 다시 빌드하면 서명이 바뀌어 이 화면에서 키를 바꿀 때 로그인 암호를 물을 수 있습니다.")
-                        Text("• 앱은 수집을 실행하지 않습니다. 수집은 터미널의 asset-frame 명령으로 합니다.")
+                        Text("• 수집은 asset-frame 명령이 합니다. 앱은 개별주 선택 화면의 \"지금 수집\"으로만 시작합니다.")
                         Text("• Linux·WSL에서는 키체인이 없으니 환경변수(.env)를 쓰세요.")
                     }.font(.callout).foregroundStyle(.secondary)
                 }

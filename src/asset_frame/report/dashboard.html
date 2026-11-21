@@ -89,6 +89,7 @@ body.wide main { max-width: 1560px; }
 .stkrow .etfs { color:var(--muted); font-size:12px; } .stkrow .state { font-size:12px; color:var(--muted); text-align:right; } .stkrow .state.done { color:var(--pos); }
 #stk-toml { width:100%; box-sizing:border-box; font:13px/1.5 ui-monospace, Menlo, monospace; background:var(--surface); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:8px; }
 #stk-filter { min-width:220px; }
+#stk-log { max-height:220px; overflow:auto; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:8px; font:12px/1.5 ui-monospace, Menlo, monospace; white-space:pre-wrap; }
 .warns { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
 .warns .w { border:1px solid var(--line); border-radius:8px; padding:6px 10px; background:var(--surface); font-size:14px; }
 .warns .w.warn { border-color:var(--neg); color:var(--neg); font-weight:600; } .warns .w.na { color:var(--muted); }
@@ -371,7 +372,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
   <div class="panel" id="tab-stocks" hidden>
     <section>
       <h2>수집할 개별주 고르기</h2>
-      <p class="muted">추적 중인 ETF의 큰 보유 종목 후보입니다. 보유 관계는 근사값이니 ETF 운용사 사이트에서 직접 확인하세요. 개별주는 차트 분석에만 쓰고 전략·백테스트·원장에는 쓰지 않습니다. 이 화면은 파일을 쓰거나 수집을 실행하지 않고, 고른 내용을 <b>config/stocks.toml</b> 텍스트로 만들어 줍니다. 수집은 그 파일을 읽는 명령이 합니다.</p>
+      <p class="muted">추적 중인 ETF의 큰 보유 종목 후보입니다. 보유 관계는 근사값이니 ETF 운용사 사이트에서 직접 확인하세요. 개별주는 차트 분석에만 쓰고 전략·백테스트·원장에는 쓰지 않습니다. 고른 내용은 <b>config/stocks.toml</b>에 저장되고, 수집은 그 파일을 읽는 명령(<code>asset-frame update</code>)이 합니다. Mac 앱에서는 아래 버튼으로 저장·수집하고, 브라우저에서는 저장할 텍스트를 만들어 줍니다.</p>
       <div class="row">
         <b id="stk-count"></b><span class="muted" id="stk-cost"></span>
       </div>
@@ -386,6 +387,17 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
     </section>
     <section>
       <h2>저장하고 수집하기</h2>
+      <div id="stk-app" hidden>
+        <div class="row">
+          <button class="plain" type="button" id="stk-app-save">선택 저장</button>
+          <button type="button" id="stk-app-collect">저장하고 지금 수집</button>
+          <button class="plain" type="button" id="stk-app-cancel" hidden>수집 중단</button>
+        </div>
+        <p class="note" id="stk-app-note" hidden></p>
+        <pre id="stk-log" hidden></pre>
+        <p class="muted">저장만 해도 매일 07:30 자동 갱신(<code>schedule install</code>로 등록한 경우)이 새 종목을 받습니다. 지금 수집은 시간당 50요청 제한 때문에 처음에는 2시간 넘게 걸릴 수 있고, 앱을 닫아도 계속됩니다. 이미 갱신이 돌고 있으면 시작하지 않습니다.</p>
+      </div>
+      <details id="stk-manual"><summary>터미널로 직접 하려면</summary>
       <ol>
         <li>아래 내용을 <b>config/stocks.toml</b>에 저장합니다(복사해서 붙여 넣거나 파일로 저장).</li>
         <li>터미널에서 <code>uv run asset-frame ingest-stocks</code> — 선택한 종목만 받습니다. 제한 시간당 50요청 때문에 느리고, 끊기면 같은 명령으로 이어집니다.</li>
@@ -397,6 +409,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
         <span class="muted" id="stk-copy-note"></span>
       </div>
       <textarea id="stk-toml" readonly rows="10" aria-label="stocks.toml 내용"></textarea>
+      </details>
     </section>
   </div>
 
@@ -1843,7 +1856,9 @@ function renderMacroJudge() {
 
 // ---------- 공통 ----------
 // ---------- 개별주 선택 ----------
-const STK = {selected: null, filter: ""};
+const STK = {selected: null, filter: "", picked: [], running: false, poll: null};
+// Only the Mac app injects this; in a browser the page keeps the copy-and-save flow (ADR-0013).
+const BRIDGE = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.assetFrame;
 const STK_DRAFT = "asset_frame_stock_selection";
 function stockInfo() { return D.stocks && D.stocks.candidates ? D.stocks : null; }
 function stkLoad() {
@@ -1867,6 +1882,15 @@ function renderStocks() {
     $("stk-reset").addEventListener("click", () => { STK.selected = new Set(info.selected); stkSave(); renderStocks(); });
     $("stk-copy").addEventListener("click", stkCopy);
     $("stk-save").addEventListener("click", stkDownload);
+    if (BRIDGE) {
+      $("stk-app").hidden = false;
+      $("stk-app-save").addEventListener("click", () => stkSend("save"));
+      $("stk-app-collect").addEventListener("click", () => stkSend("collect"));
+      $("stk-app-cancel").addEventListener("click", () => stkSend("cancel"));
+      stkSend("status");
+    } else {
+      $("stk-manual").open = true;
+    }
   }
   host.replaceChildren();
   const match = (c) => !STK.filter || `${c.ticker} ${c.name} ${c.sector} ${c.etfs.join(" ")}`.toLowerCase().includes(STK.filter);
@@ -1893,6 +1917,7 @@ function renderStocks() {
     }
   }
   const picked = stkOrder(info);
+  STK.picked = picked;
   const pending = picked.filter((t) => !info.candidates.find((c) => c.ticker === t).collected_through);
   const over = picked.length > info.limit;
   $("stk-count").textContent = `선택 ${picked.length} / 최대 ${info.limit}` + (over ? " — 한도 초과" : "");
@@ -1908,7 +1933,33 @@ function renderStocks() {
   diff.textContent = `설정 파일(config/stocks.toml)과 다릅니다. 추가 ${added.length}${added.length ? " (" + added.join(", ") + ")" : ""}, 제외 ${removed.length}${removed.length ? " (" + removed.join(", ") + ")" : ""}. 아래 내용을 저장해야 반영됩니다. 제외한 종목의 이미 받은 데이터는 지워지지 않고 갱신만 멈춥니다.`;
   $("stk-toml").value = over ? "선택이 한도를 넘었습니다. 종목을 줄이세요." : Engine.stocksToml(picked);
   $("stk-copy").disabled = $("stk-save").disabled = over;
+  if (BRIDGE) {
+    $("stk-app-save").disabled = over || STK.running;
+    $("stk-app-collect").disabled = over || STK.running || !picked.length;
+  }
 }
+function stkSend(action) { BRIDGE.postMessage({action, tickers: STK.picked}); }
+// Called by the Mac app with {kind, message, running, own, lines, exitCode?}.
+window.stocksEvent = (e) => {
+  const info = stockInfo();
+  const was = STK.running;
+  STK.running = !!e.running;
+  const note = $("stk-app-note"), log = $("stk-log");
+  let text = e.message || "";
+  if (!e.running && e.exitCode != null && e.kind === "progress") text = e.exitCode === 0 ? "마지막 수집: 성공" : `마지막 수집: 실패(종료 코드 ${e.exitCode}) — 아래 로그를 확인하세요.`;
+  if (e.running) text = (text ? text + " " : "") + (e.own ? "수집 중입니다." : "다른 갱신이 실행 중입니다(스케줄 또는 이전 실행).");
+  note.textContent = text;
+  note.hidden = !text;
+  note.style.color = e.kind === "error" || (!e.running && e.exitCode > 0) ? "var(--neg)" : "";
+  log.hidden = !(e.lines && e.lines.length);
+  log.textContent = (e.lines || []).join("\n");
+  log.scrollTop = log.scrollHeight;
+  $("stk-app-cancel").hidden = !(e.running && e.own);
+  if (e.kind === "saved" || e.kind === "started") { info.selected = [...STK.picked]; }
+  if (e.running && !STK.poll) STK.poll = setInterval(() => stkSend("status"), 3000);
+  if (!e.running && STK.poll) { clearInterval(STK.poll); STK.poll = null; }
+  if (e.kind === "saved" || e.kind === "started" || was !== STK.running) renderStocks();
+};
 function stkCopy() {
   const area = $("stk-toml"), note = $("stk-copy-note");
   const done = () => { note.textContent = "복사했습니다"; };
