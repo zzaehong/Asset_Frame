@@ -8,6 +8,7 @@ from dataclasses import astuple, fields
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from asset_frame import schedule as launchd_schedule
 from asset_frame.analytics.dividend import trailing_dividend_yield
 from asset_frame.analytics.risk import WINDOW_MONTHS
 from asset_frame.backtest.engine import CALC_VERSION as BACKTEST_CALC_VERSION
@@ -65,6 +66,16 @@ from asset_frame.universe_jobs import (
     build_returns,
     universe_status,
     verify_universe,
+)
+from asset_frame.update import (
+    AlreadyRunning,
+    Step,
+    UpdateLock,
+    load_env_file,
+    notify_failure,
+    run_steps,
+    select_steps,
+    summary,
 )
 
 SOURCES_PATH = Path("config/sources.toml")
@@ -187,6 +198,29 @@ def main(argv: list[str] | None = None) -> None:
         "signal-scoreboard", help="hit rates of the chart signal and macro suggestion"
     )
     subparsers.add_parser("backup", help="copy the database and raw files to BACKUP_PATH")
+
+    update_parser = subparsers.add_parser(
+        "update", help="refresh everything: FRED, prices, returns, regime record, dashboard, backup"
+    )
+    update_parser.add_argument(
+        "--steps", help=f"comma-separated subset of: {', '.join(UPDATE_STEP_NAMES)}"
+    )
+    update_parser.add_argument("--dry-run", action="store_true", help="list the steps and stop")
+    update_parser.add_argument(
+        "--end-date", type=date.fromisoformat, default=datetime.now(UTC).date()
+    )
+    update_parser.add_argument(
+        "--min-interval-seconds", type=float, default=TIINGO_STARTER_INTERVAL_SECONDS
+    )
+    schedule_parser = subparsers.add_parser(
+        "schedule", help="daily update through macOS launchd (install, uninstall, status)"
+    )
+    schedule_commands = schedule_parser.add_subparsers(dest="schedule_command", required=True)
+    install_parser = schedule_commands.add_parser("install", help="register the daily update")
+    install_parser.add_argument("--hour", type=int, default=7)
+    install_parser.add_argument("--minute", type=int, default=30)
+    schedule_commands.add_parser("uninstall", help="unload and remove the daily update")
+    schedule_commands.add_parser("status", help="show whether the daily update is registered")
     backtest_parser = subparsers.add_parser(
         "backtest", help="compare strategies under three rebalancing rules"
     )
@@ -207,6 +241,10 @@ def main(argv: list[str] | None = None) -> None:
         _ingest_universe(arguments.end_date, arguments.min_interval_seconds, arguments.full)
     elif arguments.command == "ingest-proxies":
         _ingest_proxies(arguments.end_date, arguments.min_interval_seconds)
+    elif arguments.command == "update":
+        _update(arguments)
+    elif arguments.command == "schedule":
+        _schedule(arguments)
     elif arguments.command == "ingest-stocks":
         _ingest_stocks(arguments.end_date, arguments.min_interval_seconds)
     elif arguments.command == "universe" and arguments.universe_command == "verify":
@@ -327,6 +365,98 @@ def _ingest_proxies(end_date: date, min_interval_seconds: float) -> None:
     )
     if result.failed:
         raise SystemExit("rerun the same command to resume failed funds")
+
+
+UPDATE_STEP_NAMES = (
+    "fred",
+    "universe",
+    "stocks",
+    "build-returns",
+    "record-regime",
+    "dashboard",
+    "backup",
+)
+
+
+def _ingest_all_fred() -> None:
+    failures = []
+    for series_id in SUPPORTED_SERIES:
+        try:
+            _ingest_fred(series_id)
+        except (Exception, SystemExit) as error:  # noqa: BLE001 - keep going with the other series
+            failures.append(f"{series_id}: {error}")
+    if failures:
+        raise SystemExit("; ".join(failures))
+
+
+def _ingest_stocks_if_selected(end_date: date, min_interval_seconds: float) -> None:
+    if _selected_stocks():
+        _ingest_stocks(end_date, min_interval_seconds)
+    else:
+        print("no stocks selected: nothing to collect")
+
+
+def _record_regime_live() -> None:
+    rows, _ = run_regime(_research_store())
+    appended, skipped = record_regime(LedgerStore(_database_path()), rows, replay_all=False)
+    print(f"regime record: appended {appended}, already in ledger {skipped}")
+
+
+def _update_steps(end_date: date, min_interval_seconds: float) -> list[Step]:
+    return [
+        Step("fred", "collect", _ingest_all_fred),
+        Step(
+            "universe", "collect", lambda: _ingest_universe(end_date, min_interval_seconds, False)
+        ),
+        Step(
+            "stocks", "collect", lambda: _ingest_stocks_if_selected(end_date, min_interval_seconds)
+        ),
+        Step("build-returns", "derive", _build_returns),
+        Step("record-regime", "ledger", _record_regime_live),
+        Step("dashboard", "derive", _dashboard),
+        Step("backup", "backup", _backup),
+    ]
+
+
+def _update(arguments: argparse.Namespace) -> None:
+    load_env_file(Path(".env"))  # a scheduled run has no shell environment; names only, no values
+    steps = _update_steps(arguments.end_date, arguments.min_interval_seconds)
+    try:
+        chosen = select_steps(
+            steps, [s.strip() for s in arguments.steps.split(",")] if arguments.steps else None
+        )
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
+    if arguments.dry_run:
+        for step in chosen:
+            print(f"{step.name} ({step.group})")
+        return
+    try:
+        with UpdateLock(_database_path().parent / "update.lock"):
+            results = run_steps(chosen)
+    except AlreadyRunning as error:
+        print(error)
+        return
+    print(summary(results))
+    failed = [r.name for r in results if r.status == "failed"]
+    if failed:
+        notify_failure(failed)
+        raise SystemExit(1)
+
+
+def _schedule(arguments: argparse.Namespace) -> None:
+    command = arguments.schedule_command
+    try:
+        if command == "install":
+            path = launchd_schedule.install(Path.cwd(), arguments.hour, arguments.minute)
+            print(f"registered {path}\ndaily at {arguments.hour:02d}:{arguments.minute:02d}")
+        elif command == "uninstall":
+            print("removed" if launchd_schedule.uninstall() else "was not installed")
+        else:
+            for key, value in launchd_schedule.status().items():
+                print(f"{key}: {value}")
+    except launchd_schedule.ScheduleError as error:
+        raise SystemExit(str(error)) from error
 
 
 def _selected_stocks() -> tuple:
