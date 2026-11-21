@@ -243,7 +243,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
   <div class="panel" id="tab-lab" hidden>
     <section>
       <h2>내 포트폴리오 만들기</h2>
-      <p class="muted">자산 슬라이더를 움직여 비중을 정하면 아래 결과가 바로 바뀝니다. 위 막대가 현재 구성이고, 합은 100%를 넘을 수 없고, 100% 미만이면 비율로 환산해 계산합니다. 시작은 위 "불러오기"에서 기존 전략을 고르는 게 가장 쉽습니다. 현금(BIL)도 다른 자산과 똑같이 고를 수 있습니다. 편입 규칙(월간 수익률 13개 이상)과 상장 전 자산 처리는 전략 비교와 같습니다.</p>
+      <p class="muted">자산 슬라이더를 움직여 비중을 정하면 아래 결과가 바로 바뀝니다. 위 막대가 현재 구성이고, 합은 100%를 넘을 수 없습니다(넘기면 다른 자산이 비율대로 줄어듭니다). 100% 미만이면 비율로 환산해 계산합니다. 시작은 위 "불러오기"에서 기존 전략을 고르는 게 가장 쉽습니다. 현금(BIL)도 다른 자산과 똑같이 고를 수 있습니다. 편입 규칙(월간 수익률 13개 이상)과 상장 전 자산 처리는 전략 비교와 같습니다.</p>
       <div class="row">
         <label for="lab-preset" class="muted">불러오기</label>
         <select id="lab-preset"></select>
@@ -723,16 +723,25 @@ function renderLabPresets() {
   $("lab-clear").addEventListener("click", () => setWeights({}));
 }
 
+function syncRow(t) {
+  const row = document.getElementById("wrow-" + t);
+  if (!row) return;
+  const w = lab.weights[t] > 0 ? lab.weights[t] : 0;
+  row.classList.toggle("on", w > 0);
+  row.querySelector("input[type=range]").value = String(Math.min(100, w));
+  const num = row.querySelector("input[type=number]");
+  if (document.activeElement !== num) num.value = w ? String(Math.round(w * 100) / 100) : "";
+}
 function setOne(ticker, v) {
-  const cap = Math.max(0, 100 - (totalWeight() - (lab.weights[ticker] > 0 ? lab.weights[ticker] : 0)));
-  if (v > cap) {
-    v = Math.round(cap * 100) / 100;
-    const row = document.getElementById("wrow-" + ticker);
-    if (row) { row.querySelector("input[type=range]").value = String(v); row.querySelector("input[type=number]").value = v ? String(v) : ""; }
-  }
+  v = Math.min(100, v);
   if (v > 0) lab.weights[ticker] = v; else delete lab.weights[ticker];
-  const row = document.getElementById("wrow-" + ticker);
-  if (row) row.classList.toggle("on", v > 0);
+  const others = totalWeight() - (v > 0 ? v : 0);
+  if (v + others > 100 + 1e-9) {
+    const scale = (100 - Math.max(v, 0)) / others;
+    for (const t of Object.keys(lab.weights)) if (t !== ticker) { lab.weights[t] *= scale; if (lab.weights[t] < 0.005) delete lab.weights[t]; syncRow(t); }
+    for (const a of D.assets) if (a.ticker !== ticker && !(lab.weights[a.ticker] > 0)) syncRow(a.ticker);
+  }
+  syncRow(ticker);
   $("lab-total").textContent = totalText();
   renderLabBar();
   renderLabResult();
