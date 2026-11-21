@@ -253,3 +253,18 @@ def test_payload_equity_section_flags_a_bear_market_from_levels() -> None:
 
     assert equity["bear"] == [False, True]
     assert build_payload(result, analysis, **kwargs)["equity"] is None
+
+
+def test_payload_carries_dividends_only_when_given() -> None:
+    result, analysis, returns, calendar = make_inputs()
+    common = dict(
+        universe=UNIVERSE,
+        strategies=STRATEGIES,
+        returns=returns,
+        proxy_months={},
+        cash_ticker="BIL",
+        generated_on=date(2026, 11, 19),
+    )
+    assert build_payload(result, analysis, **common)["dividends"] == {}
+    given = {"SPY": {"yield": 0.01, "annual": 7.5, "payments": 4}}
+    assert build_payload(result, analysis, dividends=given, **common)["dividends"] == given

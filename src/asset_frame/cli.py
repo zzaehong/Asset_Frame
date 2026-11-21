@@ -3,10 +3,12 @@ from __future__ import annotations
 import argparse
 import csv
 import os
+from collections.abc import Sequence
 from dataclasses import astuple, fields
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from asset_frame.analytics.dividend import trailing_dividend_yield
 from asset_frame.analytics.risk import WINDOW_MONTHS
 from asset_frame.backtest.engine import CALC_VERSION as BACKTEST_CALC_VERSION
 from asset_frame.backtest.jobs import BENCHMARKS, run_backtest
@@ -496,8 +498,27 @@ def _dashboard() -> None:
         macro_points=macro_points,
         long_context=long_context,
         proxies=_proxy_summary(store, specs),
+        dividends=_dividend_summary(store, universe),
     )
     _write_report("dashboard.html", render_dashboard(payload))
+
+
+def _dividend_summary(store: ResearchStore, universe: Sequence[UniverseAsset]) -> dict[str, dict]:
+    summary = {}
+    for asset in universe:
+        dividends, splits, latest, first = store.dividend_inputs(tiingo_asset_id(asset.ticker))
+        if latest is None or first is None:
+            continue
+        result = trailing_dividend_yield(dividends, splits, latest[1], latest[0], first)
+        if result is not None:
+            summary[asset.ticker] = {
+                "yield": float(result.dividend_yield),
+                "annual": float(result.annual_per_share),
+                "payments": result.payments,
+                "as_of": result.as_of.isoformat(),
+                "calc_version": result.calc_version,
+            }
+    return summary
 
 
 def _proxy_summary(store: ResearchStore, specs: tuple[ProxySpec, ...]) -> list[dict]:
