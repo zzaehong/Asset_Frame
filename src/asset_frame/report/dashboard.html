@@ -62,6 +62,7 @@ svg text { fill: var(--muted); font-size: 11px; }
 .stack span { display: block; font-size: 11px; color: #fff; text-align: center; line-height: 22px; overflow: hidden; white-space: nowrap; }
 .comp { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; align-items: center; }
 .weights input { width: 72px; text-align: right; }
+#lab-total { font-weight:600; color:var(--fg); }
 .alloc { display:flex; height:30px; border-radius:6px; overflow:hidden; background:color-mix(in srgb, var(--line) 60%, transparent); margin:10px 0; }
 .alloc span { display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; text-shadow:0 0 3px rgba(0,0,0,.55); overflow:hidden; white-space:nowrap; }
 .alloc .empty { flex:1; color:var(--muted); text-shadow:none; }
@@ -242,7 +243,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
   <div class="panel" id="tab-lab" hidden>
     <section>
       <h2>내 포트폴리오 만들기</h2>
-      <p class="muted">자산 슬라이더를 움직여 비중을 정하면 아래 결과가 바로 바뀝니다. 위 막대가 현재 구성이고, 합이 100%가 아니어도 비율로 환산해 계산합니다. 시작은 위 "불러오기"에서 기존 전략을 고르는 게 가장 쉽습니다. 현금(BIL)도 다른 자산과 똑같이 고를 수 있습니다. 편입 규칙(월간 수익률 13개 이상)과 상장 전 자산 처리는 전략 비교와 같습니다.</p>
+      <p class="muted">자산 슬라이더를 움직여 비중을 정하면 아래 결과가 바로 바뀝니다. 위 막대가 현재 구성이고, 합은 100%를 넘을 수 없고, 100% 미만이면 비율로 환산해 계산합니다. 시작은 위 "불러오기"에서 기존 전략을 고르는 게 가장 쉽습니다. 현금(BIL)도 다른 자산과 똑같이 고를 수 있습니다. 편입 규칙(월간 수익률 13개 이상)과 상장 전 자산 처리는 전략 비교와 같습니다.</p>
       <div class="row">
         <label for="lab-preset" class="muted">불러오기</label>
         <select id="lab-preset"></select>
@@ -698,7 +699,12 @@ function definitionWeights(id) {
   if (d.kind === "equal_weight") return Object.fromEntries(d.members.map((t) => [t, 100 / d.members.length]));
   return null;
 }
-function setWeights(map) { lab.weights = {...map}; renderLabAssets(); renderLabResult(); }
+function setWeights(map) {
+  lab.weights = {...map};
+  const sum = totalWeight();
+  if (sum > 100) for (const t of Object.keys(lab.weights)) lab.weights[t] = lab.weights[t] / sum * 100;
+  renderLabAssets(); renderLabResult();
+}
 const totalWeight = () => Object.values(lab.weights).reduce((s, w) => s + (w > 0 ? w : 0), 0);
 
 function renderLabPresets() {
@@ -718,6 +724,12 @@ function renderLabPresets() {
 }
 
 function setOne(ticker, v) {
+  const cap = Math.max(0, 100 - (totalWeight() - (lab.weights[ticker] > 0 ? lab.weights[ticker] : 0)));
+  if (v > cap) {
+    v = Math.round(cap * 100) / 100;
+    const row = document.getElementById("wrow-" + ticker);
+    if (row) { row.querySelector("input[type=range]").value = String(v); row.querySelector("input[type=number]").value = v ? String(v) : ""; }
+  }
   if (v > 0) lab.weights[ticker] = v; else delete lab.weights[ticker];
   const row = document.getElementById("wrow-" + ticker);
   if (row) row.classList.toggle("on", v > 0);
@@ -729,17 +741,25 @@ function renderLabBar() {
   const host = $("lab-bar");
   host.replaceChildren();
   const total = totalWeight();
-  if (!total) { host.appendChild(node("span", "아래에서 자산 비중을 정하세요", "empty")); return; }
+  if (!total) { host.appendChild(node("span", "아래에서 자산 비중을 정하세요 (합계 최대 100%)", "empty")); return; }
   for (const [t, w] of Object.entries(lab.weights).filter(([, w]) => w > 0).sort((a, b) => b[1] - a[1])) {
-    const share = w / total * 100;
+    const share = w;
     const seg = node("span", share >= 7 ? `${t} ${Math.round(share)}%` : "");
     seg.style.width = share + "%"; seg.style.background = assetColors[t]; seg.title = `${t} ${share.toFixed(1)}%`;
     host.appendChild(seg);
   }
+  if (total < 100 - 0.01) { const rest = node("span", `남음 ${Math.round((100 - total) * 10) / 10}%`, "empty"); rest.style.width = 100 - total + "%"; host.appendChild(rest); }
 }
 const LAB_CLASS = {us_equity: "주식", gics_sector: "주식", style_dividend: "주식", style_growth: "주식", reits: "주식(부동산)",
   treasury_short: "채권", treasury_mid: "채권", treasury_long: "채권", tips: "채권", ig_credit: "회사채", hy_credit: "회사채",
   gold: "금·원자재", silver: "금·원자재", commodities: "금·원자재", cash: "현금"};
+const LAB_DESC = {
+  SPY: "미국 대형주 500개(S&P 500)", QQQ: "나스닥 100, 기술·성장주 중심", DVY: "배당을 많이 주는 미국 주식", SCHD: "배당 성장·재무 건전 미국 주식", VIG: "배당을 꾸준히 늘려온 미국 주식",
+  XLB: "소재(화학·금속) 섹터", XLC: "통신·미디어 섹터", XLE: "에너지(석유·가스) 섹터", XLF: "금융(은행·보험) 섹터", XLI: "산업재(항공·기계) 섹터", XLK: "정보기술 섹터",
+  XLP: "필수소비재(식품·생활용품) 섹터, 경기 방어적", XLRE: "부동산 섹터(2015년 신설)", XLU: "유틸리티(전기·가스) 섹터, 방어적", XLV: "헬스케어 섹터", XLY: "경기소비재(자동차·유통) 섹터",
+  VNQ: "미국 상장 리츠(부동산 임대 수익)", TIP: "물가연동 국채, 인플레이션 방어", SHY: "만기 1~3년 미국 국채, 가장 안전한 편", IEF: "만기 7~10년 미국 국채", TLT: "만기 20년 이상 미국 국채, 금리 변동에 민감",
+  LQD: "투자적격 회사채(신용 높음)", HYG: "하이일드 회사채(신용 낮고 이자 높음)", SHYG: "만기 0~5년 하이일드 회사채", VCSH: "단기 투자적격 회사채", VCIT: "중기 투자적격 회사채", VCLT: "장기 투자적격 회사채",
+  GLD: "금 현물, 위기·인플레이션 방어", SLV: "은 현물, 금보다 변동 큼", DBC: "원자재 선물 묶음(에너지·농산물·금속)", BIL: "만기 1~3개월 초단기 국채, 현금 대용"};
 const LAB_CLASS_ORDER = ["주식", "주식(부동산)", "채권", "회사채", "금·원자재", "현금"];
 function renderLabAssets() {
   const host = $("lab-assets");
@@ -754,7 +774,7 @@ function renderLabAssets() {
       const row = node("div", null, "wrow" + (value ? " on" : "")); row.id = "wrow-" + t;
       const first = firstReturnIndex(t);
       const nm = node("span", null, "nm");
-      nm.append(document.createTextNode(t === CASH ? t + " (현금)" : t + " "), node("small", asset.name + (first < 0 ? "" : ` · ${ym(first)}~`)));
+      nm.append(document.createTextNode(t === CASH ? t + " (현금)" : t + " "), node("small", (LAB_DESC[t] || asset.name) + (first < 0 ? "" : ` · ${ym(first)}~`)));
       const range = node("input"); range.type = "range"; range.min = "0"; range.max = "100"; range.step = "5"; range.value = String(Math.min(100, value));
       range.setAttribute("aria-label", t + " 비중 슬라이더");
       const num = node("input"); num.type = "number"; num.min = "0"; num.max = "100"; num.step = "any"; num.id = "w-" + t;
@@ -779,7 +799,9 @@ function renderLabAssets() {
 }
 function totalText() {
   const total = totalWeight();
-  return total ? `비중 합 ${Math.round(total * 100) / 100}%` + (Math.abs(total - 100) > 0.01 ? " (계산 때 100%로 정규화)" : "") : "비중을 입력하세요";
+  if (!total) return "비중을 입력하세요";
+  const left = Math.round((100 - total) * 100) / 100;
+  return `비중 합 ${Math.round(total * 100) / 100}% / 100%` + (left > 0.01 ? ` · 남은 ${left}% (계산 때 합 100%로 환산)` : " · 가득 참");
 }
 
 function monthIndexFrom(value, fallback, from) {
