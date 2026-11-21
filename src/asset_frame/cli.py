@@ -13,6 +13,7 @@ from asset_frame.analytics.risk import WINDOW_MONTHS
 from asset_frame.backtest.engine import CALC_VERSION as BACKTEST_CALC_VERSION
 from asset_frame.backtest.jobs import BENCHMARKS, run_backtest
 from asset_frame.backtest.strategies import load_strategies
+from asset_frame.chart_jobs import build_chart_data
 from asset_frame.connectors.fred import FRED_SOURCE_ID, SUPPORTED_SERIES
 from asset_frame.connectors.krx import KRX_SOURCE_ID, KrxDataset
 from asset_frame.connectors.tiingo import TIINGO_SOURCE_ID, tiingo_asset_id
@@ -499,6 +500,12 @@ def _dashboard() -> None:
         long_context=long_context,
         proxies=_proxy_summary(store, specs),
         dividends=_dividend_summary(store, universe),
+        charts=build_chart_data(
+            [a.ticker for a in universe],
+            {a.ticker: tiingo_asset_id(a.ticker) for a in universe},
+            store,
+            returns,
+        ),
     )
     _write_report("dashboard.html", render_dashboard(payload))
 

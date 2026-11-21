@@ -194,6 +194,20 @@ class ResearchStore:
             None if first[0] is None else date.fromisoformat(first[0]),
         )
 
+    def daily_bars(self, asset_id: UUID) -> list[tuple[date, float, float, float, float]]:
+        """(date, high, low, raw close, volume) per trading date from the latest fetch of it."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT trading_date, high, low, close, volume FROM price_observations "
+                "WHERE asset_id = ? ORDER BY trading_date, fetched_at",
+                (str(asset_id),),
+            ).fetchall()
+        latest = {row[0]: row for row in rows}  # later fetches overwrite earlier ones
+        return [
+            (date.fromisoformat(d), float(h), float(low), float(c), float(v))
+            for d, h, low, c, v in (latest[key] for key in sorted(latest))
+        ]
+
     def latest_raw_snapshot_path(self, *, source_id: str, request_url: str) -> str | None:
         with self._connect() as connection:
             row = connection.execute(

@@ -59,6 +59,7 @@ def build_payload(
     long_context: LongContext | None = None,
     proxies: Sequence[dict] = (),
     dividends: Mapping[str, dict] | None = None,
+    charts: Mapping[str, dict] | None = None,
 ) -> dict:
     strategy_ids = [s.id for s in strategies]
     anchors = [a.ticker for a in universe if a.level == 1 and a.role == "anchor"]
@@ -193,6 +194,7 @@ def build_payload(
         "regime_long": _long_payload(long_context, universe) if long_context else None,
         "proxies": list(proxies),
         "dividends": dict(dividends or {}),
+        "charts": dict(charts or {}),
         "equity": equity,
         "macro": macro,
         "definitions": {
