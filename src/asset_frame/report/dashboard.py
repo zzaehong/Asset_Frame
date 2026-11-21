@@ -16,6 +16,7 @@ from asset_frame.backtest.engine import CALC_VERSION as BACKTEST_CALC_VERSION
 from asset_frame.backtest.engine import RULES
 from asset_frame.backtest.jobs import CRISIS_WINDOWS, BacktestResult, window_stat
 from asset_frame.backtest.strategies import Strategy
+from asset_frame.regime.actions import macro_actions
 from asset_frame.regime.equity import bear_state
 from asset_frame.regime.market import market_context
 from asset_frame.regime.performance import CALC_VERSION as REGIME_PERFORMANCE_VERSION
@@ -59,6 +60,7 @@ def build_payload(
     long_context: LongContext | None = None,
     proxies: Sequence[dict] = (),
     dividends: Mapping[str, dict] | None = None,
+    charts: Mapping[str, dict] | None = None,
 ) -> dict:
     strategy_ids = [s.id for s in strategies]
     anchors = [a.ticker for a in universe if a.level == 1 and a.role == "anchor"]
@@ -189,10 +191,12 @@ def build_payload(
             equity=equity,
             macro=macro,
             quadrants_ip=quadrants_ip,
+            anchors=anchors,
         ),
         "regime_long": _long_payload(long_context, universe) if long_context else None,
         "proxies": list(proxies),
         "dividends": dict(dividends or {}),
+        "charts": dict(charts or {}),
         "equity": equity,
         "macro": macro,
         "definitions": {
@@ -219,6 +223,7 @@ def _regime_payload(
     equity: dict | None,
     macro: dict | None,
     quadrants_ip: Sequence[str | None] | None = None,
+    anchors: Sequence[str] = (),
 ) -> dict | None:
     if not rows:
         return None
@@ -234,6 +239,7 @@ def _regime_payload(
     curve = macro["series"].get("T10Y3M") if macro else None
     if curve:
         labels["curve"] = [None if v is None else "inverted" if v < 0 else "normal" for v in curve]
+    performance = regime_performance(labels, [row.month_end for row in rows], returns)
     return {
         "calc_version": REGIME_PERFORMANCE_VERSION,
         "rows": [
@@ -250,7 +256,13 @@ def _regime_payload(
             }
             for i, row in enumerate(rows)
         ],
-        "performance": regime_performance(labels, [row.month_end for row in rows], returns),
+        "performance": performance,
+        "actions": macro_actions(
+            performance,
+            [axis for axis in ("quadrant", "quadrant_ip") if axis in labels],
+            [t for t in anchors if t in returns],
+            macro["latest"] if macro else None,
+        ),
     }
 
 
@@ -263,7 +275,12 @@ def _long_payload(context: LongContext, universe: Sequence[UniverseAsset]) -> di
     equity = bear_state(context.equity_levels, month_ends)
     macro = market_context(context.macro_points, month_ends)
     payload = _regime_payload(
-        rows, returns, equity=equity, macro=macro, quadrants_ip=context.quadrants_ip
+        rows,
+        returns,
+        equity=equity,
+        macro=macro,
+        quadrants_ip=context.quadrants_ip,
+        anchors=[a.ticker for a in universe if a.level == 1 and a.role == "anchor"],
     )
     calendar = sorted({month for by_month in returns.values() for month in by_month})
     position = {month: i for i, month in enumerate(calendar)}

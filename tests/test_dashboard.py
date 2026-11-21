@@ -268,3 +268,18 @@ def test_payload_carries_dividends_only_when_given() -> None:
     assert build_payload(result, analysis, **common)["dividends"] == {}
     given = {"SPY": {"yield": 0.01, "annual": 7.5, "payments": 4}}
     assert build_payload(result, analysis, dividends=given, **common)["dividends"] == given
+
+
+def test_payload_carries_charts_only_when_given() -> None:
+    result, analysis, returns, calendar = make_inputs()
+    common = dict(
+        universe=UNIVERSE,
+        strategies=STRATEGIES,
+        returns=returns,
+        proxy_months={},
+        cash_ticker="BIL",
+        generated_on=date(2026, 11, 19),
+    )
+    assert build_payload(result, analysis, **common)["charts"] == {}
+    given = {"assets": {"SPY": {"now": None}}, "performance": {}}
+    assert build_payload(result, analysis, charts=given, **common)["charts"] == given

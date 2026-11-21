@@ -68,6 +68,31 @@ svg text { fill: var(--muted); font-size: 11px; }
 .alloc .empty { flex:1; color:var(--muted); text-shadow:none; }
 .wgroup { margin:10px 0 2px; font-weight:600; font-size:13px; color:var(--muted); }
 .wrow { display:grid; grid-template-columns:minmax(120px,220px) 1fr 80px; gap:10px; align-items:center; padding:3px 0; font-size:14px; }
+table.heat { width:100%; }
+table.heat td, table.heat th { text-align:right; padding:3px 10px; } table.heat td:first-child, table.heat th:first-child { text-align:left; }
+table.heat tr.pick { cursor:pointer; } table.heat tr.pick:hover td { outline:1px solid var(--accent); outline-offset:-1px; }
+table.heat td.sig span { border-radius:99px; padding:1px 9px; font-size:12px; font-weight:600; background:color-mix(in srgb, var(--muted) 20%, transparent); }
+table.heat td.sig span.buy { background:color-mix(in srgb, var(--pos) 28%, transparent); color:var(--pos); } table.heat td.sig span.sell { background:color-mix(in srgb, var(--neg) 28%, transparent); color:var(--neg); }
+table.heat tr.sep td { text-align:left; color:var(--muted); font-size:12px; padding-top:10px; }
+body.wide main { max-width: 1560px; }
+.etfbar { align-items:center; }
+.etf-layout { display:grid; grid-template-columns:minmax(0, 1fr) 340px; gap:18px; align-items:start; }
+@media (max-width: 1000px) { .etf-layout { grid-template-columns:minmax(0, 1fr); } }
+.etf-stack .chart { margin:0; }
+.etfbar .chips { margin-left:auto; }
+.pane-title { font-size:13px; font-weight:600; margin:8px 0 0; } .pane-title .muted { font-weight:400; font-size:12px; margin-left:6px; }
+.side .judge { margin:0 0 8px; } .side .judge li { display:grid; grid-template-columns:34px 78px 1fr; gap:6px; font-size:13px; line-height:1.4; align-items:start; padding:3px 0; } .side .judge li b { white-space:nowrap; } .side h3 { margin:12px 0 6px; font-size:15px; }
+.side #etf-perf .item { grid-template-columns: 70px 1fr; } .side #etf-perf .item span:last-child { grid-column:1 / -1; font-size:12px; color:var(--muted); }
+.warns { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+.warns .w { border:1px solid var(--line); border-radius:8px; padding:6px 10px; background:var(--surface); font-size:14px; }
+.warns .w.warn { border-color:var(--neg); color:var(--neg); font-weight:600; } .warns .w.na { color:var(--muted); }
+.judge { border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:12px 14px; margin:10px 0; }
+.judge .verdict { font-size:20px; font-weight:700; } .judge .verdict.buy { color:var(--pos); } .judge .verdict.sell { color:var(--neg); }
+.judge ul { list-style:none; margin:8px 0 0; padding:0; } .judge li { display:flex; gap:10px; align-items:baseline; padding:2px 0; }
+.judge .v { display:inline-block; min-width:30px; text-align:center; border-radius:99px; font-weight:700; font-size:13px; padding:0 6px; background:color-mix(in srgb, var(--muted) 20%, transparent); }
+.judge .v.p { background:color-mix(in srgb, var(--pos) 25%, transparent); color:var(--pos); } .judge .v.n { background:color-mix(in srgb, var(--neg) 25%, transparent); color:var(--neg); }
+#macro-judge .bars .item { grid-template-columns: 44px 1fr minmax(200px, 50%); }
+.bars .item.now span:first-child { font-weight:700; color:var(--accent); }
 .wrow .div { color:var(--accent); font-weight:600; }
 .wrow.on .nm { font-weight:600; } .wrow .nm small { color:var(--muted); font-weight:400; }
 .wrow input[type=range] { width:100%; } .wrow input[type=number] { width:72px; text-align:right; }
@@ -135,6 +160,21 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
     <span class="seg" id="rules" role="group" aria-label="리밸런싱 규칙"></span></span>
   </div>
 
+  <!-- ===== 시장 한눈에 ===== -->
+  <div class="panel" id="tab-overview" hidden>
+    <section>
+      <h2>지금 시장</h2>
+      <p class="lead" id="ov-lead"></p>
+      <div class="tiles" id="ov-tiles"></div>
+      <div class="warns" id="ov-warns"></div>
+    </section>
+    <section>
+      <h2>ETF 기간별 수익률</h2>
+      <p class="muted" id="ov-note"></p>
+      <div class="scroll"><table class="heat" id="ov-heat"></table></div>
+    </section>
+  </div>
+
   <!-- ===== 시장 국면 ===== -->
   <div class="panel" id="tab-regime" hidden>
     <section>
@@ -143,6 +183,11 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
       <p class="note long-note" hidden></p>
       <div class="tiles" id="regime-tiles"></div>
       <p class="muted">카드를 누르면 그 국면에서 과거에 자산이 어떻게 움직였는지 봅니다. 규칙은 월말에 이미 발표된 값만 씁니다(규칙 설명은 docs/concepts/regime_rules.md).</p>
+    </section>
+    <section>
+      <h2>거시 판단</h2>
+      <p class="muted">정해 둔 규칙으로 현재 국면에서 과거에 상대적으로 강했던 자산과 약했던 자산을 보여 줍니다. 투자 지시가 아니며 과거 통계는 미래를 보장하지 않습니다.</p>
+      <div id="macro-judge"></div>
     </section>
     <section>
       <h2>국면 타임라인</h2>
@@ -172,7 +217,6 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
           <div class="chips" id="after-legend"></div><div class="chart" id="after-chart"></div></div>
       </div>
       <p class="note" id="month-similar"></p>
-      <p class="muted">규칙 판단(거시·차트)과 그 결과는 규칙 신호 단계(M6-1) 이후 이 자리에 추가합니다.</p>
     </section>
   </div>
 
@@ -288,6 +332,35 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
     </section>
   </div>
 
+  <!-- ===== ETF 차트 분석 ===== -->
+  <div class="panel" id="tab-etf" hidden>
+    <div class="row etfbar">
+      <b>ETF 차트 분석</b>
+      <label for="etf-asset" class="muted">자산</label><select id="etf-asset"></select>
+      <span class="seg" id="etf-days" role="group" aria-label="표시 기간"></span>
+      <span class="chips" id="etf-legend"></span>
+    </div>
+    <div class="etf-layout">
+      <div class="etf-stack" id="etf-stack">
+        <div class="chart" id="etf-price"></div>
+        <div class="pane-title">거래량</div><div class="chart" id="etf-volume"></div>
+        <div class="pane-title">RSI(14) <span class="muted">30 이하 과매도 · 70 이상 과매수</span></div><div class="chart" id="etf-rsi"></div>
+        <div class="pane-title">MACD(12, 26, 9) <span class="muted">선: MACD·시그널, 막대: 히스토그램</span></div><div class="chart" id="etf-macd"></div>
+        <div class="pane-title">스토캐스틱(14, 3, 3) <span class="muted">20 이하 침체 · 80 이상 과열</span></div><div class="chart" id="etf-stoch"></div>
+      </div>
+      <aside class="side">
+        <div class="judge" id="etf-judge"></div>
+        <h3>이 신호가 나왔을 때 그 뒤</h3>
+        <div class="row"><span class="seg" id="etf-horizon" role="group" aria-label="이후 기간"></span></div>
+        <div class="bars" id="etf-perf"></div>
+        <p class="muted" id="etf-perf-note"></p>
+        <details class="muted"><summary>계산 기준</summary>
+          <p>지표 4개의 투표를 합해 매수 우위·중립·매도 우위를 표시합니다. 투자 지시가 아니라 정해 둔 규칙의 점수이며 과거 통계는 미래를 보장하지 않습니다. 가격은 배당을 재투자한 총수익 지수(조정 종가)이고 첫 표시일을 100으로 맞춥니다. 캔들의 시가·고가·저가는 조정 비율로 보정한 값이며, 상승 봉은 초록·하락 봉은 빨강입니다.</p>
+        </details>
+      </aside>
+    </div>
+  </div>
+
   <!-- ===== 자산·상관 ===== -->
   <div class="panel" id="tab-assets" hidden>
     <section>
@@ -343,7 +416,7 @@ const D = /*__DATA__*/null;
 </script>
 <script>
 const RULE_LABEL = {monthly: "월간", quarterly: "분기", band: "밴드 ±5%p"};
-const TABS = [["regime", "① 시장 국면"], ["history", "② 국면별 과거 성과"], ["compare", "③ 전략 비교"], ["lab", "③ 포트폴리오 실험실"], ["assets", "자산·상관"]];
+const TABS = [["overview", "시장 한눈에"], ["regime", "① 시장 국면"], ["history", "② 국면별 과거 성과"], ["compare", "③ 전략 비교"], ["lab", "③ 포트폴리오 실험실"], ["etf", "ETF 차트 분석"], ["assets", "자산·상관"]];
 const state = {rule: D.rules.includes("quarterly") ? "quarterly" : D.rules[0], tab: "compare", hidden: new Set(), sort: null, riskSort: null, more: false, axis: "quadrant", label: null, showAll: false, pinned: null, similar: false, horizon: 6, long: false};
 const $ = (id) => document.getElementById(id);
 const nf = (digits) => (v) => (v == null ? "–" : v.toFixed(digits));
@@ -396,11 +469,17 @@ function attachTip(host, svg, geometry, labels, rowsAt, minus) {
   const tip = node("div", null, "tip");
   tip.hidden = true;
   const hit = svgNode("rect", {x: m.left, y: m.top, width: width - m.left - m.right, height: plotHeight, fill: "transparent"});
+  host._cursorAt = (i) => {
+    if (i == null) { cursor.setAttribute("visibility", "hidden"); return; }
+    cursor.setAttribute("x1", x(i)); cursor.setAttribute("x2", x(i)); cursor.setAttribute("visibility", "visible");
+  };
   hit.addEventListener("pointermove", (event) => {
     const box = svg.getBoundingClientRect();
     const px = ((event.clientX - box.left) / box.width) * width;
     const i = Math.max(0, Math.min(n - 1, Math.round(((px - m.left) / (width - m.left - m.right)) * (n - 1))));
     cursor.setAttribute("x1", x(i)); cursor.setAttribute("x2", x(i)); cursor.setAttribute("visibility", "visible");
+    const group = host.closest(".etf-stack");
+    if (group) for (const other of group.querySelectorAll(".chart")) if (other !== host && other._cursorAt) other._cursorAt(i);
     tip.replaceChildren(node("div", labels[i]));
     for (const [name, color, text] of rowsAt(i)) {
       const line = node("div");
@@ -412,14 +491,18 @@ function attachTip(host, svg, geometry, labels, rowsAt, minus) {
     const px2 = x(i) * (box.width / width);
     tip.style.left = (px2 + 12 + 190 > box.width ? Math.max(0, px2 - 192) : px2 + 12) + "px";
   });
-  hit.addEventListener("pointerleave", () => { tip.hidden = true; cursor.setAttribute("visibility", "hidden"); });
+  hit.addEventListener("pointerleave", () => {
+    tip.hidden = true; cursor.setAttribute("visibility", "hidden");
+    const group = host.closest(".etf-stack");
+    if (group) for (const other of group.querySelectorAll(".chart")) if (other._cursorAt) other._cursorAt(null);
+  });
   svg.appendChild(hit);
   host.appendChild(tip);
 }
 
-function frame(host, height) {
+function frame(host, height, bottom = 24) {
   const width = Math.max(host.clientWidth, 320);
-  const m = {top: 10, right: 12, bottom: 24, left: 48};
+  const m = {top: 10, right: 12, bottom, left: 48};
   const svg = svgNode("svg", {viewBox: `0 0 ${width} ${height}`, role: "img"});
   return {width, height, m, svg, plotHeight: height - m.top - m.bottom};
 }
@@ -436,7 +519,7 @@ function lineChart(host, labels, series, opts) {
   host.replaceChildren();
   const live = series.filter((s) => s.values.some((v) => v != null));
   if (!live.length || labels.length < 2) { host.appendChild(node("p", "표시할 데이터가 없습니다.", "muted")); return; }
-  const f = frame(host, opts.height || 300);
+  const f = frame(host, opts.height || 300, opts.noAxis ? 6 : 24);
   const n = labels.length;
   const x = (i) => f.m.left + ((f.width - f.m.left - f.m.right) * i) / (n - 1);
   const all = live.flatMap((s) => s.values.filter((v) => v != null));
@@ -452,7 +535,12 @@ function lineChart(host, labels, series, opts) {
     label.textContent = opts.tick ? opts.tick(t) : String(t);
     f.svg.appendChild(label);
   }
-  axisLabels(f, labels, n, x);
+  for (const r of opts.refs || []) {
+    const ref = svgNode("line", {x1: f.m.left, x2: f.width - f.m.right, y1: toY(r), y2: toY(r), "stroke-dasharray": "4 3"});
+    ref.style.stroke = "var(--muted)";
+    f.svg.appendChild(ref);
+  }
+  if (!opts.noAxis) axisLabels(f, labels, n, x);
   for (const s of live) {
     let d = "", open = false;
     s.values.forEach((v, i) => {
@@ -470,6 +558,104 @@ function lineChart(host, labels, series, opts) {
   attachTip(host, f.svg, {width: f.width, m: f.m, n, x, plotHeight: f.plotHeight}, labels, (i) =>
     live.filter((s) => s.values[i] != null).sort((a, b) => b.values[i] - a.values[i])
       .map((s) => [s.name, s.color, (opts.fmt || dec)(s.values[i])]));
+}
+
+// values: one number (or null) per label; bars above zero use --pos, below use --neg when opts.signed
+function barChart(host, labels, values, opts) {
+  host.replaceChildren();
+  const live = values.filter((v) => v != null);
+  if (!live.length || labels.length < 2) { host.appendChild(node("p", "표시할 데이터가 없습니다.", "muted")); return; }
+  const f = frame(host, opts.height || 150, opts.noAxis ? 6 : 24);
+  const n = labels.length;
+  const x = (i) => f.m.left + ((f.width - f.m.left - f.m.right) * i) / (n - 1);
+  const lines = opts.lines || [];
+  const extra = lines.flatMap((l) => l.values.filter((v) => v != null));
+  let lo = Math.min(0, ...live, ...extra), hi = Math.max(0, ...live, ...extra);
+  if (hi - lo < 1e-12) hi = lo + 1;
+  const toY = (v) => f.m.top + f.plotHeight * (1 - (v - lo) / (hi - lo));
+  for (const t of niceTicks(lo, hi, 4)) {
+    f.svg.appendChild(svgNode("line", {x1: f.m.left, x2: f.width - f.m.right, y1: toY(t), y2: toY(t), stroke: t === 0 ? "var(--muted)" : "var(--line)"}));
+    const label = svgNode("text", {x: f.m.left - 6, y: toY(t) + 4, "text-anchor": "end"});
+    label.textContent = (opts.tick || String)(t);
+    f.svg.appendChild(label);
+  }
+  const width = Math.max(1, ((f.width - f.m.left - f.m.right) / n) * 0.8);
+  values.forEach((v, i) => {
+    if (v == null) return;
+    const y0 = toY(0), y1 = toY(v);
+    const bar = svgNode("rect", {x: x(i) - width / 2, y: Math.min(y0, y1), width, height: Math.max(0.5, Math.abs(y1 - y0))});
+    bar.style.fill = opts.signed ? (v >= 0 ? "var(--pos)" : "var(--neg)") : "var(--accent)";
+    bar.setAttribute("fill-opacity", 0.85);
+    f.svg.appendChild(bar);
+  });
+  for (const l of lines) {
+    let d = "", open = false;
+    l.values.forEach((v, i) => {
+      if (v == null) { open = false; return; }
+      d += (open ? "L" : "M") + x(i).toFixed(1) + "," + toY(v).toFixed(1);
+      open = true;
+    });
+    const path = svgNode("path", {d, fill: "none", "stroke-width": 1.4, "stroke-linejoin": "round"});
+    path.style.stroke = l.color;
+    f.svg.appendChild(path);
+  }
+  if (!opts.noAxis) axisLabels(f, labels, n, x);
+  f.svg.setAttribute("aria-label", opts.label || "막대 차트");
+  host.appendChild(f.svg);
+  attachTip(host, f.svg, {width: f.width, m: f.m, n, x, plotHeight: f.plotHeight}, labels, (i) => [
+    ...(values[i] == null ? [] : [[opts.name || "값", "var(--fg)", (opts.fmt || dec)(values[i])]]),
+    ...lines.filter((l) => l.values[i] != null).map((l) => [l.name, l.color, (opts.fmt || dec)(l.values[i])]),
+  ]);
+}
+
+// candles: {open, high, low, close} arrays aligned to labels; lines: [{name, color, values}] drawn on top
+function candleChart(host, labels, candles, lines, opts) {
+  host.replaceChildren();
+  const n = labels.length;
+  const ok = (i) => [candles.open[i], candles.high[i], candles.low[i], candles.close[i]].every((v) => v != null);
+  if (n < 2 || !candles.close.some((_, i) => ok(i))) { host.appendChild(node("p", "표시할 데이터가 없습니다.", "muted")); return; }
+  const f = frame(host, opts.height || 340, opts.noAxis ? 6 : 24);
+  const x = (i) => f.m.left + ((f.width - f.m.left - f.m.right) * i) / (n - 1);
+  const extra = lines.flatMap((l) => l.values.filter((v) => v != null));
+  let lo = Math.min(...candles.low.filter((v) => v != null), ...extra), hi = Math.max(...candles.high.filter((v) => v != null), ...extra);
+  if (hi - lo < 1e-9) { hi += 0.5; lo -= 0.5; }
+  const toY = (v) => f.m.top + f.plotHeight * (1 - (v - lo) / (hi - lo));
+  for (const t of niceTicks(lo, hi, 5)) {
+    f.svg.appendChild(svgNode("line", {x1: f.m.left, x2: f.width - f.m.right, y1: toY(t), y2: toY(t), stroke: "var(--line)"}));
+    const label = svgNode("text", {x: f.m.left - 6, y: toY(t) + 4, "text-anchor": "end"});
+    label.textContent = String(t);
+    f.svg.appendChild(label);
+  }
+  if (!opts.noAxis) axisLabels(f, labels, n, x);
+  const body = Math.max(1, Math.min(10, ((f.width - f.m.left - f.m.right) / n) * 0.7));
+  for (let i = 0; i < n; i++) {
+    if (!ok(i)) continue;
+    const up = candles.close[i] >= candles.open[i];
+    const color = up ? "var(--pos)" : "var(--neg)";
+    const wick = svgNode("line", {x1: x(i), x2: x(i), y1: toY(candles.high[i]), y2: toY(candles.low[i]), "stroke-width": 1});
+    wick.style.stroke = color;
+    const top = toY(Math.max(candles.open[i], candles.close[i])), bottom = toY(Math.min(candles.open[i], candles.close[i]));
+    const box = svgNode("rect", {x: x(i) - body / 2, y: top, width: body, height: Math.max(1, bottom - top)});
+    box.style.fill = color;
+    f.svg.append(wick, box);
+  }
+  for (const l of lines) {
+    let d = "", open = false;
+    l.values.forEach((v, i) => {
+      if (v == null) { open = false; return; }
+      d += (open ? "L" : "M") + x(i).toFixed(1) + "," + toY(v).toFixed(1);
+      open = true;
+    });
+    const path = svgNode("path", {d, fill: "none", "stroke-width": 1.4, "stroke-linejoin": "round"});
+    path.style.stroke = l.color;
+    f.svg.appendChild(path);
+  }
+  f.svg.setAttribute("aria-label", opts.label || "캔들 차트");
+  host.appendChild(f.svg);
+  attachTip(host, f.svg, {width: f.width, m: f.m, n, x, plotHeight: f.plotHeight}, labels, (i) => [
+    ...(ok(i) ? [["시가", "var(--fg)", dec(candles.open[i])], ["고가", "var(--fg)", dec(candles.high[i])], ["저가", "var(--fg)", dec(candles.low[i])], ["종가", "var(--fg)", dec(candles.close[i])]] : []),
+    ...lines.filter((l) => l.values[i] != null).map((l) => [l.name, l.color, dec(l.values[i])]),
+  ]);
 }
 
 // layers: [{name, color, values (0..1)}] stacked bottom to top
@@ -1020,7 +1206,7 @@ function setupAssets() {
 // ---------- 시장 국면 · 국면별 과거 성과 ----------
 function C() {
   if (state.long && D.regime_long) return D.regime_long;
-  return {rows: D.regime.rows, performance: D.regime.performance, equity: D.equity, macro: D.macro, calendar: D.calendar, returns: D.returns};
+  return {rows: D.regime.rows, performance: D.regime.performance, actions: D.regime.actions, equity: D.equity, macro: D.macro, calendar: D.calendar, returns: D.returns};
 }
 const AXES = [["quadrant", "성장×물가"], ["indpro_sahm", "실물경제 침체 신호"], ["correlation_regime", "주식·채권 상관"]];
 const LABEL_TEXT = {
@@ -1558,12 +1744,239 @@ function renderRegimeTabs() {
     panel.replaceChildren(node("p", "국면 데이터가 없습니다. asset-frame ingest-fred로 거시 시리즈를 받은 뒤 asset-frame dashboard를 다시 실행하세요.", "note"));
   }
   if (!D.regime) return;
-  renderLongNote(); renderRegimeTiles(); renderRegimeTimeline(); renderMonthPanel(); renderHistory();
+  renderLongNote(); renderRegimeTiles(); renderMacroJudge(); renderRegimeTimeline(); renderMonthPanel(); renderHistory();
+}
+
+const WARN_TEXT = {
+  curve: {warn: "역전: 과거 침체에 앞서 나타난 적이 많습니다", ok: "정상", fmt: (v) => v.toFixed(2) + "%p"},
+  policy: {warn: "6개월간 1%p 이상 인상: 긴축 국면", ok: "급격한 인상 없음", fmt: (v) => spct(v / 100).replace("%", "%p")},
+  dollar: {warn: "6개월간 5% 이상 상승: 달러 강세", ok: "급등 없음", fmt: spct},
+};
+function renderMacroJudge() {
+  const host = $("macro-judge");
+  host.replaceChildren();
+  const actions = C().actions;
+  if (!actions) { host.appendChild(node("p", "거시 판단 데이터가 없습니다.", "muted")); return; }
+  const axis = state.long && D.regime_long ? "quadrant_ip" : "quadrant";
+  const label = currentRow()[rowKey[axis]];
+  const box = node("div", null, "judge");
+  const axisName = axis === "quadrant_ip" ? "산업생산·물가 기준" : "CFNAI·물가 기준";
+  box.appendChild(node("div", label ? `${labelText(label)} (${axisName})` : "성장×물가를 판단할 수 없습니다", "verdict"));
+  const cell = label && (actions.axes[axis] || {})[label];
+  if (!cell) {
+    box.appendChild(node("p", "이 국면의 과거 기록이 없어 제안하지 않습니다.", "muted"));
+  } else if (!cell.strong.length) {
+    box.appendChild(node("p", `과거에 이 국면이었던 달이 ${cell.months}개월뿐이라(6개월 결과가 5번 이상 독립인 자산 ${cell.eligible}개) 제안하지 않습니다.`, "muted"));
+  } else {
+    box.appendChild(node("p", `과거 이 국면(${cell.months}개월)에서 6개월 뒤 수익률이 높았던 쪽과 낮았던 쪽입니다. 늘리거나 줄일 때 참고하세요.`, "muted"));
+    const grid = node("div", null, "grid2");
+    for (const [title, list, kind] of [["상대적으로 강했던 자산 · 비중 확대 검토", cell.strong, "strong"], ["상대적으로 약했던 자산 · 비중 축소 검토", cell.weak, "weak"]]) {
+      const col = node("div");
+      col.appendChild(node("h3", title));
+      const bars = node("div", null, "bars");
+      const top = Math.max(0.0001, ...list.map((e) => Math.abs(e.mean)));
+      for (const e of list) {
+        const item = node("div", null, "item");
+        const track = node("div", null, "track");
+        const bar = node("i"); bar.style.width = Math.min(1, Math.abs(e.mean) / top) * 100 + "%";
+        bar.style.background = e.mean >= 0 ? "var(--pos)" : "var(--neg)";
+        track.appendChild(bar);
+        const base = cell.baseline[e.ticker];
+        item.append(node("span", e.ticker), track, node("span", `평균 ${spct(e.mean)} · 오른 비율 ${Math.round(e.hit_rate * 100)}% · 독립 약 ${e.independent}` + (base == null ? "" : ` · 전체 평균 ${spct(base)}`)));
+        bars.appendChild(item);
+      }
+      col.appendChild(bars);
+      grid.appendChild(col);
+    }
+    box.appendChild(grid);
+  }
+  host.appendChild(box);
+  const warns = node("div", null, "warns");
+  for (const w of actions.warnings) {
+    const t = WARN_TEXT[w.key];
+    const el = node("span", null, "w " + w.state);
+    el.textContent = `${w.name}: ` + (w.state === "na" ? "자료 없음" : `${t.fmt(w.value)} · ${t[w.state]}`);
+    warns.appendChild(el);
+  }
+  host.appendChild(warns);
+  host.appendChild(node("p", "경고는 위 제안을 바꾸지 않고 함께 확인할 신호일 뿐입니다. 독립 표본이 5개 미만인 자산은 순위에서 제외했습니다. 규칙은 결과를 보기 전에 정했습니다.", "muted"));
 }
 
 // ---------- 공통 ----------
+// ---------- 시장 한눈에 ----------
+const HEAT_COLUMNS = [["1M", "1개월"], ["3M", "3개월"], ["6M", "6개월"], ["12M", "12개월"]];
+function renderOverview() {
+  const charts = (D.charts || {}).assets || {};
+  const row = D.regime ? D.regime.rows[D.regime.rows.length - 1] : null;
+  $("ov-lead").textContent = row
+    ? `${row.month.slice(0, 7)} 월말 기준 ${row.quadrant ? labelText(row.quadrant) : "성장×물가 판단 불가"}, ${row.recession ? "실물경제 침체 신호가 켜져 있습니다" : "실물경제 침체 신호는 없습니다"}.`
+    : "거시 데이터가 없습니다. asset-frame ingest-fred 후 dashboard를 다시 만드세요.";
+  const tiles = $("ov-tiles");
+  tiles.replaceChildren();
+  const warns = $("ov-warns");
+  warns.replaceChildren();
+  if (row) {
+    const actions = D.regime.actions;
+    const cell = row.quadrant && actions && (actions.axes.quadrant || {})[row.quadrant];
+    const list = (items) => items.map((e) => e.ticker).join(" · ") || "–";
+    for (const [title, value, sub, go] of [
+      ["성장×물가", row.quadrant ? labelText(row.quadrant) : "판단 불가", "눌러서 ① 시장 국면", "regime"],
+      ["과거 이 국면에서 강했던 자산", cell && cell.strong.length ? list(cell.strong) : "표본 부족", cell && cell.strong.length ? "6개월 뒤 수익률 기준 · 눌러서 근거" : "제안하지 않음", "regime"],
+      ["과거 이 국면에서 약했던 자산", cell && cell.weak.length ? list(cell.weak) : "표본 부족", cell && cell.weak.length ? "6개월 뒤 수익률 기준 · 눌러서 근거" : "제안하지 않음", "regime"],
+    ]) {
+      const b = node("button", null, "tile"); b.type = "button";
+      b.append(node("small", title), node("b", value), node("em", sub));
+      b.addEventListener("click", () => showTab(go));
+      tiles.appendChild(b);
+    }
+    for (const w of (actions ? actions.warnings : [])) {
+      const t = WARN_TEXT[w.key];
+      const el = node("span", null, "w " + w.state);
+      el.textContent = `${w.name}: ` + (w.state === "na" ? "자료 없음" : `${t.fmt(w.value)} · ${t[w.state]}`);
+      warns.appendChild(el);
+    }
+  }
+  const table = $("ov-heat");
+  table.replaceChildren();
+  const tickers = Object.keys(charts);
+  if (!tickers.length) { $("ov-note").textContent = "차트 데이터가 없습니다. dashboard를 다시 만드세요."; return; }
+  const date = (charts.SPY || charts[tickers[0]]).dates.slice(-1)[0];
+  $("ov-note").textContent = `${date} 종가 기준 총수익률(배당 재투자)입니다. 행을 누르면 그 ETF의 차트 분석으로 이동합니다. 색은 열마다 따로 정한 크기이고, 신호는 지표 4개 투표 결과입니다.`;
+  const head = table.createTHead().insertRow();
+  for (const label of ["자산", ...HEAT_COLUMNS.map(([, l]) => l), "차트 신호", "배당"]) head.appendChild(node("th", label));
+  const scale = Object.fromEntries(HEAT_COLUMNS.map(([k]) => {
+    const abs = tickers.map((t) => charts[t].trailing[k]).filter((v) => v != null).map(Math.abs).sort((a, b) => a - b);
+    return [k, abs.length ? abs[Math.floor(abs.length * 0.9)] || abs[abs.length - 1] || 1 : 1];
+  }));
+  const body = table.createTBody();
+  const order = [...D.assets].filter((a) => charts[a.ticker]).sort((a, b) => (b.anchor - a.anchor) || a.group.localeCompare(b.group) || a.ticker.localeCompare(b.ticker));
+  let lastAnchor = null;
+  for (const asset of order) {
+    if (asset.anchor !== lastAnchor) {
+      lastAnchor = asset.anchor;
+      const sep = body.insertRow(); sep.className = "sep";
+      const td = sep.insertCell(); td.colSpan = 6; td.textContent = asset.anchor ? "12개 자산군(앵커)" : "세분 자산(섹터·스타일 등)";
+    }
+    const c = charts[asset.ticker];
+    const tr = body.insertRow(); tr.className = "pick";
+    tr.title = (LAB_DESC[asset.ticker] || asset.name);
+    tr.insertCell().textContent = asset.ticker + " " + (LAB_DESC[asset.ticker] || "").split(",")[0];
+    for (const [k] of HEAT_COLUMNS) {
+      const v = c.trailing[k];
+      const td = tr.insertCell();
+      td.textContent = spct(v);
+      if (v != null) td.style.background = `color-mix(in srgb, var(${v >= 0 ? "--pos" : "--neg"}) ${Math.round(Math.min(1, Math.abs(v) / scale[k]) * 55)}%, transparent)`;
+    }
+    const sig = tr.insertCell(); sig.className = "sig";
+    if (c.now) sig.appendChild(node("span", STATE_LABEL[c.now.state], c.now.state)); else sig.textContent = "–";
+    const dv = (D.dividends || {})[asset.ticker];
+    tr.insertCell().textContent = dv ? (dv.yield > 0 ? (dv.yield * 100).toFixed(1) + "%" : "없음") : "–";
+    tr.addEventListener("click", () => { ETF.ticker = asset.ticker; showTab("etf"); });
+  }
+}
+
+// ---------- ETF 차트 분석 ----------
+const ETF = {ticker: null, days: 252, horizon: "3"};
+const STATE_LABEL = {buy: "매수 우위", neutral: "중립", sell: "매도 우위"};
+const STATE_ACTION = {buy: "신규 매수·비중 확대를 검토할 만한 상태", neutral: "현재 비중 유지(뚜렷한 우위 없음)", sell: "비중 축소·신규 매수 보류를 검토할 만한 상태"};
+const compact = (v) => (v == null ? "–" : Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e3 ? (v / 1e3).toFixed(0) + "K" : String(Math.round(v)));
+function voteText(key, vote, now, last) {
+  const r = last.rsi == null ? "–" : last.rsi.toFixed(0);
+  if (key === "trend") return vote > 0 ? "종가가 120일선 위이고 60일선도 120일선 위: 상승 추세" : vote < 0 ? "종가가 120일선 아래이고 60일선도 120일선 아래: 하락 추세" : "종가와 이동평균선 배열이 엇갈려 추세가 뚜렷하지 않음";
+  if (key === "momentum") return vote > 0 ? "MACD 히스토그램이 0 위: 상승 모멘텀" : vote < 0 ? "MACD 히스토그램이 0 아래: 하락 모멘텀" : "MACD 히스토그램이 0 근처";
+  if (key === "rsi") return vote > 0 ? `RSI ${r} ≤ 30: 과매도` : vote < 0 ? `RSI ${r} ≥ 70: 과매수` : `RSI ${r}: 중간 구간`;
+  return vote > 0 ? "%K가 20 아래에서 %D를 위로 교차(최근 5거래일 안)" : vote < 0 ? "%K가 80 위에서 %D를 아래로 교차(최근 5거래일 안)" : "최근 5거래일 안에 과열·침체 구간의 교차 없음";
+}
+const VOTE_NAME = {trend: "추세", momentum: "모멘텀", rsi: "RSI", stochastic: "스토캐스틱"};
+function renderEtf() {
+  const charts = (D.charts || {}).assets || {};
+  const select = $("etf-asset");
+  if (!select.options.length) {
+    const order = D.assets.filter((a) => charts[a.ticker]).sort((a, b) => (b.anchor - a.anchor) || a.group.localeCompare(b.group) || a.ticker.localeCompare(b.ticker));
+    for (const a of order) select.appendChild(new Option(`${a.ticker} · ${(LAB_DESC[a.ticker] || a.name)}`, a.ticker));
+    select.addEventListener("change", () => { ETF.ticker = select.value; renderEtf(); });
+    for (const [days, label] of [[126, "6개월"], [252, "1년"], [504, "2년"]]) {
+      const b = node("button", label); b.type = "button"; b.dataset.days = days;
+      b.addEventListener("click", () => { ETF.days = days; renderEtf(); });
+      $("etf-days").appendChild(b);
+    }
+    for (const h of ["1", "3", "6"]) {
+      const b = node("button", h + "개월 뒤"); b.type = "button"; b.dataset.h = h;
+      b.addEventListener("click", () => { ETF.horizon = h; renderEtf(); });
+      $("etf-horizon").appendChild(b);
+    }
+  }
+  if (!ETF.ticker || !charts[ETF.ticker]) ETF.ticker = charts.SPY ? "SPY" : Object.keys(charts)[0];
+  if (!ETF.ticker) { $("etf-judge").textContent = "차트 데이터가 없습니다. dashboard를 다시 만드세요."; return; }
+  select.value = ETF.ticker;
+  for (const b of $("etf-days").children) b.setAttribute("aria-pressed", String(Number(b.dataset.days) === ETF.days));
+  for (const b of $("etf-horizon").children) b.setAttribute("aria-pressed", String(b.dataset.h === ETF.horizon));
+  const c = charts[ETF.ticker];
+  const from = Math.max(0, c.dates.length - ETF.days);
+  const cut = (list) => list.slice(from);
+  const labels = cut(c.dates);
+  // 판단 카드
+  const judge = $("etf-judge");
+  judge.replaceChildren();
+  const now = c.now;
+  if (!now) {
+    judge.appendChild(node("p", "이동평균 120일과 MACD를 계산할 만큼 가격 이력이 쌓이지 않아 판단을 보류합니다."));
+  } else {
+    const last = {rsi: c.rsi[c.rsi.length - 1]};
+    const verdict = node("div", `${ETF.ticker}: ${STATE_LABEL[now.state]} (점수 ${now.total > 0 ? "+" : ""}${now.total})`, "verdict " + now.state);
+    judge.appendChild(verdict);
+    judge.appendChild(node("div", `${STATE_ACTION[now.state]} · 기준일 ${now.date}`, "muted"));
+    const list = node("ul");
+    for (const [key, vote] of Object.entries(now.votes)) {
+      const li = node("li");
+      li.append(node("span", (vote > 0 ? "+1" : vote < 0 ? "−1" : "0"), "v " + (vote > 0 ? "p" : vote < 0 ? "n" : "")), node("b", VOTE_NAME[key]), node("span", voteText(key, vote, now, last)));
+      list.appendChild(li);
+    }
+    judge.appendChild(list);
+    const ratio = c.volume_ratio[c.volume_ratio.length - 1];
+    judge.appendChild(node("p", (now.conflict ? "신호가 서로 엇갈립니다(추세 지표와 과열·침체 지표가 반대). " : "") + `거래량은 20일 평균의 ${ratio == null ? "–" : ratio.toFixed(1) + "배"}이며 판정에는 쓰지 않습니다.`, "muted"));
+  }
+  // 신호별 과거 성과
+  const perf = ((D.charts || {}).performance || {})[ETF.ticker] || {};
+  const host = $("etf-perf");
+  host.replaceChildren();
+  const rows = ["buy", "neutral", "sell", "all"].map((k) => [k, perf[k]]).filter(([, cell]) => cell && cell.h[ETF.horizon]);
+  const top = Math.max(0.0001, ...rows.map(([, cell]) => Math.abs(cell.h[ETF.horizon].mean)));
+  for (const [key, cell] of rows) {
+    const st = cell.h[ETF.horizon];
+    const item = node("div", null, "item" + (now && key === now.state ? " now" : ""));
+    const track = node("div", null, "track");
+    const bar = node("i"); bar.style.width = Math.min(1, Math.abs(st.mean) / top) * 100 + "%";
+    bar.style.background = st.mean >= 0 ? "var(--pos)" : "var(--neg)";
+    track.appendChild(bar);
+    const thin = st.independent < 5;
+    item.append(node("span", (key === "all" ? "전체 달" : STATE_LABEL[key]) + (now && key === now.state ? " ◀" : "")), track,
+      node("span", `평균 ${spct(st.mean)} · 오른 비율 ${Math.round(st.hit_rate * 100)}% · ${st.n}개월(독립 약 ${st.independent})` + (thin ? " · 표본 부족" : "")));
+    host.appendChild(item);
+  }
+  $("etf-perf-note").textContent = rows.length
+    ? "월말 신호 다음 달부터 누적한 총수익률입니다. 겹치는 기간 때문에 독립 표본은 개월 수÷기간보다 적습니다. 독립 표본 5 미만이면 \"표본 부족\"이며 해석하지 않습니다. 규칙은 결과를 보기 전에 정했고 수익률이 높다는 이유로 고르지 않았습니다."
+    : "이 ETF는 신호별 성과를 낼 만큼 월 수익률 이력이 없습니다.";
+  // 차트
+  const legend = $("etf-legend");
+  legend.replaceChildren();
+  const MA = [["20", "20일선", "var(--c3)"], ["60", "60일선", "var(--c4)"], ["120", "120일선", "var(--c5)"], ["240", "240일선", "var(--c6)"]];
+  for (const [name, color] of [["상승 봉", "var(--pos)"], ["하락 봉", "var(--neg)"], ...MA.map(([, n, col]) => [n, col])]) {
+    const chip = node("span", null, "chip"); const sw = node("i"); sw.style.background = color;
+    chip.append(sw, document.createTextNode(name)); legend.appendChild(chip);
+  }
+  const common = {noAxis: true};
+  candleChart($("etf-price"), labels, {open: cut(c.open), high: cut(c.high), low: cut(c.low), close: cut(c.close)}, MA.map(([k, n, col]) => ({name: n, color: col, values: cut(c.ma[k])})), {...common, height: 250, label: "캔들 차트와 이동평균선"});
+  barChart($("etf-volume"), labels, cut(c.volume), {...common, tick: compact, fmt: compact, name: "거래량", label: "거래량", height: 60});
+  lineChart($("etf-rsi"), labels, [{name: "RSI", color: "var(--c3)", values: cut(c.rsi)}], {...common, min: 0, max: 100, refs: [30, 70], tick: String, fmt: (v) => v.toFixed(0), height: 80, label: "RSI"});
+  barChart($("etf-macd"), labels, cut(c.hist), {...common, signed: true, tick: (v) => v.toFixed(1), fmt: (v) => v.toFixed(2), name: "히스토그램", label: "MACD", height: 95,
+    lines: [{name: "MACD", color: "var(--c3)", values: cut(c.macd)}, {name: "시그널", color: "var(--c4)", values: cut(c.signal)}]});
+  lineChart($("etf-stoch"), labels, [{name: "%K", color: "var(--c3)", values: cut(c.k)}, {name: "%D", color: "var(--c4)", values: cut(c.d)}], {min: 0, max: 100, refs: [20, 80], tick: String, fmt: (v) => v.toFixed(0), height: 105, label: "스토캐스틱"});
+}
+
 function showTab(tab) {
   state.tab = tab;
+  document.body.classList.toggle("wide", tab === "etf");
   for (const [id] of TABS) $("tab-" + id).hidden = id !== tab;
   renderTabs();
   $("rules-wrap").hidden = !["compare", "lab"].includes(tab);
@@ -1571,7 +1984,9 @@ function showTab(tab) {
   $("lead").hidden = tab !== "compare";
   if (tab === "regime" || tab === "history") renderRegimeTabs();
   if (tab === "compare") renderCompare();
+  if (tab === "overview") renderOverview();
   if (tab === "lab") renderLabResult();
+  if (tab === "etf") renderEtf();
   if (tab === "assets") { renderRolling(); renderCorr(); renderRisk(); }
   try { history.replaceState(null, "", "#" + tab); } catch (e) { /* file:// may refuse */ }
 }
@@ -1622,7 +2037,7 @@ D.strategies.filter((s) => !isBench(s) && !topNow.has(s)).forEach((s) => state.h
 $("perf-more").addEventListener("click", () => { state.more = !state.more; renderPerf(); });
 setupRegime();
 renderRules(); renderLead(); renderChips(); setupLab(); setupAssets();
-const startTab = TABS.map(([id]) => id).includes(location.hash.slice(1)) ? location.hash.slice(1) : D.regime ? "regime" : "compare";
+const startTab = TABS.map(([id]) => id).includes(location.hash.slice(1)) ? location.hash.slice(1) : D.charts && Object.keys(D.charts.assets || {}).length ? "overview" : D.regime ? "regime" : "compare";
 showTab(startTab);
 let resizeTimer;
 window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => showTab(state.tab), 150); });

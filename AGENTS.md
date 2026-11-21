@@ -127,4 +127,4 @@ API key, password, token, private key, 계좌번호, 주문 권한, 불필요한
 - 제품 요구사항은 `PRD.md`, 진행 상황은 `docs/roadmap.md`, 중요한 결정과 trade-off는 `docs/adr/`, 설치·실행은 `README.md`에 기록한다.
 - 프로젝트에서 얻은 일반 지식과 개인적 통찰을 프로젝트 문서에 섞지 않는다.
 - 코드가 명확하면 주석을 추가하지 않는다.
-- 병합이 끝날 때마다 `docs/roadmap.md`와 로드맵 아티팩트를 갱신한다.
+- 병합이 끝날 때마다 `docs/roadmap.md`를 갱신한다. 로드맵 아티팩트는 더 쓰지 않는다(2026-11-21 사용자 결정, 삭제함).
