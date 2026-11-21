@@ -191,3 +191,12 @@ status = "implemented"
 module = "asset_frame.returns.proxy"
 tests = ["tests/test_proxy.py", "tests/test_proxies_config.py"]
 card = "docs/concepts/proxy_history.md"
+
+[[concepts]]
+id = "dividend_yield"
+name = "배당수익률"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.analytics.dividend"
+tests = ["tests/test_dividend.py", "tests/test_dashboard.py"]
+card = "docs/concepts/dividend_yield.md"

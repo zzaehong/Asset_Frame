@@ -68,6 +68,7 @@ svg text { fill: var(--muted); font-size: 11px; }
 .alloc .empty { flex:1; color:var(--muted); text-shadow:none; }
 .wgroup { margin:10px 0 2px; font-weight:600; font-size:13px; color:var(--muted); }
 .wrow { display:grid; grid-template-columns:minmax(120px,220px) 1fr 80px; gap:10px; align-items:center; padding:3px 0; font-size:14px; }
+.wrow .div { color:var(--accent); font-weight:600; }
 .wrow.on .nm { font-weight:600; } .wrow .nm small { color:var(--muted); font-weight:400; }
 .wrow input[type=range] { width:100%; } .wrow input[type=number] { width:72px; text-align:right; }
 details.more { margin-top:12px; } details.more summary { cursor:pointer; color:var(--accent); }
@@ -784,6 +785,12 @@ function renderLabAssets() {
       const first = firstReturnIndex(t);
       const nm = node("span", null, "nm");
       nm.append(document.createTextNode(t === CASH ? t + " (현금)" : t + " "), node("small", (LAB_DESC[t] || asset.name) + (first < 0 ? "" : ` · ${ym(first)}~`)));
+      const dv = (D.dividends || {})[t];
+      if (dv) {
+        const badge = node("small", dv.yield > 0 ? `배당 연 ${(dv.yield * 100).toFixed(1)}%` : "배당 없음", "div");
+        badge.title = `최근 12개월 분배금 ${dv.annual.toFixed(2)}달러/주 ÷ ${dv.as_of} 종가, 연 ${dv.payments}회 지급 (세전, 과거 값이며 미래 배당을 보장하지 않음)`;
+        nm.append(document.createElement("br"), badge);
+      }
       const range = node("input"); range.type = "range"; range.min = "0"; range.max = "100"; range.step = "5"; range.value = String(Math.min(100, value));
       range.setAttribute("aria-label", t + " 비중 슬라이더");
       const num = node("input"); num.type = "number"; num.min = "0"; num.max = "100"; num.step = "any"; num.id = "w-" + t;

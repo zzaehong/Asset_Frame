@@ -154,6 +154,46 @@ class ResearchStore:
             PricePoint(date.fromisoformat(row[0]), Decimal(row[1]), row[2], row[3]) for row in rows
         )
 
+    def dividend_inputs(
+        self, asset_id: UUID
+    ) -> tuple[
+        list[tuple[date, Decimal]],
+        list[tuple[date, Decimal]],
+        tuple[date, Decimal] | None,
+        date | None,
+    ]:
+        """Dividends, splits, (latest date, raw close) and first price date of one asset."""
+        with self._connect() as connection:
+            actions = connection.execute(
+                "SELECT action_type, effective_at, amount, ratio_numerator, ratio_denominator "
+                "FROM corporate_actions WHERE asset_id = ? "
+                "AND action_type IN ('cash_dividend', 'split')",
+                (str(asset_id),),
+            ).fetchall()
+            latest = connection.execute(
+                "SELECT trading_date, close FROM price_observations WHERE asset_id = ? "
+                "ORDER BY trading_date DESC, fetched_at DESC LIMIT 1",
+                (str(asset_id),),
+            ).fetchone()
+            first = connection.execute(
+                "SELECT MIN(trading_date) FROM price_observations WHERE asset_id = ?",
+                (str(asset_id),),
+            ).fetchone()
+        dividends = [
+            (date.fromisoformat(r[1]), Decimal(r[2])) for r in actions if r[0] == "cash_dividend"
+        ]
+        splits = [
+            (date.fromisoformat(r[1]), Decimal(r[3]) / Decimal(r[4]))
+            for r in actions
+            if r[0] == "split"
+        ]
+        return (
+            dividends,
+            splits,
+            None if latest is None else (date.fromisoformat(latest[0]), Decimal(latest[1])),
+            None if first[0] is None else date.fromisoformat(first[0]),
+        )
+
     def latest_raw_snapshot_path(self, *, source_id: str, request_url: str) -> str | None:
         with self._connect() as connection:
             row = connection.execute(

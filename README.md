@@ -32,6 +32,7 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | 해시 체인 원장: 연속 `seq`·이전 해시, 수정·삭제 거부(트리거), 변조·누락 탐지, 같은 키 중복 방지, 국면 월 기록의 live·replay 구분 | `tests/test_ledger.py` |
 | 예측·채점: 모멘텀(12-1)·무작위·사용자 순위와 상관 부호 확률을 원장에 기록(월당 모델별 1건), 3개월 뒤 순위 IC·상·하위 스프레드·Brier 채점, MDE 표시, 잘못된 입력 거부 | `tests/test_prediction.py` |
 | 대용 펀드 이력: 상장 전 구간을 같은 시장 펀드로 이어 붙임(대상 첫 달 이전만, 항상 대용 표시), 겹침 36개월·등급별 상관 기준 미달이면 사용 안 함, 일간 지수 연결, 기존 월간 수익률과 분리 저장, 설정 검증 | `tests/test_proxy.py`, `tests/test_proxy_jobs.py`, `tests/test_proxies_config.py` |
+| 자산별 배당수익률: 최근 12개월 분배금÷기준일 종가, 분할 후 분배금 보정, 중복 배당락일 1회 계산, 이력 12개월 미만이면 표시 안 함, 실험실 자산 행에 표시 | `tests/test_dividend.py`, `tests/test_dashboard.py` |
 | 긴 기간 국면: 1962년부터 월말 replay(INDPRO/CPI 기준 4분면 `regime_ip_v1` 포함, 달러지수 연결), 월 날짜 달라도 같은 달로 맞춤 | `tests/test_regime_rules.py`, `tests/test_regime_long.py`, `tests/test_regime_performance.py`, `tests/test_regime_market.py` |
 | 주식시장 하락장(SPY 총수익 −20% 진입·저점 +20% 종료, `equity_bear_v1`)과 타임라인 표시 | `tests/test_regime_equity.py`, `tests/test_dashboard.py` |
 | 금리 곡선(10년−3개월·10년−2년), 정책금리, 달러지수 수집과 월말 맥락(`macro_market_v1`), 타임라인 표시 | `tests/test_regime_market.py`, `tests/test_fred_connector.py` |
