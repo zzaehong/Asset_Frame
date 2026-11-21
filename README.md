@@ -112,11 +112,10 @@ uv run asset-frame backtest --window-months 24   # 위험 추정 창 민감도(�
 ### Mac 앱
 
 ```bash
-app/build_app.sh                                   # app/build/AssetFrame.app 생성(이 Mac 전용 임시 서명)
-open -n --env ASSET_FRAME_HOME=$PWD app/build/AssetFrame.app
+app/build_app.sh --install   # app/build/AssetFrame.app을 만들고 ~/Applications에도 복사(이 Mac 전용 임시 서명)
 ```
 
-첫 실행에서 프로젝트 폴더를 고르면 기억합니다(`ASSET_FRAME_HOME`이 있으면 그 값을 씁니다). 앱은 DB를 읽기 전용으로 열고, 데이터는 위 CLI로 갱신한 뒤 ⌘R로 다시 읽습니다. 설계는 [ADR-0008](docs/adr/0008-mac-app-read-only.md)입니다.
+`~/Applications/AssetFrame.app`은 Launchpad·Spotlight·Finder에서 일반 앱처럼 열립니다. 빌드할 때 이 저장소 경로를 앱에 넣어 두므로 폴더를 고르거나 환경변수를 줄 필요가 없습니다. 우선순위는 `ASSET_FRAME_HOME` → "폴더 선택…"으로 고른 폴더 → 빌드 때 넣은 경로입니다. 저장소를 옮겼다면 다시 빌드하세요. 앱은 DB를 읽기 전용으로 열고, 데이터는 위 CLI로 갱신한 뒤 ⌘R로 다시 읽습니다. 설계는 [ADR-0008](docs/adr/0008-mac-app-read-only.md)입니다.
 
 ## 데이터 규칙
 

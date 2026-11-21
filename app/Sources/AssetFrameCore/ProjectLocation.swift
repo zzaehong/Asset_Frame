@@ -15,11 +15,23 @@ public struct ProjectLocation: Equatable {
 
     private static let defaultsKey = "projectRoot"
 
-    public static func saved(defaults: UserDefaults = .standard, environment: [String: String] = ProcessInfo.processInfo.environment) -> ProjectLocation? {
+    /// ASSET_FRAME_HOME, else the folder chosen earlier, else the folder `build_app.sh` baked into the app.
+    public static func saved(
+        defaults: UserDefaults = .standard,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        bundled: String? = Bundle.main.object(forInfoDictionaryKey: "AssetFrameHome") as? String
+    ) -> ProjectLocation? {
         if let path = environment["ASSET_FRAME_HOME"], !path.isEmpty {
             return ProjectLocation(root: URL(fileURLWithPath: path))
         }
-        return defaults.string(forKey: defaultsKey).map { ProjectLocation(root: URL(fileURLWithPath: $0)) }
+        if let path = defaults.string(forKey: defaultsKey) {
+            return ProjectLocation(root: URL(fileURLWithPath: path))
+        }
+        if let path = bundled, !path.isEmpty {
+            let baked = ProjectLocation(root: URL(fileURLWithPath: path))
+            return baked.looksValid ? baked : nil
+        }
+        return nil
     }
 
     public func save(defaults: UserDefaults = .standard) {
