@@ -1,0 +1,306 @@
+# 개별주 관찰 목록 후보 (ADR-0010, PRD 5.3절)
+# 추적 중인 ETF의 큰 보유 종목을 모은 **사용자 확인용 후보**다. 도구가 종목을 고르지 않는다.
+# 사용자가 고른 종목만 config/stocks.toml에 기록한다(최대 50종목).
+# 보유 관계는 작성자(AI)의 기억 기준 근사다(2026-11-22 작성, 직접 확인한 값이 아님). 비중은 수시로 바뀌므로
+# 아래 운용사 페이지에서 직접 확인한다. 자동 수집하지 않는다(AGENTS 3절).
+# 확인 위치(운용사 사이트 루트, 검토일 없음 = 아직 사람이 확인하지 않음):
+#   SPY·섹터 SPDR  https://www.ssga.com
+#   QQQ            https://www.invesco.com
+#   DVY            https://www.ishares.com
+#   VIG·VNQ        https://investor.vanguard.com
+#   SCHD           https://www.schwabassetmanagement.com
+# ticker는 Tiingo 표기다(클래스 B 주식은 BRK-B).
+
+[[candidates]]
+ticker = "NVDA"
+name = "NVIDIA"
+gics_sector = "정보기술"
+etfs = ["SPY", "QQQ", "XLK"]
+
+[[candidates]]
+ticker = "MSFT"
+name = "Microsoft"
+gics_sector = "정보기술"
+etfs = ["SPY", "QQQ", "XLK", "VIG"]
+
+[[candidates]]
+ticker = "AAPL"
+name = "Apple"
+gics_sector = "정보기술"
+etfs = ["SPY", "QQQ", "XLK", "VIG"]
+
+[[candidates]]
+ticker = "AVGO"
+name = "Broadcom"
+gics_sector = "정보기술"
+etfs = ["SPY", "QQQ", "XLK", "VIG"]
+
+[[candidates]]
+ticker = "AMZN"
+name = "Amazon"
+gics_sector = "경기소비재"
+etfs = ["SPY", "QQQ", "XLY"]
+
+[[candidates]]
+ticker = "GOOGL"
+name = "Alphabet A"
+gics_sector = "커뮤니케이션"
+etfs = ["SPY", "QQQ", "XLC"]
+
+[[candidates]]
+ticker = "META"
+name = "Meta Platforms"
+gics_sector = "커뮤니케이션"
+etfs = ["SPY", "QQQ", "XLC"]
+
+[[candidates]]
+ticker = "TSLA"
+name = "Tesla"
+gics_sector = "경기소비재"
+etfs = ["SPY", "QQQ", "XLY"]
+
+[[candidates]]
+ticker = "BRK-B"
+name = "Berkshire Hathaway B"
+gics_sector = "금융"
+etfs = ["SPY", "XLF"]
+
+[[candidates]]
+ticker = "JPM"
+name = "JPMorgan Chase"
+gics_sector = "금융"
+etfs = ["SPY", "XLF", "VIG"]
+
+[[candidates]]
+ticker = "V"
+name = "Visa"
+gics_sector = "금융"
+etfs = ["SPY", "XLF", "VIG"]
+
+[[candidates]]
+ticker = "MA"
+name = "Mastercard"
+gics_sector = "금융"
+etfs = ["SPY", "XLF", "VIG"]
+
+[[candidates]]
+ticker = "BAC"
+name = "Bank of America"
+gics_sector = "금융"
+etfs = ["SPY", "XLF"]
+
+[[candidates]]
+ticker = "GS"
+name = "Goldman Sachs"
+gics_sector = "금융"
+etfs = ["SPY", "XLF"]
+
+[[candidates]]
+ticker = "LLY"
+name = "Eli Lilly"
+gics_sector = "헬스케어"
+etfs = ["SPY", "XLV"]
+
+[[candidates]]
+ticker = "UNH"
+name = "UnitedHealth"
+gics_sector = "헬스케어"
+etfs = ["SPY", "XLV", "VIG"]
+
+[[candidates]]
+ticker = "JNJ"
+name = "Johnson & Johnson"
+gics_sector = "헬스케어"
+etfs = ["SPY", "XLV", "VIG"]
+
+[[candidates]]
+ticker = "ABBV"
+name = "AbbVie"
+gics_sector = "헬스케어"
+etfs = ["SPY", "XLV", "SCHD", "VIG"]
+
+[[candidates]]
+ticker = "MRK"
+name = "Merck"
+gics_sector = "헬스케어"
+etfs = ["SPY", "XLV"]
+
+[[candidates]]
+ticker = "ABT"
+name = "Abbott Laboratories"
+gics_sector = "헬스케어"
+etfs = ["SPY", "XLV", "VIG"]
+
+[[candidates]]
+ticker = "AMGN"
+name = "Amgen"
+gics_sector = "헬스케어"
+etfs = ["SPY", "QQQ", "XLV", "SCHD"]
+
+[[candidates]]
+ticker = "COST"
+name = "Costco"
+gics_sector = "필수소비재"
+etfs = ["SPY", "QQQ", "XLP"]
+
+[[candidates]]
+ticker = "WMT"
+name = "Walmart"
+gics_sector = "필수소비재"
+etfs = ["SPY", "XLP"]
+
+[[candidates]]
+ticker = "PG"
+name = "Procter & Gamble"
+gics_sector = "필수소비재"
+etfs = ["SPY", "XLP", "VIG"]
+
+[[candidates]]
+ticker = "KO"
+name = "Coca-Cola"
+gics_sector = "필수소비재"
+etfs = ["SPY", "XLP", "SCHD", "VIG"]
+
+[[candidates]]
+ticker = "PEP"
+name = "PepsiCo"
+gics_sector = "필수소비재"
+etfs = ["SPY", "QQQ", "XLP", "SCHD"]
+
+[[candidates]]
+ticker = "PM"
+name = "Philip Morris International"
+gics_sector = "필수소비재"
+etfs = ["SPY", "XLP", "DVY"]
+
+[[candidates]]
+ticker = "HD"
+name = "Home Depot"
+gics_sector = "경기소비재"
+etfs = ["SPY", "XLY", "SCHD", "VIG"]
+
+[[candidates]]
+ticker = "MCD"
+name = "McDonald's"
+gics_sector = "경기소비재"
+etfs = ["SPY", "XLY", "VIG"]
+
+[[candidates]]
+ticker = "NFLX"
+name = "Netflix"
+gics_sector = "커뮤니케이션"
+etfs = ["SPY", "QQQ", "XLC"]
+
+[[candidates]]
+ticker = "DIS"
+name = "Walt Disney"
+gics_sector = "커뮤니케이션"
+etfs = ["SPY", "XLC"]
+
+[[candidates]]
+ticker = "VZ"
+name = "Verizon"
+gics_sector = "커뮤니케이션"
+etfs = ["SPY", "XLC", "SCHD", "DVY"]
+
+[[candidates]]
+ticker = "T"
+name = "AT&T"
+gics_sector = "커뮤니케이션"
+etfs = ["SPY", "XLC", "DVY"]
+
+[[candidates]]
+ticker = "XOM"
+name = "Exxon Mobil"
+gics_sector = "에너지"
+etfs = ["SPY", "XLE", "VIG"]
+
+[[candidates]]
+ticker = "CVX"
+name = "Chevron"
+gics_sector = "에너지"
+etfs = ["SPY", "XLE", "SCHD", "DVY"]
+
+[[candidates]]
+ticker = "ORCL"
+name = "Oracle"
+gics_sector = "정보기술"
+etfs = ["SPY", "XLK"]
+
+[[candidates]]
+ticker = "AMD"
+name = "Advanced Micro Devices"
+gics_sector = "정보기술"
+etfs = ["SPY", "QQQ", "XLK"]
+
+[[candidates]]
+ticker = "CSCO"
+name = "Cisco Systems"
+gics_sector = "정보기술"
+etfs = ["SPY", "QQQ", "XLK", "SCHD"]
+
+[[candidates]]
+ticker = "TXN"
+name = "Texas Instruments"
+gics_sector = "정보기술"
+etfs = ["SPY", "QQQ", "XLK", "SCHD", "VIG"]
+
+[[candidates]]
+ticker = "CAT"
+name = "Caterpillar"
+gics_sector = "산업재"
+etfs = ["SPY", "XLI"]
+
+[[candidates]]
+ticker = "GE"
+name = "GE Aerospace"
+gics_sector = "산업재"
+etfs = ["SPY", "XLI"]
+
+[[candidates]]
+ticker = "UNP"
+name = "Union Pacific"
+gics_sector = "산업재"
+etfs = ["SPY", "XLI"]
+
+[[candidates]]
+ticker = "NEE"
+name = "NextEra Energy"
+gics_sector = "유틸리티"
+etfs = ["SPY", "XLU", "VIG"]
+
+[[candidates]]
+ticker = "SO"
+name = "Southern Company"
+gics_sector = "유틸리티"
+etfs = ["SPY", "XLU"]
+
+[[candidates]]
+ticker = "LIN"
+name = "Linde"
+gics_sector = "소재"
+etfs = ["SPY", "XLB"]
+
+[[candidates]]
+ticker = "NEM"
+name = "Newmont"
+gics_sector = "소재"
+etfs = ["SPY", "XLB"]
+
+[[candidates]]
+ticker = "PLD"
+name = "Prologis"
+gics_sector = "부동산"
+etfs = ["SPY", "XLRE", "VNQ"]
+
+[[candidates]]
+ticker = "AMT"
+name = "American Tower"
+gics_sector = "부동산"
+etfs = ["SPY", "XLRE", "VNQ"]
+
+[[candidates]]
+ticker = "EQIX"
+name = "Equinix"
+gics_sector = "부동산"
+etfs = ["SPY", "XLRE", "VNQ"]
