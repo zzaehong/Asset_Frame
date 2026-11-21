@@ -9,7 +9,7 @@
 - `app/`에 SwiftUI 앱(Swift Package, macOS 14+, 외부 패키지 없음)을 둔다. 운영 SQLite를 `SQLITE_OPEN_READONLY`로만 연다. 앱은 데이터를 만들거나 바꾸지 않고, 수집·계산·기록·채점은 모두 Python CLI가 한다.
 - **계산은 Python 한 곳에만 둔다.** 앱은 저장된 결과를 읽어 보여 준다. 대시보드는 `asset-frame dashboard`가 만든 HTML을 WKWebView로 열어 그대로 쓴다(전략 비교·포트폴리오 실험실·상관 분석을 Swift로 다시 만들지 않는다).
 - Swift에 둔 로직은 둘뿐이다. ① 원장 해시 체인 검증(ADR-0007과 같은 규칙, 파이썬이 쓴 픽스처로 일치 테스트), ② 성적표의 단순 평균. 성적표의 MDE는 앱에 넣지 않고 `ledger scoreboard`가 단일 출처다.
-- 프로젝트 폴더는 사용자가 한 번 고르거나 `ASSET_FRAME_HOME`으로 준다. 개인 경로를 코드에 넣지 않는다.
+- 프로젝트 폴더는 `ASSET_FRAME_HOME`, 사용자가 고른 폴더, `build_app.sh`가 Info.plist(`AssetFrameHome`)에 넣은 빌드 시점 경로 순으로 정한다. 개인 경로를 코드에 넣지 않는다(빌드 산출물에만 들어간다).
 - 화면(사이드바 한 단계, ⌘1~7): 홈(지금 확인할 것·현재 국면), 분석 흐름 ① 시장 국면 → ② 국면별 과거 성과 → ③ 전략 비교·포트폴리오 실험실(모두 같은 대시보드 HTML의 탭을 사이드바로 전환), 기록(원장·데이터). 국면별 성과는 Python이 미리 계산해 payload에 넣고(`regime_performance_v1`, [개념 카드](../concepts/regime_performance.md)) 화면은 선택·정렬만 한다.
 
 ## 결과와 한계
