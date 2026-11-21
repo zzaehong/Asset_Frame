@@ -42,6 +42,7 @@ from asset_frame.regime.market import EXTENSION_SERIES, MAX_AGE_DAYS
 from asset_frame.regime.replay import RULES, ip_quadrants, score
 from asset_frame.report.dashboard import LongContext, build_payload, render_dashboard
 from asset_frame.returns.series import total_return_index
+from asset_frame.secrets import resolve_secret
 from asset_frame.signal_log import macro_snapshot, record_signals, score_signals
 from asset_frame.signal_log import scoreboard as signal_scoreboard
 from asset_frame.sources.registry import load_source_registry
@@ -843,7 +844,10 @@ def _raw_store() -> FileRawStore:
 
 
 def _required_environment(name: str) -> str:
-    value = os.getenv(name)
+    value = resolve_secret(name)
     if not value:
-        raise SystemExit(f"required environment variable is missing: {name}")
+        raise SystemExit(
+            f"{name} is missing: set the environment variable or save it in the Mac app "
+            "(API 키 screen, stored in the macOS Keychain)"
+        )
     return value

@@ -3,6 +3,7 @@
 - 상태: 채택
 - 날짜: 2026-11-19
 - 관련: [ADR-0005](0005-hypothesis-ledger.md) 결정 7(SwiftUI 앱으로 전환), PRD 9절 M5
+- 개정: [ADR-0011](0011-api-keys-in-macos-keychain.md) — 앱이 쓰는 것은 키체인의 API 키 저장·삭제뿐(2026-11-22)
 
 ## 결정
 

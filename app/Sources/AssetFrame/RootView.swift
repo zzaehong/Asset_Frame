@@ -11,6 +11,7 @@ enum Screen: String, CaseIterable, Identifiable {
     case stocks = "개별주 선택"
     case ledger = "원장"
     case data = "데이터"
+    case keys = "API 키"
 
     var id: String { rawValue }
     /// Name of the dashboard tab this screen shows; nil for native screens.
@@ -27,7 +28,7 @@ enum Screen: String, CaseIterable, Identifiable {
         }
     }
     static let analysis: [Screen] = [.overview, .regime, .history, .compare, .lab, .etf, .stocks]
-    static let records: [Screen] = [.ledger, .data]
+    static let records: [Screen] = [.ledger, .data, .keys]
     /// ASSET_FRAME_SECTION=<screen title> picks the first screen (used to check each screen).
     static var initial: Screen {
         ProcessInfo.processInfo.environment["ASSET_FRAME_SECTION"].flatMap(Screen.init(rawValue:)) ?? .home
@@ -44,6 +45,7 @@ enum Screen: String, CaseIterable, Identifiable {
         case .stocks: "checklist"
         case .ledger: "list.bullet.rectangle"
         case .data: "externaldrive"
+        case .keys: "key"
         }
     }
     /// ⌘1…⌘9 in sidebar order; the tenth screen and later have none.
@@ -90,6 +92,7 @@ struct RootView: View {
                     case .overview, .regime, .history, .compare, .lab, .etf, .stocks: DashboardView(tab: model.screen.webTab ?? "regime")
                     case .ledger: LedgerView()
                     case .data: DataView()
+                    case .keys: ApiKeysView()
                     }
                 }
             }
