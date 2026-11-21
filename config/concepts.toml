@@ -200,3 +200,42 @@ status = "implemented"
 module = "asset_frame.analytics.dividend"
 tests = ["tests/test_dividend.py", "tests/test_dashboard.py"]
 card = "docs/concepts/dividend_yield.md"
+
+[[concepts]]
+id = "chart_indicators"
+name = "차트 지표"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.analytics.indicators"
+tests = ["tests/test_indicators.py", "tests/test_chart_jobs.py"]
+card = "docs/concepts/chart_indicators.md"
+
+
+[[concepts]]
+id = "chart_signal"
+name = "차트 규칙 신호"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.analytics.chart_signal"
+tests = ["tests/test_chart_signal.py", "tests/test_chart_jobs.py"]
+card = "docs/concepts/chart_signal.md"
+
+
+[[concepts]]
+id = "macro_action"
+name = "거시 판단"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.regime.actions"
+tests = ["tests/test_regime_actions.py", "tests/test_dashboard.py"]
+card = "docs/concepts/macro_action.md"
+
+
+[[concepts]]
+id = "signal_log"
+name = "신호 원장 기록과 채점"
+domain = "투자운용결과분석"
+status = "implemented"
+module = "asset_frame.signal_log"
+tests = ["tests/test_signal_log.py"]
+card = "docs/concepts/signal_log.md"

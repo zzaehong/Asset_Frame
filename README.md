@@ -33,6 +33,10 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | 예측·채점: 모멘텀(12-1)·무작위·사용자 순위와 상관 부호 확률을 원장에 기록(월당 모델별 1건), 3개월 뒤 순위 IC·상·하위 스프레드·Brier 채점, MDE 표시, 잘못된 입력 거부 | `tests/test_prediction.py` |
 | 대용 펀드 이력: 상장 전 구간을 같은 시장 펀드로 이어 붙임(대상 첫 달 이전만, 항상 대용 표시), 겹침 36개월·등급별 상관 기준 미달이면 사용 안 함, 일간 지수 연결, 기존 월간 수익률과 분리 저장, 설정 검증 | `tests/test_proxy.py`, `tests/test_proxy_jobs.py`, `tests/test_proxies_config.py` |
 | 자산별 배당수익률: 최근 12개월 분배금÷기준일 종가, 분할 후 분배금 보정, 중복 배당락일 1회 계산, 이력 12개월 미만이면 표시 안 함, 실험실 자산 행에 표시 | `tests/test_dividend.py`, `tests/test_dashboard.py` |
+| 차트 지표(SMA·EMA·RSI·MACD·스토캐스틱·거래량 비율)와 기간별 수익률: 손 계산 fixture, 이력 부족은 None, 고가·저가 보정, 최근 일수 자르기 | `tests/test_indicators.py`, `tests/test_chart_jobs.py` |
+| 차트 규칙 신호(4개 투표 합계, 임계 ±2, 스토캐스틱 교차 5거래일 유지, 히스토그램 잡음 처리), 월말 신호별 1·3·6개월 과거 성과 | `tests/test_chart_signal.py`, `tests/test_chart_jobs.py` |
+| 거시 판단(국면별 강했던·약했던 자산, 독립 표본 5 미만 제외, 자격 4개 미만이면 제안 안 함, 곡선·정책금리·달러 경고와 자료 없음) | `tests/test_regime_actions.py`, `tests/test_dashboard.py` |
+| 신호 원장 기록(월별 1회)·채점(차트 3개월·거시 6개월, 한 번만)·집계 | `tests/test_signal_log.py` |
 | 긴 기간 국면: 1962년부터 월말 replay(INDPRO/CPI 기준 4분면 `regime_ip_v1` 포함, 달러지수 연결), 월 날짜 달라도 같은 달로 맞춤 | `tests/test_regime_rules.py`, `tests/test_regime_long.py`, `tests/test_regime_performance.py`, `tests/test_regime_market.py` |
 | 주식시장 하락장(SPY 총수익 −20% 진입·저점 +20% 종료, `equity_bear_v1`)과 타임라인 표시 | `tests/test_regime_equity.py`, `tests/test_dashboard.py` |
 | 금리 곡선(10년−3개월·10년−2년), 정책금리, 달러지수 수집과 월말 맥락(`macro_market_v1`), 타임라인 표시 | `tests/test_regime_market.py`, `tests/test_fred_connector.py` |
@@ -96,6 +100,9 @@ uv run asset-frame ledger predict-models    # 모멘텀·무작위 모델의 최
 uv run asset-frame ledger predict --ranking SPY,GLD,... --positive-prob 0.6 --note "근거"  # 내 예측
 uv run asset-frame ledger score             # 3개월이 지난 예측 채점
 uv run asset-frame ledger scoreboard        # 모델별 성적표(표본 수·MDE 포함)
+uv run asset-frame ledger record-signals     # 최근 월말의 차트 신호·거시 제안을 원장에 추가(영구 기록)
+uv run asset-frame ledger score-signals      # 차트 3개월·거시 6개월이 지난 신호 채점
+uv run asset-frame ledger signal-scoreboard  # 신호 적중률·스프레드(채점한 월 수 포함)
 uv run asset-frame ledger verify            # 해시 체인 검증, head 해시 출력
 uv run asset-frame backup                   # var의 DB·raw를 BACKUP_PATH로 복사(수집 후 실행)
 uv run asset-frame backtest                 # var/reports/backtest_performance.csv, backtest_monthly.csv

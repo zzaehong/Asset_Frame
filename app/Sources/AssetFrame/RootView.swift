@@ -2,10 +2,12 @@ import SwiftUI
 
 enum Screen: String, CaseIterable, Identifiable {
     case home = "홈"
+    case overview = "시장 한눈에"
     case regime = "① 시장 국면"
     case history = "② 국면별 과거 성과"
     case compare = "③ 전략 비교"
     case lab = "③ 포트폴리오 실험실"
+    case etf = "ETF 차트 분석"
     case ledger = "원장"
     case data = "데이터"
 
@@ -13,14 +15,16 @@ enum Screen: String, CaseIterable, Identifiable {
     /// Name of the dashboard tab this screen shows; nil for native screens.
     var webTab: String? {
         switch self {
+        case .overview: "overview"
         case .regime: "regime"
         case .history: "history"
         case .compare: "compare"
         case .lab: "lab"
+        case .etf: "etf"
         default: nil
         }
     }
-    static let analysis: [Screen] = [.regime, .history, .compare, .lab]
+    static let analysis: [Screen] = [.overview, .regime, .history, .compare, .lab, .etf]
     static let records: [Screen] = [.ledger, .data]
     /// ASSET_FRAME_SECTION=<screen title> picks the first screen (used to check each screen).
     static var initial: Screen {
@@ -29,15 +33,17 @@ enum Screen: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .home: "house"
+        case .overview: "square.grid.3x3.fill"
         case .regime: "globe.asia.australia"
         case .history: "clock.arrow.circlepath"
         case .compare: "chart.xyaxis.line"
         case .lab: "slider.horizontal.3"
+        case .etf: "chart.line.uptrend.xyaxis"
         case .ledger: "list.bullet.rectangle"
         case .data: "externaldrive"
         }
     }
-    /// ⌘1…⌘7 in sidebar order.
+    /// ⌘1…⌘9 in sidebar order.
     var shortcut: KeyEquivalent { KeyEquivalent(Character(String(Screen.sidebarOrder.firstIndex(of: self)! + 1))) }
     static let sidebarOrder: [Screen] = [.home] + analysis + records
 }
@@ -75,7 +81,7 @@ struct RootView: View {
                     }
                     switch model.screen {
                     case .home: OverviewView()
-                    case .regime, .history, .compare, .lab: DashboardView(tab: model.screen.webTab ?? "regime")
+                    case .overview, .regime, .history, .compare, .lab, .etf: DashboardView(tab: model.screen.webTab ?? "regime")
                     case .ledger: LedgerView()
                     case .data: DataView()
                     }
