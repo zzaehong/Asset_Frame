@@ -29,6 +29,8 @@ from asset_frame.returns.series import PricePoint, total_return_index
 
 RECENT_DAYS = 504
 SIGNAL_HORIZONS = (1, 3, 6)
+# Trading days behind the heatmap columns: about 1, 3, 6 and 12 months.
+TRAILING_DAYS = {"1M": 21, "3M": 63, "6M": 126, "12M": 252}
 STATES = ("buy", "neutral", "sell")
 
 
@@ -67,6 +69,14 @@ def build_asset_chart(
     }
 
 
+def trailing_returns(close: Sequence[float], days: Mapping[str, int] = TRAILING_DAYS) -> dict:
+    """Total return over the last `n` trading days (None if the history is shorter than n + 1)."""
+    last = close[-1]
+    return {
+        name: (last / close[-1 - n] - 1 if len(close) > n else None) for name, n in days.items()
+    }
+
+
 def _round(values: Sequence[float | None], digits: int = 4) -> list[float | None]:
     return [None if v is None else round(v, digits) for v in values]
 
@@ -93,6 +103,10 @@ def asset_payload(chart: dict, recent: int = RECENT_DAYS) -> dict:
         "d": _round(chart["d"][cut], 1),
         "volume": [int(v) for v in chart["volume"][cut]],
         "volume_ratio": _round(chart["volume_ratio"][cut], 2),
+        "trailing": {
+            k: None if v is None else round(v, 4)
+            for k, v in trailing_returns(chart["close"]).items()
+        },
         "state": [None if s is None else s["state"] for s in states],
         "now": None if last is None else {**last, "date": chart["dates"][-1].isoformat()},
     }

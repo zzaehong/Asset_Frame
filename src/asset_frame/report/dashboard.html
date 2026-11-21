@@ -68,6 +68,12 @@ svg text { fill: var(--muted); font-size: 11px; }
 .alloc .empty { flex:1; color:var(--muted); text-shadow:none; }
 .wgroup { margin:10px 0 2px; font-weight:600; font-size:13px; color:var(--muted); }
 .wrow { display:grid; grid-template-columns:minmax(120px,220px) 1fr 80px; gap:10px; align-items:center; padding:3px 0; font-size:14px; }
+table.heat { width:100%; }
+table.heat td, table.heat th { text-align:right; padding:3px 10px; } table.heat td:first-child, table.heat th:first-child { text-align:left; }
+table.heat tr.pick { cursor:pointer; } table.heat tr.pick:hover td { outline:1px solid var(--accent); outline-offset:-1px; }
+table.heat td.sig span { border-radius:99px; padding:1px 9px; font-size:12px; font-weight:600; background:color-mix(in srgb, var(--muted) 20%, transparent); }
+table.heat td.sig span.buy { background:color-mix(in srgb, var(--pos) 28%, transparent); color:var(--pos); } table.heat td.sig span.sell { background:color-mix(in srgb, var(--neg) 28%, transparent); color:var(--neg); }
+table.heat tr.sep td { text-align:left; color:var(--muted); font-size:12px; padding-top:10px; }
 .warns { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
 .warns .w { border:1px solid var(--line); border-radius:8px; padding:6px 10px; background:var(--surface); font-size:14px; }
 .warns .w.warn { border-color:var(--neg); color:var(--neg); font-weight:600; } .warns .w.na { color:var(--muted); }
@@ -144,6 +150,21 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
     <label class="row" id="long-wrap" hidden title="1962년부터 거시 규칙을 돌리고, 상장 전 자산 구간은 대용 펀드로 이은 결과를 보여 줍니다"><input type="checkbox" id="long-toggle"> 긴 기간 보기 (1962~, 대용 펀드 포함)</label>
     <span class="row" id="rules-wrap"><span class="muted">리밸런싱 규칙</span>
     <span class="seg" id="rules" role="group" aria-label="리밸런싱 규칙"></span></span>
+  </div>
+
+  <!-- ===== 시장 한눈에 ===== -->
+  <div class="panel" id="tab-overview" hidden>
+    <section>
+      <h2>지금 시장</h2>
+      <p class="lead" id="ov-lead"></p>
+      <div class="tiles" id="ov-tiles"></div>
+      <div class="warns" id="ov-warns"></div>
+    </section>
+    <section>
+      <h2>ETF 기간별 수익률</h2>
+      <p class="muted" id="ov-note"></p>
+      <div class="scroll"><table class="heat" id="ov-heat"></table></div>
+    </section>
   </div>
 
   <!-- ===== 시장 국면 ===== -->
@@ -389,7 +410,7 @@ const D = /*__DATA__*/null;
 </script>
 <script>
 const RULE_LABEL = {monthly: "월간", quarterly: "분기", band: "밴드 ±5%p"};
-const TABS = [["regime", "① 시장 국면"], ["history", "② 국면별 과거 성과"], ["compare", "③ 전략 비교"], ["lab", "③ 포트폴리오 실험실"], ["etf", "ETF 차트 분석"], ["assets", "자산·상관"]];
+const TABS = [["overview", "시장 한눈에"], ["regime", "① 시장 국면"], ["history", "② 국면별 과거 성과"], ["compare", "③ 전략 비교"], ["lab", "③ 포트폴리오 실험실"], ["etf", "ETF 차트 분석"], ["assets", "자산·상관"]];
 const state = {rule: D.rules.includes("quarterly") ? "quarterly" : D.rules[0], tab: "compare", hidden: new Set(), sort: null, riskSort: null, more: false, axis: "quadrant", label: null, showAll: false, pinned: null, similar: false, horizon: 6, long: false};
 const $ = (id) => document.getElementById(id);
 const nf = (digits) => (v) => (v == null ? "–" : v.toFixed(digits));
@@ -1701,6 +1722,78 @@ function renderMacroJudge() {
 }
 
 // ---------- 공통 ----------
+// ---------- 시장 한눈에 ----------
+const HEAT_COLUMNS = [["1M", "1개월"], ["3M", "3개월"], ["6M", "6개월"], ["12M", "12개월"]];
+function renderOverview() {
+  const charts = (D.charts || {}).assets || {};
+  const row = D.regime ? D.regime.rows[D.regime.rows.length - 1] : null;
+  $("ov-lead").textContent = row
+    ? `${row.month.slice(0, 7)} 월말 기준 ${row.quadrant ? labelText(row.quadrant) : "성장×물가 판단 불가"}, ${row.recession ? "실물경제 침체 신호가 켜져 있습니다" : "실물경제 침체 신호는 없습니다"}.`
+    : "거시 데이터가 없습니다. asset-frame ingest-fred 후 dashboard를 다시 만드세요.";
+  const tiles = $("ov-tiles");
+  tiles.replaceChildren();
+  const warns = $("ov-warns");
+  warns.replaceChildren();
+  if (row) {
+    const actions = D.regime.actions;
+    const cell = row.quadrant && actions && (actions.axes.quadrant || {})[row.quadrant];
+    const list = (items) => items.map((e) => e.ticker).join(" · ") || "–";
+    for (const [title, value, sub, go] of [
+      ["성장×물가", row.quadrant ? labelText(row.quadrant) : "판단 불가", "눌러서 ① 시장 국면", "regime"],
+      ["과거 이 국면에서 강했던 자산", cell && cell.strong.length ? list(cell.strong) : "표본 부족", cell && cell.strong.length ? "6개월 뒤 수익률 기준 · 눌러서 근거" : "제안하지 않음", "regime"],
+      ["과거 이 국면에서 약했던 자산", cell && cell.weak.length ? list(cell.weak) : "표본 부족", cell && cell.weak.length ? "6개월 뒤 수익률 기준 · 눌러서 근거" : "제안하지 않음", "regime"],
+    ]) {
+      const b = node("button", null, "tile"); b.type = "button";
+      b.append(node("small", title), node("b", value), node("em", sub));
+      b.addEventListener("click", () => showTab(go));
+      tiles.appendChild(b);
+    }
+    for (const w of (actions ? actions.warnings : [])) {
+      const t = WARN_TEXT[w.key];
+      const el = node("span", null, "w " + w.state);
+      el.textContent = `${w.name}: ` + (w.state === "na" ? "자료 없음" : `${t.fmt(w.value)} · ${t[w.state]}`);
+      warns.appendChild(el);
+    }
+  }
+  const table = $("ov-heat");
+  table.replaceChildren();
+  const tickers = Object.keys(charts);
+  if (!tickers.length) { $("ov-note").textContent = "차트 데이터가 없습니다. dashboard를 다시 만드세요."; return; }
+  const date = (charts.SPY || charts[tickers[0]]).dates.slice(-1)[0];
+  $("ov-note").textContent = `${date} 종가 기준 총수익률(배당 재투자)입니다. 행을 누르면 그 ETF의 차트 분석으로 이동합니다. 색은 열마다 따로 정한 크기이고, 신호는 지표 4개 투표 결과입니다.`;
+  const head = table.createTHead().insertRow();
+  for (const label of ["자산", ...HEAT_COLUMNS.map(([, l]) => l), "차트 신호", "배당"]) head.appendChild(node("th", label));
+  const scale = Object.fromEntries(HEAT_COLUMNS.map(([k]) => {
+    const abs = tickers.map((t) => charts[t].trailing[k]).filter((v) => v != null).map(Math.abs).sort((a, b) => a - b);
+    return [k, abs.length ? abs[Math.floor(abs.length * 0.9)] || abs[abs.length - 1] || 1 : 1];
+  }));
+  const body = table.createTBody();
+  const order = [...D.assets].filter((a) => charts[a.ticker]).sort((a, b) => (b.anchor - a.anchor) || a.group.localeCompare(b.group) || a.ticker.localeCompare(b.ticker));
+  let lastAnchor = null;
+  for (const asset of order) {
+    if (asset.anchor !== lastAnchor) {
+      lastAnchor = asset.anchor;
+      const sep = body.insertRow(); sep.className = "sep";
+      const td = sep.insertCell(); td.colSpan = 6; td.textContent = asset.anchor ? "12개 자산군(앵커)" : "세분 자산(섹터·스타일 등)";
+    }
+    const c = charts[asset.ticker];
+    const tr = body.insertRow(); tr.className = "pick";
+    tr.title = (LAB_DESC[asset.ticker] || asset.name);
+    tr.insertCell().textContent = asset.ticker + " " + (LAB_DESC[asset.ticker] || "").split(",")[0];
+    for (const [k] of HEAT_COLUMNS) {
+      const v = c.trailing[k];
+      const td = tr.insertCell();
+      td.textContent = spct(v);
+      if (v != null) td.style.background = `color-mix(in srgb, var(${v >= 0 ? "--pos" : "--neg"}) ${Math.round(Math.min(1, Math.abs(v) / scale[k]) * 55)}%, transparent)`;
+    }
+    const sig = tr.insertCell(); sig.className = "sig";
+    if (c.now) sig.appendChild(node("span", STATE_LABEL[c.now.state], c.now.state)); else sig.textContent = "–";
+    const dv = (D.dividends || {})[asset.ticker];
+    tr.insertCell().textContent = dv ? (dv.yield > 0 ? (dv.yield * 100).toFixed(1) + "%" : "없음") : "–";
+    tr.addEventListener("click", () => { ETF.ticker = asset.ticker; showTab("etf"); });
+  }
+}
+
 // ---------- ETF 차트 분석 ----------
 const ETF = {ticker: null, days: 252, horizon: "3"};
 const STATE_LABEL = {buy: "매수 우위", neutral: "중립", sell: "매도 우위"};
@@ -1808,6 +1901,7 @@ function showTab(tab) {
   $("lead").hidden = tab !== "compare";
   if (tab === "regime" || tab === "history") renderRegimeTabs();
   if (tab === "compare") renderCompare();
+  if (tab === "overview") renderOverview();
   if (tab === "lab") renderLabResult();
   if (tab === "etf") renderEtf();
   if (tab === "assets") { renderRolling(); renderCorr(); renderRisk(); }
@@ -1860,7 +1954,7 @@ D.strategies.filter((s) => !isBench(s) && !topNow.has(s)).forEach((s) => state.h
 $("perf-more").addEventListener("click", () => { state.more = !state.more; renderPerf(); });
 setupRegime();
 renderRules(); renderLead(); renderChips(); setupLab(); setupAssets();
-const startTab = TABS.map(([id]) => id).includes(location.hash.slice(1)) ? location.hash.slice(1) : D.regime ? "regime" : "compare";
+const startTab = TABS.map(([id]) => id).includes(location.hash.slice(1)) ? location.hash.slice(1) : D.charts && Object.keys(D.charts.assets || {}).length ? "overview" : D.regime ? "regime" : "compare";
 showTab(startTab);
 let resizeTimer;
 window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => showTab(state.tab), 150); });

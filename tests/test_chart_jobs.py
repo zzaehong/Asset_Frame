@@ -8,6 +8,7 @@ from asset_frame.chart_jobs import (
     build_asset_chart,
     month_end_states,
     signal_performance,
+    trailing_returns,
 )
 from asset_frame.returns.series import PricePoint
 
@@ -88,3 +89,17 @@ def test_signal_performance_by_state_hand_calculation() -> None:
     assert result["sell"]["h"]["1"]["mean"] == pytest.approx(-0.05)
     assert result["buy"]["h"]["3"]["n"] == 2
     assert result["all"]["months"] == 3 and result["all"]["h"]["1"]["n"] == 3
+
+
+def test_trailing_returns_use_trading_days_and_need_enough_history() -> None:
+    close = [100.0, 110.0, 121.0, 133.1]
+    out = trailing_returns(close, {"1": 1, "3": 3, "4": 4})
+    assert out["1"] == pytest.approx(0.10) and out["3"] == pytest.approx(0.331)
+    assert out["4"] is None  # needs five prices
+
+
+def test_payload_carries_trailing_returns() -> None:
+    points, bars, adjusted = series()
+    payload = asset_payload(build_asset_chart(points, bars))
+    assert payload["trailing"]["1M"] == pytest.approx(adjusted[-1] / adjusted[-22] - 1, abs=1e-4)
+    assert payload["trailing"]["12M"] is not None

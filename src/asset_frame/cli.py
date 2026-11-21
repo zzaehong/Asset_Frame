@@ -13,7 +13,7 @@ from asset_frame.analytics.risk import WINDOW_MONTHS
 from asset_frame.backtest.engine import CALC_VERSION as BACKTEST_CALC_VERSION
 from asset_frame.backtest.jobs import BENCHMARKS, run_backtest
 from asset_frame.backtest.strategies import load_strategies
-from asset_frame.chart_jobs import build_chart_data
+from asset_frame.chart_jobs import build_asset_chart, build_chart_data
 from asset_frame.connectors.fred import FRED_SOURCE_ID, SUPPORTED_SERIES
 from asset_frame.connectors.krx import KRX_SOURCE_ID, KrxDataset
 from asset_frame.connectors.tiingo import TIINGO_SOURCE_ID, tiingo_asset_id
@@ -42,6 +42,8 @@ from asset_frame.regime.market import EXTENSION_SERIES, MAX_AGE_DAYS
 from asset_frame.regime.replay import RULES, ip_quadrants, score
 from asset_frame.report.dashboard import LongContext, build_payload, render_dashboard
 from asset_frame.returns.series import total_return_index
+from asset_frame.signal_log import macro_snapshot, record_signals, score_signals
+from asset_frame.signal_log import scoreboard as signal_scoreboard
 from asset_frame.sources.registry import load_source_registry
 from asset_frame.storage.backup import backup
 from asset_frame.storage.ledger import LedgerStore
@@ -154,6 +156,15 @@ def main(argv: list[str] | None = None) -> None:
     predict_parser.add_argument("--note", required=True, help="one-line reason")
     ledger_commands.add_parser("score", help="score predictions whose 3 months have passed")
     ledger_commands.add_parser("scoreboard", help="per-model scores with sample size and MDE")
+    ledger_commands.add_parser(
+        "record-signals", help="append the latest month's chart and macro rule signals"
+    )
+    ledger_commands.add_parser(
+        "score-signals", help="score signals whose 3 (chart) or 6 (macro) months have passed"
+    )
+    ledger_commands.add_parser(
+        "signal-scoreboard", help="hit rates of the chart signal and macro suggestion"
+    )
     subparsers.add_parser("backup", help="copy the database and raw files to BACKUP_PATH")
     backtest_parser = subparsers.add_parser(
         "backtest", help="compare strategies under three rebalancing rules"
@@ -447,7 +458,7 @@ def _backtest(window_months: int) -> None:
     print(f"wrote {performance_path}\nwrote {monthly_path}")
 
 
-def _dashboard() -> None:
+def _dashboard_payload() -> dict:
     universe = load_universe(UNIVERSE_PATH)
     store = _research_store()
     strategies = load_strategies(STRATEGIES_PATH, universe)
@@ -507,7 +518,11 @@ def _dashboard() -> None:
             returns,
         ),
     )
-    _write_report("dashboard.html", render_dashboard(payload))
+    return payload
+
+
+def _dashboard() -> None:
+    _write_report("dashboard.html", render_dashboard(_dashboard_payload()))
 
 
 def _dividend_summary(store: ResearchStore, universe: Sequence[UniverseAsset]) -> dict[str, dict]:
@@ -693,6 +708,35 @@ def _ledger(arguments: argparse.Namespace) -> None:
             print("appended" if new else f"already predicted for {month_ends[-1]}")
         else:
             print(f"scored {score_due(ledger, returns, month_ends)}")
+    elif command == "record-signals":
+        regime = _dashboard_payload()["regime"]
+        if not regime:
+            raise SystemExit("no regime rows: run `asset-frame ingest-fred` first")
+        store = _research_store()
+        charts = {}
+        for asset in load_universe(UNIVERSE_PATH):
+            asset_id = tiingo_asset_id(asset.ticker)
+            chart = build_asset_chart(store.price_points(asset_id), store.daily_bars(asset_id))
+            if chart is not None:
+                charts[asset.ticker] = chart
+        month_end = date.fromisoformat(regime["rows"][-1]["month"])
+        added = record_signals(ledger, month_end, charts, macro_snapshot(regime))
+        print(f"appended {month_end}" if added else f"already in ledger {month_end}")
+    elif command == "score-signals":
+        returns = _float_returns(_research_store())
+        print(f"scored {score_signals(ledger, returns, sorted(returns['SPY']))}")
+    elif command == "signal-scoreboard":
+        board = signal_scoreboard(ledger)
+        chart, macro = board["chart"], board["macro"]
+        print(
+            f"chart: {chart['months']} months scored; "
+            f"buy hits {chart['buy_hits']}/{chart['buy_n']}, "
+            f"sell hits {chart['sell_hits']}/{chart['sell_n']} (3-month horizon)"
+        )
+        print(
+            f"macro: {macro['months']} months scored; mean strong-weak spread "
+            f"{_ratio(macro['mean_spread']) or 'n/a'} (6-month horizon)"
+        )
     elif command == "scoreboard":
         for board in scoreboard(ledger):
             print(
