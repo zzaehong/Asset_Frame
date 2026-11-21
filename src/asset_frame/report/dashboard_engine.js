@@ -152,7 +152,18 @@ const Engine = (() => {
     return out;
   }
 
-  return {MIN_HISTORY, BAND, prefixCounts, run, performance, relative, maxDrawdown, drawdownSeries,
+  const TICKER = /^[A-Z]{1,5}(-[A-Z])?$/;
+  // The text of config/stocks.toml for a selection (see asset_frame.stocks.load_stocks).
+  function stocksToml(tickers) {
+    const lines = ["# 수집할 개별주 목록 (ADR-0010). 대시보드 \"개별주 선택\" 탭에서 만든 내용이다.", "schema_version = 1"];
+    for (const ticker of tickers) {
+      if (!TICKER.test(ticker)) throw new Error("invalid ticker: " + ticker);
+      lines.push("", "[[stocks]]", `ticker = "${ticker}"`);
+    }
+    return lines.join("\n") + "\n";
+  }
+
+  return {MIN_HISTORY, BAND, stocksToml, prefixCounts, run, performance, relative, maxDrawdown, drawdownSeries,
     cagr, correlationMatrix, windowColumns, riskContributions, rollingCorrelation, pearson};
 })();
 if (typeof module !== "undefined") module.exports = Engine;

@@ -83,6 +83,12 @@ body.wide main { max-width: 1560px; }
 .pane-title { font-size:13px; font-weight:600; margin:8px 0 0; } .pane-title .muted { font-weight:400; font-size:12px; margin-left:6px; }
 .side .judge { margin:0 0 8px; } .side .judge li { display:grid; grid-template-columns:34px 78px 1fr; gap:6px; font-size:13px; line-height:1.4; align-items:start; padding:3px 0; } .side .judge li b { white-space:nowrap; } .side h3 { margin:12px 0 6px; font-size:15px; }
 .side #etf-perf .item { grid-template-columns: 70px 1fr; } .side #etf-perf .item span:last-child { grid-column:1 / -1; font-size:12px; color:var(--muted); }
+#stk-list .sector { margin:12px 0 2px; font-weight:600; font-size:13px; color:var(--muted); }
+#stk-list .sector button { margin-left:8px; font-size:12px; padding:0 8px; }
+.stkrow { display:grid; grid-template-columns:24px 70px minmax(120px, 1.2fr) 1fr 150px; gap:8px; align-items:center; padding:3px 0; font-size:14px; }
+.stkrow .etfs { color:var(--muted); font-size:12px; } .stkrow .state { font-size:12px; color:var(--muted); text-align:right; } .stkrow .state.done { color:var(--pos); }
+#stk-toml { width:100%; box-sizing:border-box; font:13px/1.5 ui-monospace, Menlo, monospace; background:var(--surface); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:8px; }
+#stk-filter { min-width:220px; }
 .warns { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
 .warns .w { border:1px solid var(--line); border-radius:8px; padding:6px 10px; background:var(--surface); font-size:14px; }
 .warns .w.warn { border-color:var(--neg); color:var(--neg); font-weight:600; } .warns .w.na { color:var(--muted); }
@@ -361,6 +367,39 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
     </div>
   </div>
 
+  <!-- ===== 개별주 선택 ===== -->
+  <div class="panel" id="tab-stocks" hidden>
+    <section>
+      <h2>수집할 개별주 고르기</h2>
+      <p class="muted">추적 중인 ETF의 큰 보유 종목 후보입니다. 보유 관계는 근사값이니 ETF 운용사 사이트에서 직접 확인하세요. 개별주는 차트 분석에만 쓰고 전략·백테스트·원장에는 쓰지 않습니다. 이 화면은 파일을 쓰거나 수집을 실행하지 않고, 고른 내용을 <b>config/stocks.toml</b> 텍스트로 만들어 줍니다. 수집은 그 파일을 읽는 명령이 합니다.</p>
+      <div class="row">
+        <b id="stk-count"></b><span class="muted" id="stk-cost"></span>
+      </div>
+      <div class="row">
+        <input type="search" id="stk-filter" placeholder="티커·이름·ETF 검색" aria-label="검색">
+        <button class="plain" type="button" id="stk-all">후보 전체 선택</button>
+        <button class="plain" type="button" id="stk-none">모두 해제</button>
+        <button class="plain" type="button" id="stk-reset">설정 파일대로</button>
+      </div>
+      <p class="note" id="stk-diff" hidden></p>
+      <div id="stk-list"></div>
+    </section>
+    <section>
+      <h2>저장하고 수집하기</h2>
+      <ol>
+        <li>아래 내용을 <b>config/stocks.toml</b>에 저장합니다(복사해서 붙여 넣거나 파일로 저장).</li>
+        <li>터미널에서 <code>uv run asset-frame ingest-stocks</code> — 선택한 종목만 받습니다. 제한 시간당 50요청 때문에 느리고, 끊기면 같은 명령으로 이어집니다.</li>
+        <li><code>uv run asset-frame dashboard</code>로 화면을 다시 만든 뒤 새로고침합니다.</li>
+      </ol>
+      <div class="row">
+        <button class="plain" type="button" id="stk-copy">복사</button>
+        <button class="plain" type="button" id="stk-save">stocks.toml로 저장</button>
+        <span class="muted" id="stk-copy-note"></span>
+      </div>
+      <textarea id="stk-toml" readonly rows="10" aria-label="stocks.toml 내용"></textarea>
+    </section>
+  </div>
+
   <!-- ===== 자산·상관 ===== -->
   <div class="panel" id="tab-assets" hidden>
     <section>
@@ -416,7 +455,7 @@ const D = /*__DATA__*/null;
 </script>
 <script>
 const RULE_LABEL = {monthly: "월간", quarterly: "분기", band: "밴드 ±5%p"};
-const TABS = [["overview", "시장 한눈에"], ["regime", "① 시장 국면"], ["history", "② 국면별 과거 성과"], ["compare", "③ 전략 비교"], ["lab", "③ 포트폴리오 실험실"], ["etf", "ETF 차트 분석"], ["assets", "자산·상관"]];
+const TABS = [["overview", "시장 한눈에"], ["regime", "① 시장 국면"], ["history", "② 국면별 과거 성과"], ["compare", "③ 전략 비교"], ["lab", "③ 포트폴리오 실험실"], ["etf", "ETF 차트 분석"], ["stocks", "개별주 선택"], ["assets", "자산·상관"]];
 const state = {rule: D.rules.includes("quarterly") ? "quarterly" : D.rules[0], tab: "compare", hidden: new Set(), sort: null, riskSort: null, more: false, axis: "quadrant", label: null, showAll: false, pinned: null, similar: false, horizon: 6, long: false};
 const $ = (id) => document.getElementById(id);
 const nf = (digits) => (v) => (v == null ? "–" : v.toFixed(digits));
@@ -1803,6 +1842,87 @@ function renderMacroJudge() {
 }
 
 // ---------- 공통 ----------
+// ---------- 개별주 선택 ----------
+const STK = {selected: null, filter: ""};
+const STK_DRAFT = "asset_frame_stock_selection";
+function stockInfo() { return D.stocks && D.stocks.candidates ? D.stocks : null; }
+function stkLoad() {
+  const info = stockInfo();
+  let draft = null;
+  try { draft = JSON.parse(localStorage.getItem(STK_DRAFT) || "null"); } catch (e) { draft = null; }
+  const known = new Set(info.candidates.map((c) => c.ticker));
+  STK.selected = new Set((Array.isArray(draft) ? draft : info.selected).filter((t) => known.has(t)));
+}
+function stkSave() { try { localStorage.setItem(STK_DRAFT, JSON.stringify([...STK.selected])); } catch (e) { /* private window */ } }
+function stkOrder(info) { return info.candidates.map((c) => c.ticker).filter((t) => STK.selected.has(t)); }
+function renderStocks() {
+  const info = stockInfo();
+  const host = $("stk-list");
+  if (!info) { host.replaceChildren(node("p", "후보 목록이 없습니다. asset-frame dashboard를 다시 만드세요.", "note")); return; }
+  if (!STK.selected) {
+    stkLoad();
+    $("stk-filter").addEventListener("input", () => { STK.filter = $("stk-filter").value.trim().toLowerCase(); renderStocks(); });
+    $("stk-all").addEventListener("click", () => { STK.selected = new Set(info.candidates.slice(0, info.limit).map((c) => c.ticker)); stkSave(); renderStocks(); });
+    $("stk-none").addEventListener("click", () => { STK.selected = new Set(); stkSave(); renderStocks(); });
+    $("stk-reset").addEventListener("click", () => { STK.selected = new Set(info.selected); stkSave(); renderStocks(); });
+    $("stk-copy").addEventListener("click", stkCopy);
+    $("stk-save").addEventListener("click", stkDownload);
+  }
+  host.replaceChildren();
+  const match = (c) => !STK.filter || `${c.ticker} ${c.name} ${c.sector} ${c.etfs.join(" ")}`.toLowerCase().includes(STK.filter);
+  const sectors = [...new Set(info.candidates.map((c) => c.sector))];
+  for (const sector of sectors) {
+    const rows = info.candidates.filter((c) => c.sector === sector && match(c));
+    if (!rows.length) continue;
+    const head = node("div", sector, "sector");
+    const toggle = node("button", "섹터 전체", "plain"); toggle.type = "button";
+    toggle.addEventListener("click", () => {
+      const allOn = rows.every((c) => STK.selected.has(c.ticker));
+      for (const c of rows) { if (allOn) STK.selected.delete(c.ticker); else STK.selected.add(c.ticker); }
+      stkSave(); renderStocks();
+    });
+    head.appendChild(toggle);
+    host.appendChild(head);
+    for (const c of rows) {
+      const row = node("label", null, "stkrow");
+      const box = node("input"); box.type = "checkbox"; box.checked = STK.selected.has(c.ticker);
+      box.addEventListener("change", () => { if (box.checked) STK.selected.add(c.ticker); else STK.selected.delete(c.ticker); stkSave(); renderStocks(); });
+      const state = node("span", c.collected_through ? `수집됨 ~${c.collected_through}` : "미수집", "state" + (c.collected_through ? " done" : ""));
+      row.append(box, node("b", c.ticker), node("span", c.name), node("span", c.etfs.length ? "보유 ETF: " + c.etfs.join(" · ") : "직접 추가", "etfs"), state);
+      host.appendChild(row);
+    }
+  }
+  const picked = stkOrder(info);
+  const pending = picked.filter((t) => !info.candidates.find((c) => c.ticker === t).collected_through);
+  const over = picked.length > info.limit;
+  $("stk-count").textContent = `선택 ${picked.length} / 최대 ${info.limit}` + (over ? " — 한도 초과" : "");
+  $("stk-count").style.color = over ? "var(--neg)" : "";
+  const seconds = pending.length * info.seconds_per_ticker;
+  $("stk-cost").textContent = pending.length
+    ? ` · 새로 받을 ${pending.length}종목, 수집에 약 ${seconds >= 3600 ? Math.floor(seconds / 3600) + "시간 " : ""}${Math.round((seconds % 3600) / 60)}분`
+    : " · 새로 받을 종목 없음";
+  const same = picked.length === info.selected.length && picked.every((t) => info.selected.includes(t));
+  const diff = $("stk-diff");
+  diff.hidden = same;
+  const added = picked.filter((t) => !info.selected.includes(t)), removed = info.selected.filter((t) => !picked.includes(t));
+  diff.textContent = `설정 파일(config/stocks.toml)과 다릅니다. 추가 ${added.length}${added.length ? " (" + added.join(", ") + ")" : ""}, 제외 ${removed.length}${removed.length ? " (" + removed.join(", ") + ")" : ""}. 아래 내용을 저장해야 반영됩니다. 제외한 종목의 이미 받은 데이터는 지워지지 않고 갱신만 멈춥니다.`;
+  $("stk-toml").value = over ? "선택이 한도를 넘었습니다. 종목을 줄이세요." : Engine.stocksToml(picked);
+  $("stk-copy").disabled = $("stk-save").disabled = over;
+}
+function stkCopy() {
+  const area = $("stk-toml"), note = $("stk-copy-note");
+  const done = () => { note.textContent = "복사했습니다"; };
+  const fallback = () => { area.select(); try { note.textContent = document.execCommand("copy") ? "복사했습니다" : "선택됨 — ⌘C로 복사하세요"; } catch (e) { note.textContent = "선택됨 — ⌘C로 복사하세요"; } };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(area.value).then(done, fallback); else fallback();
+}
+function stkDownload() {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([$("stk-toml").value], {type: "text/plain"}));
+  link.download = "stocks.toml";
+  link.click();
+  $("stk-copy-note").textContent = "저장 창이 안 뜨면(앱) 복사를 쓰세요";
+}
+
 // ---------- 시장 한눈에 ----------
 const HEAT_COLUMNS = [["1M", "1개월"], ["3M", "3개월"], ["6M", "6개월"], ["12M", "12개월"]];
 function renderOverview() {
@@ -1985,6 +2105,7 @@ function showTab(tab) {
   if (tab === "regime" || tab === "history") renderRegimeTabs();
   if (tab === "compare") renderCompare();
   if (tab === "overview") renderOverview();
+  if (tab === "stocks") renderStocks();
   if (tab === "lab") renderLabResult();
   if (tab === "etf") renderEtf();
   if (tab === "assets") { renderRolling(); renderCorr(); renderRisk(); }

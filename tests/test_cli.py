@@ -47,3 +47,12 @@ def test_ingest_commands_require_api_keys(monkeypatch: pytest.MonkeyPatch) -> No
         main(["ingest-fred", "--series", "DTB3"])
     with pytest.raises(SystemExit, match="TIINGO_API_KEY"):
         main(["ingest-universe"])
+
+
+def test_ingest_stocks_with_nothing_selected_stops_before_any_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("TIINGO_API_KEY", raising=False)  # would fail first if it got that far
+
+    with pytest.raises(SystemExit, match="no stocks selected"):
+        main(["ingest-stocks"])

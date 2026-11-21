@@ -33,6 +33,7 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | 예측·채점: 모멘텀(12-1)·무작위·사용자 순위와 상관 부호 확률을 원장에 기록(월당 모델별 1건), 3개월 뒤 순위 IC·상·하위 스프레드·Brier 채점, MDE 표시, 잘못된 입력 거부 | `tests/test_prediction.py` |
 | 대용 펀드 이력: 상장 전 구간을 같은 시장 펀드로 이어 붙임(대상 첫 달 이전만, 항상 대용 표시), 겹침 36개월·등급별 상관 기준 미달이면 사용 안 함, 일간 지수 연결, 기존 월간 수익률과 분리 저장, 설정 검증 | `tests/test_proxy.py`, `tests/test_proxy_jobs.py`, `tests/test_proxies_config.py` |
 | 자산별 배당수익률: 최근 12개월 분배금÷기준일 종가, 분할 후 분배금 보정, 중복 배당락일 1회 계산, 이력 12개월 미만이면 표시 안 함, 실험실 자산 행에 표시 | `tests/test_dividend.py`, `tests/test_dashboard.py` |
+| 개별주 관찰 목록: stocks.toml 검증(없으면 선택 없음, 형식·중복·ETF 겹침·50종목 한도), 선택 종목만 주식으로 수집하고 재실행 시 이어받기, 후보·수집 상태 요약, 대시보드가 만드는 stocks.toml 텍스트가 파이썬 로더와 일치(선택 없으면 수집 명령이 요청 전에 중단) | `tests/test_stocks.py`, `tests/test_stock_candidates.py`, `tests/test_dashboard_engine.py`, `tests/test_cli.py` |
 | 차트 지표(SMA·EMA·RSI·MACD·스토캐스틱·거래량 비율)와 기간별 수익률: 손 계산 fixture, 이력 부족은 None, 고가·저가 보정, 최근 일수 자르기 | `tests/test_indicators.py`, `tests/test_chart_jobs.py` |
 | 차트 규칙 신호(4개 투표 합계, 임계 ±2, 스토캐스틱 교차 5거래일 유지, 히스토그램 잡음 처리), 월말 신호별 1·3·6개월 과거 성과 | `tests/test_chart_signal.py`, `tests/test_chart_jobs.py` |
 | 거시 판단(국면별 강했던·약했던 자산, 독립 표본 5 미만 제외, 자격 4개 미만이면 제안 안 함, 곡선·정책금리·달러 경고와 자료 없음) | `tests/test_regime_actions.py`, `tests/test_dashboard.py` |
@@ -90,6 +91,7 @@ uv run asset-frame ingest-universe --full   # 전체 이력을 다시 받음
 uv run asset-frame universe verify          # 상장일 검증. ok만 config/universe.toml에 기록
 uv run asset-frame ingest-fred --series DTB3
 uv run asset-frame ingest-proxies           # config/proxies.toml의 대용 펀드 이력(약 1시간, 75초 간격)
+uv run asset-frame ingest-stocks            # config/stocks.toml에 고른 개별주만 수집(대시보드 "개별주 선택" 탭에서 만든 파일, 최대 50종목, 약 2시간)
 uv run asset-frame build-returns            # monthly_return, return_anomaly에 새 빌드 추가 + 대용 월·겹침 검사 저장
 uv run asset-frame universe status          # 콘솔 표 + var/reports/universe_status.csv
 uv run asset-frame universe analyze         # var/reports/analysis_risk.csv, analysis_correlation.csv

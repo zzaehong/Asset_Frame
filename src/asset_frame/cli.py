@@ -45,6 +45,13 @@ from asset_frame.returns.series import total_return_index
 from asset_frame.signal_log import macro_snapshot, record_signals, score_signals
 from asset_frame.signal_log import scoreboard as signal_scoreboard
 from asset_frame.sources.registry import load_source_registry
+from asset_frame.stocks import (
+    StockConfigError,
+    load_candidates,
+    load_stocks,
+    stock_summary,
+    stock_universe,
+)
 from asset_frame.storage.backup import backup
 from asset_frame.storage.ledger import LedgerStore
 from asset_frame.storage.raw import FileRawStore
@@ -64,6 +71,8 @@ UNIVERSE_PATH = Path("config/universe.toml")
 REPORT_DIR = Path("var/reports")
 STRATEGIES_PATH = Path("config/strategies.toml")
 PROXIES_PATH = Path("config/proxies.toml")
+STOCKS_PATH = Path("config/stocks.toml")
+STOCK_CANDIDATES_PATH = Path("config/stock_candidates.toml")
 MARKET_INPUT_SERIES = (*MAX_AGE_DAYS, *EXTENSION_SERIES)
 STATUS_CSV_PATH = REPORT_DIR / "universe_status.csv"
 DEFAULT_DATABASE_PATH = "var/asset_frame.sqlite3"
@@ -120,6 +129,17 @@ def main(argv: list[str] | None = None) -> None:
         "--end-date", type=date.fromisoformat, default=datetime.now(UTC).date()
     )
     proxy_ingest_parser.add_argument(
+        "--min-interval-seconds", type=float, default=TIINGO_STARTER_INTERVAL_SECONDS
+    )
+
+    stock_ingest_parser = subparsers.add_parser(
+        "ingest-stocks",
+        help="collect Tiingo history for the stocks selected in config/stocks.toml",
+    )
+    stock_ingest_parser.add_argument(
+        "--end-date", type=date.fromisoformat, default=datetime.now(UTC).date()
+    )
+    stock_ingest_parser.add_argument(
         "--min-interval-seconds", type=float, default=TIINGO_STARTER_INTERVAL_SECONDS
     )
 
@@ -186,6 +206,8 @@ def main(argv: list[str] | None = None) -> None:
         _ingest_universe(arguments.end_date, arguments.min_interval_seconds, arguments.full)
     elif arguments.command == "ingest-proxies":
         _ingest_proxies(arguments.end_date, arguments.min_interval_seconds)
+    elif arguments.command == "ingest-stocks":
+        _ingest_stocks(arguments.end_date, arguments.min_interval_seconds)
     elif arguments.command == "universe" and arguments.universe_command == "verify":
         _verify_universe()
     elif arguments.command == "universe" and arguments.universe_command == "analyze":
@@ -304,6 +326,44 @@ def _ingest_proxies(end_date: date, min_interval_seconds: float) -> None:
     )
     if result.failed:
         raise SystemExit("rerun the same command to resume failed funds")
+
+
+def _selected_stocks() -> tuple:
+    try:
+        return load_stocks(
+            STOCKS_PATH, load_universe(UNIVERSE_PATH), load_candidates(STOCK_CANDIDATES_PATH)
+        )
+    except StockConfigError as error:
+        raise SystemExit(f"config/stocks.toml: {error}") from error
+
+
+def _ingest_stocks(end_date: date, min_interval_seconds: float) -> None:
+    specs = _selected_stocks()
+    if not specs:
+        raise SystemExit("no stocks selected: pick tickers in the dashboard's 개별주 선택 tab")
+    api_key = _required_environment("TIINGO_API_KEY")
+    collector = TiingoEodCollector(
+        source=_source(TIINGO_SOURCE_ID),
+        transport=RateLimitedRetryTransport(
+            UrllibHttpTransport(), minimum_interval_seconds=min_interval_seconds
+        ),
+        raw_store=_raw_store(),
+        repository=_repository(),
+    )
+    result = ingest_universe(
+        stock_universe(specs),
+        collector=collector,
+        store=_research_store(),
+        api_key=api_key,
+        end_date=end_date,
+        asset_type=AssetType.EQUITY,
+    )
+    print(
+        f"stock ingest through {end_date}: {len(result.collected)} collected, "
+        f"{len(result.skipped)} already done, {len(result.failed)} failed"
+    )
+    if result.failed:
+        raise SystemExit("rerun the same command to resume failed stocks")
 
 
 def _verify_universe() -> None:
@@ -511,6 +571,12 @@ def _dashboard_payload() -> dict:
         long_context=long_context,
         proxies=_proxy_summary(store, specs),
         dividends=_dividend_summary(store, universe),
+        stocks=stock_summary(
+            _selected_stocks(),
+            load_candidates(STOCK_CANDIDATES_PATH),
+            lambda ticker: store.last_price_date(tiingo_asset_id(ticker)),
+            datetime.now(UTC).date(),
+        ),
         charts=build_chart_data(
             [a.ticker for a in universe],
             {a.ticker: tiingo_asset_id(a.ticker) for a in universe},
