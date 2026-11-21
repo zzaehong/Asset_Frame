@@ -62,6 +62,14 @@ svg text { fill: var(--muted); font-size: 11px; }
 .stack span { display: block; font-size: 11px; color: #fff; text-align: center; line-height: 22px; overflow: hidden; white-space: nowrap; }
 .comp { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; align-items: center; }
 .weights input { width: 72px; text-align: right; }
+.alloc { display:flex; height:30px; border-radius:6px; overflow:hidden; background:color-mix(in srgb, var(--line) 60%, transparent); margin:10px 0; }
+.alloc span { display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; text-shadow:0 0 3px rgba(0,0,0,.55); overflow:hidden; white-space:nowrap; }
+.alloc .empty { flex:1; color:var(--muted); text-shadow:none; }
+.wgroup { margin:10px 0 2px; font-weight:600; font-size:13px; color:var(--muted); }
+.wrow { display:grid; grid-template-columns:minmax(120px,220px) 1fr 80px; gap:10px; align-items:center; padding:3px 0; font-size:14px; }
+.wrow.on .nm { font-weight:600; } .wrow .nm small { color:var(--muted); font-weight:400; }
+.wrow input[type=range] { width:100%; } .wrow input[type=number] { width:72px; text-align:right; }
+details.more { margin-top:12px; } details.more summary { cursor:pointer; color:var(--accent); }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
 .bars div.item { display: grid; grid-template-columns: 56px 1fr 120px; gap: 8px; align-items: center; font-size: 13px; }
 .bars .track { position: relative; height: 12px; background: color-mix(in srgb, var(--line) 60%, transparent); border-radius: 3px; }
@@ -234,7 +242,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
   <div class="panel" id="tab-lab" hidden>
     <section>
       <h2>내 포트폴리오 만들기</h2>
-      <p class="muted">자산마다 비중(%)을 입력하면 같은 규칙으로 SPY 100%, 60/40과 비교합니다. 비중 합이 100%가 아니어도 합으로 나눠 정규화해서 계산합니다. 현금(BIL)도 다른 자산과 똑같이 고를 수 있습니다. 편입 규칙(월간 수익률 13개 이상)과 상장 전 자산 처리는 전략 비교와 같습니다.</p>
+      <p class="muted">자산 슬라이더를 움직여 비중을 정하면 아래 결과가 바로 바뀝니다. 위 막대가 현재 구성이고, 합이 100%가 아니어도 비율로 환산해 계산합니다. 시작은 위 "불러오기"에서 기존 전략을 고르는 게 가장 쉽습니다. 현금(BIL)도 다른 자산과 똑같이 고를 수 있습니다. 편입 규칙(월간 수익률 13개 이상)과 상장 전 자산 처리는 전략 비교와 같습니다.</p>
       <div class="row">
         <label for="lab-preset" class="muted">불러오기</label>
         <select id="lab-preset"></select>
@@ -258,7 +266,8 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
         <button class="plain" type="button" id="lab-delete">삭제</button>
         <span id="lab-save-note" class="muted"></span>
       </div>
-      <div class="scroll tall"><table class="weights" id="lab-assets"></table></div>
+      <div class="alloc" id="lab-bar" aria-label="내 비중 구성"></div>
+      <div id="lab-assets"></div>
     </section>
     <section id="lab-result">
       <h2>결과</h2>
@@ -708,34 +717,64 @@ function renderLabPresets() {
   $("lab-clear").addEventListener("click", () => setWeights({}));
 }
 
-function renderLabAssets() {
-  const table = $("lab-assets");
-  table.replaceChildren();
-  const head = table.createTHead().insertRow();
-  for (const label of ["자산", "이름", "묶음", "첫 수익률", "비중(%)"]) head.appendChild(node("th", label));
-  const body = table.createTBody();
-  const order = [...D.assets].sort((a, b) => (b.ticker === CASH) - (a.ticker === CASH) || a.level - b.level || (b.anchor - a.anchor) || a.group.localeCompare(b.group) || a.ticker.localeCompare(b.ticker));
-  for (const asset of order) {
-    const tr = body.insertRow();
-    if (asset.ticker === CASH) tr.className = "cash";
-    tr.insertCell().textContent = asset.ticker + (asset.ticker === CASH ? " (현금)" : "");
-    tr.insertCell().textContent = asset.name;
-    tr.insertCell().textContent = asset.group + (asset.anchor ? "" : " · 세분");
-    const first = firstReturnIndex(asset.ticker);
-    tr.insertCell().textContent = first < 0 ? "–" : ym(first) + (asset.ticker === CASH && D.proxy[CASH] ? " (대용)" : "");
-    const input = node("input");
-    input.type = "number"; input.min = "0"; input.max = "100"; input.step = "any";
-    input.id = "w-" + asset.ticker;
-    input.setAttribute("aria-label", asset.ticker + " 비중");
-    input.value = lab.weights[asset.ticker] > 0 ? String(Math.round(lab.weights[asset.ticker] * 100) / 100) : "";
-    input.addEventListener("input", () => {
-      const v = Number(input.value);
-      if (v > 0) lab.weights[asset.ticker] = v; else delete lab.weights[asset.ticker];
-      $("lab-total").textContent = totalText();
-      renderLabResult();
-    });
-    tr.insertCell().appendChild(input);
+function setOne(ticker, v) {
+  if (v > 0) lab.weights[ticker] = v; else delete lab.weights[ticker];
+  const row = document.getElementById("wrow-" + ticker);
+  if (row) row.classList.toggle("on", v > 0);
+  $("lab-total").textContent = totalText();
+  renderLabBar();
+  renderLabResult();
+}
+function renderLabBar() {
+  const host = $("lab-bar");
+  host.replaceChildren();
+  const total = totalWeight();
+  if (!total) { host.appendChild(node("span", "아래에서 자산 비중을 정하세요", "empty")); return; }
+  for (const [t, w] of Object.entries(lab.weights).filter(([, w]) => w > 0).sort((a, b) => b[1] - a[1])) {
+    const share = w / total * 100;
+    const seg = node("span", share >= 7 ? `${t} ${Math.round(share)}%` : "");
+    seg.style.width = share + "%"; seg.style.background = assetColors[t]; seg.title = `${t} ${share.toFixed(1)}%`;
+    host.appendChild(seg);
   }
+}
+const LAB_CLASS = {us_equity: "주식", gics_sector: "주식", style_dividend: "주식", style_growth: "주식", reits: "주식(부동산)",
+  treasury_short: "채권", treasury_mid: "채권", treasury_long: "채권", tips: "채권", ig_credit: "회사채", hy_credit: "회사채",
+  gold: "금·원자재", silver: "금·원자재", commodities: "금·원자재", cash: "현금"};
+const LAB_CLASS_ORDER = ["주식", "주식(부동산)", "채권", "회사채", "금·원자재", "현금"];
+function renderLabAssets() {
+  const host = $("lab-assets");
+  host.replaceChildren();
+  const cls = (a) => LAB_CLASS[a.group] || a.group;
+  const order = [...D.assets].sort((a, b) => LAB_CLASS_ORDER.indexOf(cls(a)) - LAB_CLASS_ORDER.indexOf(cls(b)) || a.level - b.level || a.group.localeCompare(b.group) || a.ticker.localeCompare(b.ticker));
+  const build = (list, into) => {
+    let group = null;
+    for (const asset of list) {
+      if (cls(asset) !== group) { group = cls(asset); into.appendChild(node("div", group, "wgroup")); }
+      const t = asset.ticker, value = lab.weights[t] > 0 ? lab.weights[t] : 0;
+      const row = node("div", null, "wrow" + (value ? " on" : "")); row.id = "wrow-" + t;
+      const first = firstReturnIndex(t);
+      const nm = node("span", null, "nm");
+      nm.append(document.createTextNode(t === CASH ? t + " (현금)" : t + " "), node("small", asset.name + (first < 0 ? "" : ` · ${ym(first)}~`)));
+      const range = node("input"); range.type = "range"; range.min = "0"; range.max = "100"; range.step = "5"; range.value = String(Math.min(100, value));
+      range.setAttribute("aria-label", t + " 비중 슬라이더");
+      const num = node("input"); num.type = "number"; num.min = "0"; num.max = "100"; num.step = "any"; num.id = "w-" + t;
+      num.setAttribute("aria-label", t + " 비중(%)"); num.value = value ? String(Math.round(value * 100) / 100) : "";
+      range.addEventListener("input", () => { num.value = range.value === "0" ? "" : range.value; setOne(t, Number(range.value)); });
+      num.addEventListener("input", () => { range.value = String(Math.min(100, Number(num.value) || 0)); setOne(t, Number(num.value)); });
+      row.append(nm, range, num);
+      into.appendChild(row);
+    }
+  };
+  build(order.filter((a) => a.anchor), host);
+  const rest = order.filter((a) => !a.anchor);
+  if (rest.length) {
+    const more = node("details", null, "more");
+    more.appendChild(node("summary", `세분 자산 ${rest.length}개 더 보기`));
+    if (rest.some((a) => lab.weights[a.ticker] > 0)) more.open = true;
+    build(rest, more);
+    host.appendChild(more);
+  }
+  renderLabBar();
   $("lab-total").textContent = totalText();
 }
 function totalText() {
