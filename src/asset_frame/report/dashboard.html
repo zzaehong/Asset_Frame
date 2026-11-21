@@ -68,11 +68,15 @@ svg text { fill: var(--muted); font-size: 11px; }
 .alloc .empty { flex:1; color:var(--muted); text-shadow:none; }
 .wgroup { margin:10px 0 2px; font-weight:600; font-size:13px; color:var(--muted); }
 .wrow { display:grid; grid-template-columns:minmax(120px,220px) 1fr 80px; gap:10px; align-items:center; padding:3px 0; font-size:14px; }
+.warns { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+.warns .w { border:1px solid var(--line); border-radius:8px; padding:6px 10px; background:var(--surface); font-size:14px; }
+.warns .w.warn { border-color:var(--neg); color:var(--neg); font-weight:600; } .warns .w.na { color:var(--muted); }
 .judge { border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:12px 14px; margin:10px 0; }
 .judge .verdict { font-size:20px; font-weight:700; } .judge .verdict.buy { color:var(--pos); } .judge .verdict.sell { color:var(--neg); }
 .judge ul { list-style:none; margin:8px 0 0; padding:0; } .judge li { display:flex; gap:10px; align-items:baseline; padding:2px 0; }
 .judge .v { display:inline-block; min-width:30px; text-align:center; border-radius:99px; font-weight:700; font-size:13px; padding:0 6px; background:color-mix(in srgb, var(--muted) 20%, transparent); }
 .judge .v.p { background:color-mix(in srgb, var(--pos) 25%, transparent); color:var(--pos); } .judge .v.n { background:color-mix(in srgb, var(--neg) 25%, transparent); color:var(--neg); }
+#macro-judge .bars .item { grid-template-columns: 44px 1fr minmax(200px, 50%); }
 #etf-perf .item { grid-template-columns: 90px 1fr minmax(260px, 42%); }
 .bars .item.now span:first-child { font-weight:700; color:var(--accent); }
 .wrow .div { color:var(--accent); font-weight:600; }
@@ -152,6 +156,11 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
       <p class="muted">카드를 누르면 그 국면에서 과거에 자산이 어떻게 움직였는지 봅니다. 규칙은 월말에 이미 발표된 값만 씁니다(규칙 설명은 docs/concepts/regime_rules.md).</p>
     </section>
     <section>
+      <h2>거시 판단</h2>
+      <p class="muted">정해 둔 규칙으로 현재 국면에서 과거에 상대적으로 강했던 자산과 약했던 자산을 보여 줍니다. 투자 지시가 아니며 과거 통계는 미래를 보장하지 않습니다.</p>
+      <div id="macro-judge"></div>
+    </section>
+    <section>
       <h2>국면 타임라인</h2>
       <p class="muted">월별 국면과 금리·달러를 한 시간축에 겹쳐 봅니다. "주식시장 하락장"은 SPY(배당 포함)가 직전 고점보다 20% 이상 낮게 마감하면 시작하고, 그 저점에서 20% 이상 오르면 끝나는 통상 기준이며 실물경제와는 별개입니다. 마우스를 올리면 그 달의 값이 나옵니다. 성장×물가 띠는 CFNAI 최초 발표 이력이 시작되는 2011-06부터 있습니다. 아래 이름을 누르면 해당 국면이 진하게 표시되고 ② 화면의 과거 성과도 그 국면으로 바뀝니다. 금리 곡선은 0 아래(빨강)가 역전, 주식·채권 상관은 0 위(보라)면 채권이 주식 하락을 헤지하지 못한 때이며, 정책금리와 달러는 시장·월평균 값이며 개정되지 않습니다.</p>
       <div class="chips" id="regime-pick"></div>
@@ -179,7 +188,6 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
           <div class="chips" id="after-legend"></div><div class="chart" id="after-chart"></div></div>
       </div>
       <p class="note" id="month-similar"></p>
-      <p class="muted">규칙 판단(거시·차트)과 그 결과는 규칙 신호 단계(M6-1) 이후 이 자리에 추가합니다.</p>
     </section>
   </div>
 
@@ -1096,7 +1104,7 @@ function setupAssets() {
 // ---------- 시장 국면 · 국면별 과거 성과 ----------
 function C() {
   if (state.long && D.regime_long) return D.regime_long;
-  return {rows: D.regime.rows, performance: D.regime.performance, equity: D.equity, macro: D.macro, calendar: D.calendar, returns: D.returns};
+  return {rows: D.regime.rows, performance: D.regime.performance, actions: D.regime.actions, equity: D.equity, macro: D.macro, calendar: D.calendar, returns: D.returns};
 }
 const AXES = [["quadrant", "성장×물가"], ["indpro_sahm", "실물경제 침체 신호"], ["correlation_regime", "주식·채권 상관"]];
 const LABEL_TEXT = {
@@ -1634,7 +1642,62 @@ function renderRegimeTabs() {
     panel.replaceChildren(node("p", "국면 데이터가 없습니다. asset-frame ingest-fred로 거시 시리즈를 받은 뒤 asset-frame dashboard를 다시 실행하세요.", "note"));
   }
   if (!D.regime) return;
-  renderLongNote(); renderRegimeTiles(); renderRegimeTimeline(); renderMonthPanel(); renderHistory();
+  renderLongNote(); renderRegimeTiles(); renderMacroJudge(); renderRegimeTimeline(); renderMonthPanel(); renderHistory();
+}
+
+const WARN_TEXT = {
+  curve: {warn: "역전: 과거 침체에 앞서 나타난 적이 많습니다", ok: "정상", fmt: (v) => v.toFixed(2) + "%p"},
+  policy: {warn: "6개월간 1%p 이상 인상: 긴축 국면", ok: "급격한 인상 없음", fmt: (v) => spct(v / 100).replace("%", "%p")},
+  dollar: {warn: "6개월간 5% 이상 상승: 달러 강세", ok: "급등 없음", fmt: spct},
+};
+function renderMacroJudge() {
+  const host = $("macro-judge");
+  host.replaceChildren();
+  const actions = C().actions;
+  if (!actions) { host.appendChild(node("p", "거시 판단 데이터가 없습니다.", "muted")); return; }
+  const axis = state.long && D.regime_long ? "quadrant_ip" : "quadrant";
+  const label = currentRow()[rowKey[axis]];
+  const box = node("div", null, "judge");
+  const axisName = axis === "quadrant_ip" ? "산업생산·물가 기준" : "CFNAI·물가 기준";
+  box.appendChild(node("div", label ? `${labelText(label)} (${axisName})` : "성장×물가를 판단할 수 없습니다", "verdict"));
+  const cell = label && (actions.axes[axis] || {})[label];
+  if (!cell) {
+    box.appendChild(node("p", "이 국면의 과거 기록이 없어 제안하지 않습니다.", "muted"));
+  } else if (!cell.strong.length) {
+    box.appendChild(node("p", `과거에 이 국면이었던 달이 ${cell.months}개월뿐이라(6개월 결과가 5번 이상 독립인 자산 ${cell.eligible}개) 제안하지 않습니다.`, "muted"));
+  } else {
+    box.appendChild(node("p", `과거 이 국면(${cell.months}개월)에서 6개월 뒤 수익률이 높았던 쪽과 낮았던 쪽입니다. 늘리거나 줄일 때 참고하세요.`, "muted"));
+    const grid = node("div", null, "grid2");
+    for (const [title, list, kind] of [["상대적으로 강했던 자산 · 비중 확대 검토", cell.strong, "strong"], ["상대적으로 약했던 자산 · 비중 축소 검토", cell.weak, "weak"]]) {
+      const col = node("div");
+      col.appendChild(node("h3", title));
+      const bars = node("div", null, "bars");
+      const top = Math.max(0.0001, ...list.map((e) => Math.abs(e.mean)));
+      for (const e of list) {
+        const item = node("div", null, "item");
+        const track = node("div", null, "track");
+        const bar = node("i"); bar.style.width = Math.min(1, Math.abs(e.mean) / top) * 100 + "%";
+        bar.style.background = e.mean >= 0 ? "var(--pos)" : "var(--neg)";
+        track.appendChild(bar);
+        const base = cell.baseline[e.ticker];
+        item.append(node("span", e.ticker), track, node("span", `평균 ${spct(e.mean)} · 오른 비율 ${Math.round(e.hit_rate * 100)}% · 독립 약 ${e.independent}` + (base == null ? "" : ` · 전체 평균 ${spct(base)}`)));
+        bars.appendChild(item);
+      }
+      col.appendChild(bars);
+      grid.appendChild(col);
+    }
+    box.appendChild(grid);
+  }
+  host.appendChild(box);
+  const warns = node("div", null, "warns");
+  for (const w of actions.warnings) {
+    const t = WARN_TEXT[w.key];
+    const el = node("span", null, "w " + w.state);
+    el.textContent = `${w.name}: ` + (w.state === "na" ? "자료 없음" : `${t.fmt(w.value)} · ${t[w.state]}`);
+    warns.appendChild(el);
+  }
+  host.appendChild(warns);
+  host.appendChild(node("p", "경고는 위 제안을 바꾸지 않고 함께 확인할 신호일 뿐입니다. 독립 표본이 5개 미만인 자산은 순위에서 제외했습니다. 규칙은 결과를 보기 전에 정했습니다.", "muted"));
 }
 
 // ---------- 공통 ----------

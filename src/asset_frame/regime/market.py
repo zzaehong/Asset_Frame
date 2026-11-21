@@ -20,6 +20,7 @@ EXTENSION_SERIES = ("DTWEXM",)
 SPLICE_OBSERVATIONS = 60
 POLICY_CHANGE_MONTHS = 6
 DOLLAR_CHANGE_MONTHS = 12
+DOLLAR_WARNING_MONTHS = 6
 
 Point = tuple[date, float | None]
 
@@ -85,6 +86,7 @@ def _latest(monthly: Mapping[str, Sequence[float | None]]) -> dict:
 
     fed, fed_before = at("FEDFUNDS"), at("FEDFUNDS", POLICY_CHANGE_MONTHS)
     dollar, dollar_before = at("DTWEXBGS"), at("DTWEXBGS", DOLLAR_CHANGE_MONTHS)
+    dollar_6m = at("DTWEXBGS", DOLLAR_WARNING_MONTHS)
     return {
         "spread_10y3m": at("T10Y3M"),
         "spread_10y2y": at("T10Y2Y"),
@@ -94,4 +96,5 @@ def _latest(monthly: Mapping[str, Sequence[float | None]]) -> dict:
         "dollar_change_12m": (
             None if dollar is None or not dollar_before else dollar / dollar_before - 1
         ),
+        "dollar_change_6m": None if dollar is None or not dollar_6m else dollar / dollar_6m - 1,
     }
