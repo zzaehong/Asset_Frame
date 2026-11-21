@@ -74,6 +74,15 @@ table.heat tr.pick { cursor:pointer; } table.heat tr.pick:hover td { outline:1px
 table.heat td.sig span { border-radius:99px; padding:1px 9px; font-size:12px; font-weight:600; background:color-mix(in srgb, var(--muted) 20%, transparent); }
 table.heat td.sig span.buy { background:color-mix(in srgb, var(--pos) 28%, transparent); color:var(--pos); } table.heat td.sig span.sell { background:color-mix(in srgb, var(--neg) 28%, transparent); color:var(--neg); }
 table.heat tr.sep td { text-align:left; color:var(--muted); font-size:12px; padding-top:10px; }
+body.wide main { max-width: 1560px; }
+.etfbar { align-items:center; }
+.etf-layout { display:grid; grid-template-columns:minmax(0, 1fr) 340px; gap:18px; align-items:start; }
+@media (max-width: 1000px) { .etf-layout { grid-template-columns:minmax(0, 1fr); } }
+.etf-stack .chart { margin:0; }
+.etfbar .chips { margin-left:auto; }
+.pane-title { font-size:13px; font-weight:600; margin:8px 0 0; } .pane-title .muted { font-weight:400; font-size:12px; margin-left:6px; }
+.side .judge { margin:0 0 8px; } .side .judge li { display:grid; grid-template-columns:34px 78px 1fr; gap:6px; font-size:13px; line-height:1.4; align-items:start; padding:3px 0; } .side .judge li b { white-space:nowrap; } .side h3 { margin:12px 0 6px; font-size:15px; }
+.side #etf-perf .item { grid-template-columns: 70px 1fr; } .side #etf-perf .item span:last-child { grid-column:1 / -1; font-size:12px; color:var(--muted); }
 .warns { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
 .warns .w { border:1px solid var(--line); border-radius:8px; padding:6px 10px; background:var(--surface); font-size:14px; }
 .warns .w.warn { border-color:var(--neg); color:var(--neg); font-weight:600; } .warns .w.na { color:var(--muted); }
@@ -83,7 +92,6 @@ table.heat tr.sep td { text-align:left; color:var(--muted); font-size:12px; padd
 .judge .v { display:inline-block; min-width:30px; text-align:center; border-radius:99px; font-weight:700; font-size:13px; padding:0 6px; background:color-mix(in srgb, var(--muted) 20%, transparent); }
 .judge .v.p { background:color-mix(in srgb, var(--pos) 25%, transparent); color:var(--pos); } .judge .v.n { background:color-mix(in srgb, var(--neg) 25%, transparent); color:var(--neg); }
 #macro-judge .bars .item { grid-template-columns: 44px 1fr minmax(200px, 50%); }
-#etf-perf .item { grid-template-columns: 90px 1fr minmax(260px, 42%); }
 .bars .item.now span:first-child { font-weight:700; color:var(--accent); }
 .wrow .div { color:var(--accent); font-weight:600; }
 .wrow.on .nm { font-weight:600; } .wrow .nm small { color:var(--muted); font-weight:400; }
@@ -326,33 +334,31 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
 
   <!-- ===== ETF 차트 분석 ===== -->
   <div class="panel" id="tab-etf" hidden>
-    <section>
-      <h2>ETF 차트 분석</h2>
-      <p class="muted">지표 4개의 투표를 합해 매수 우위·중립·매도 우위를 표시합니다. 투자 지시가 아니라 정해 둔 규칙의 점수이며, 아래 과거 통계는 미래를 보장하지 않습니다. 가격은 배당을 재투자한 총수익 지수(조정 종가)로 계산하고 첫 표시일을 100으로 맞춥니다. 캔들의 시가·고가·저가는 조정 비율로 보정한 값이고, 상승 봉은 초록·하락 봉은 빨강입니다.</p>
-      <div class="row">
-        <label for="etf-asset" class="muted">자산</label><select id="etf-asset"></select>
-        <span class="seg" id="etf-days" role="group" aria-label="표시 기간"></span>
+    <div class="row etfbar">
+      <b>ETF 차트 분석</b>
+      <label for="etf-asset" class="muted">자산</label><select id="etf-asset"></select>
+      <span class="seg" id="etf-days" role="group" aria-label="표시 기간"></span>
+      <span class="chips" id="etf-legend"></span>
+    </div>
+    <div class="etf-layout">
+      <div class="etf-stack" id="etf-stack">
+        <div class="chart" id="etf-price"></div>
+        <div class="pane-title">거래량</div><div class="chart" id="etf-volume"></div>
+        <div class="pane-title">RSI(14) <span class="muted">30 이하 과매도 · 70 이상 과매수</span></div><div class="chart" id="etf-rsi"></div>
+        <div class="pane-title">MACD(12, 26, 9) <span class="muted">선: MACD·시그널, 막대: 히스토그램</span></div><div class="chart" id="etf-macd"></div>
+        <div class="pane-title">스토캐스틱(14, 3, 3) <span class="muted">20 이하 침체 · 80 이상 과열</span></div><div class="chart" id="etf-stoch"></div>
       </div>
-      <div class="judge" id="etf-judge"></div>
-      <h3>이 신호가 나왔을 때 이 ETF는 그 뒤 어땠나</h3>
-      <div class="row"><span class="seg" id="etf-horizon" role="group" aria-label="이후 기간"></span></div>
-      <div class="bars" id="etf-perf"></div>
-      <p class="muted" id="etf-perf-note"></p>
-    </section>
-    <section>
-      <h3>캔들 차트와 이동평균선</h3>
-      <div class="chips" id="etf-legend"></div>
-      <div class="chart" id="etf-price"></div>
-      <h3>거래량</h3>
-      <div class="chart" id="etf-volume"></div>
-      <h3>RSI(14)</h3>
-      <div class="chart" id="etf-rsi"></div>
-      <h3>MACD(12, 26, 9)</h3>
-      <div class="chart" id="etf-macd"></div>
-      <div class="chart" id="etf-hist"></div>
-      <h3>스토캐스틱(14, 3, 3)</h3>
-      <div class="chart" id="etf-stoch"></div>
-    </section>
+      <aside class="side">
+        <div class="judge" id="etf-judge"></div>
+        <h3>이 신호가 나왔을 때 그 뒤</h3>
+        <div class="row"><span class="seg" id="etf-horizon" role="group" aria-label="이후 기간"></span></div>
+        <div class="bars" id="etf-perf"></div>
+        <p class="muted" id="etf-perf-note"></p>
+        <details class="muted"><summary>계산 기준</summary>
+          <p>지표 4개의 투표를 합해 매수 우위·중립·매도 우위를 표시합니다. 투자 지시가 아니라 정해 둔 규칙의 점수이며 과거 통계는 미래를 보장하지 않습니다. 가격은 배당을 재투자한 총수익 지수(조정 종가)이고 첫 표시일을 100으로 맞춥니다. 캔들의 시가·고가·저가는 조정 비율로 보정한 값이며, 상승 봉은 초록·하락 봉은 빨강입니다.</p>
+        </details>
+      </aside>
+    </div>
   </div>
 
   <!-- ===== 자산·상관 ===== -->
@@ -463,11 +469,17 @@ function attachTip(host, svg, geometry, labels, rowsAt, minus) {
   const tip = node("div", null, "tip");
   tip.hidden = true;
   const hit = svgNode("rect", {x: m.left, y: m.top, width: width - m.left - m.right, height: plotHeight, fill: "transparent"});
+  host._cursorAt = (i) => {
+    if (i == null) { cursor.setAttribute("visibility", "hidden"); return; }
+    cursor.setAttribute("x1", x(i)); cursor.setAttribute("x2", x(i)); cursor.setAttribute("visibility", "visible");
+  };
   hit.addEventListener("pointermove", (event) => {
     const box = svg.getBoundingClientRect();
     const px = ((event.clientX - box.left) / box.width) * width;
     const i = Math.max(0, Math.min(n - 1, Math.round(((px - m.left) / (width - m.left - m.right)) * (n - 1))));
     cursor.setAttribute("x1", x(i)); cursor.setAttribute("x2", x(i)); cursor.setAttribute("visibility", "visible");
+    const group = host.closest(".etf-stack");
+    if (group) for (const other of group.querySelectorAll(".chart")) if (other !== host && other._cursorAt) other._cursorAt(i);
     tip.replaceChildren(node("div", labels[i]));
     for (const [name, color, text] of rowsAt(i)) {
       const line = node("div");
@@ -479,14 +491,18 @@ function attachTip(host, svg, geometry, labels, rowsAt, minus) {
     const px2 = x(i) * (box.width / width);
     tip.style.left = (px2 + 12 + 190 > box.width ? Math.max(0, px2 - 192) : px2 + 12) + "px";
   });
-  hit.addEventListener("pointerleave", () => { tip.hidden = true; cursor.setAttribute("visibility", "hidden"); });
+  hit.addEventListener("pointerleave", () => {
+    tip.hidden = true; cursor.setAttribute("visibility", "hidden");
+    const group = host.closest(".etf-stack");
+    if (group) for (const other of group.querySelectorAll(".chart")) if (other._cursorAt) other._cursorAt(null);
+  });
   svg.appendChild(hit);
   host.appendChild(tip);
 }
 
-function frame(host, height) {
+function frame(host, height, bottom = 24) {
   const width = Math.max(host.clientWidth, 320);
-  const m = {top: 10, right: 12, bottom: 24, left: 48};
+  const m = {top: 10, right: 12, bottom, left: 48};
   const svg = svgNode("svg", {viewBox: `0 0 ${width} ${height}`, role: "img"});
   return {width, height, m, svg, plotHeight: height - m.top - m.bottom};
 }
@@ -503,7 +519,7 @@ function lineChart(host, labels, series, opts) {
   host.replaceChildren();
   const live = series.filter((s) => s.values.some((v) => v != null));
   if (!live.length || labels.length < 2) { host.appendChild(node("p", "표시할 데이터가 없습니다.", "muted")); return; }
-  const f = frame(host, opts.height || 300);
+  const f = frame(host, opts.height || 300, opts.noAxis ? 6 : 24);
   const n = labels.length;
   const x = (i) => f.m.left + ((f.width - f.m.left - f.m.right) * i) / (n - 1);
   const all = live.flatMap((s) => s.values.filter((v) => v != null));
@@ -524,7 +540,7 @@ function lineChart(host, labels, series, opts) {
     ref.style.stroke = "var(--muted)";
     f.svg.appendChild(ref);
   }
-  axisLabels(f, labels, n, x);
+  if (!opts.noAxis) axisLabels(f, labels, n, x);
   for (const s of live) {
     let d = "", open = false;
     s.values.forEach((v, i) => {
@@ -549,10 +565,12 @@ function barChart(host, labels, values, opts) {
   host.replaceChildren();
   const live = values.filter((v) => v != null);
   if (!live.length || labels.length < 2) { host.appendChild(node("p", "표시할 데이터가 없습니다.", "muted")); return; }
-  const f = frame(host, opts.height || 150);
+  const f = frame(host, opts.height || 150, opts.noAxis ? 6 : 24);
   const n = labels.length;
   const x = (i) => f.m.left + ((f.width - f.m.left - f.m.right) * i) / (n - 1);
-  let lo = Math.min(0, ...live), hi = Math.max(0, ...live);
+  const lines = opts.lines || [];
+  const extra = lines.flatMap((l) => l.values.filter((v) => v != null));
+  let lo = Math.min(0, ...live, ...extra), hi = Math.max(0, ...live, ...extra);
   if (hi - lo < 1e-12) hi = lo + 1;
   const toY = (v) => f.m.top + f.plotHeight * (1 - (v - lo) / (hi - lo));
   for (const t of niceTicks(lo, hi, 4)) {
@@ -570,11 +588,24 @@ function barChart(host, labels, values, opts) {
     bar.setAttribute("fill-opacity", 0.85);
     f.svg.appendChild(bar);
   });
-  axisLabels(f, labels, n, x);
+  for (const l of lines) {
+    let d = "", open = false;
+    l.values.forEach((v, i) => {
+      if (v == null) { open = false; return; }
+      d += (open ? "L" : "M") + x(i).toFixed(1) + "," + toY(v).toFixed(1);
+      open = true;
+    });
+    const path = svgNode("path", {d, fill: "none", "stroke-width": 1.4, "stroke-linejoin": "round"});
+    path.style.stroke = l.color;
+    f.svg.appendChild(path);
+  }
+  if (!opts.noAxis) axisLabels(f, labels, n, x);
   f.svg.setAttribute("aria-label", opts.label || "막대 차트");
   host.appendChild(f.svg);
-  attachTip(host, f.svg, {width: f.width, m: f.m, n, x, plotHeight: f.plotHeight}, labels, (i) =>
-    values[i] == null ? [] : [[opts.name || "값", "var(--fg)", (opts.fmt || dec)(values[i])]]);
+  attachTip(host, f.svg, {width: f.width, m: f.m, n, x, plotHeight: f.plotHeight}, labels, (i) => [
+    ...(values[i] == null ? [] : [[opts.name || "값", "var(--fg)", (opts.fmt || dec)(values[i])]]),
+    ...lines.filter((l) => l.values[i] != null).map((l) => [l.name, l.color, (opts.fmt || dec)(l.values[i])]),
+  ]);
 }
 
 // candles: {open, high, low, close} arrays aligned to labels; lines: [{name, color, values}] drawn on top
@@ -583,7 +614,7 @@ function candleChart(host, labels, candles, lines, opts) {
   const n = labels.length;
   const ok = (i) => [candles.open[i], candles.high[i], candles.low[i], candles.close[i]].every((v) => v != null);
   if (n < 2 || !candles.close.some((_, i) => ok(i))) { host.appendChild(node("p", "표시할 데이터가 없습니다.", "muted")); return; }
-  const f = frame(host, opts.height || 340);
+  const f = frame(host, opts.height || 340, opts.noAxis ? 6 : 24);
   const x = (i) => f.m.left + ((f.width - f.m.left - f.m.right) * i) / (n - 1);
   const extra = lines.flatMap((l) => l.values.filter((v) => v != null));
   let lo = Math.min(...candles.low.filter((v) => v != null), ...extra), hi = Math.max(...candles.high.filter((v) => v != null), ...extra);
@@ -595,7 +626,7 @@ function candleChart(host, labels, candles, lines, opts) {
     label.textContent = String(t);
     f.svg.appendChild(label);
   }
-  axisLabels(f, labels, n, x);
+  if (!opts.noAxis) axisLabels(f, labels, n, x);
   const body = Math.max(1, Math.min(10, ((f.width - f.m.left - f.m.right) / n) * 0.7));
   for (let i = 0; i < n; i++) {
     if (!ok(i)) continue;
@@ -1934,16 +1965,18 @@ function renderEtf() {
     const chip = node("span", null, "chip"); const sw = node("i"); sw.style.background = color;
     chip.append(sw, document.createTextNode(name)); legend.appendChild(chip);
   }
-  candleChart($("etf-price"), labels, {open: cut(c.open), high: cut(c.high), low: cut(c.low), close: cut(c.close)}, MA.map(([k, n, col]) => ({name: n, color: col, values: cut(c.ma[k])})), {height: 340, label: "캔들 차트와 이동평균선"});
-  barChart($("etf-volume"), labels, cut(c.volume), {tick: compact, fmt: compact, name: "거래량", label: "거래량"});
-  lineChart($("etf-rsi"), labels, [{name: "RSI", color: "var(--c3)", values: cut(c.rsi)}], {min: 0, max: 100, refs: [30, 70], tick: String, fmt: (v) => v.toFixed(0), height: 150, label: "RSI"});
-  lineChart($("etf-macd"), labels, [{name: "MACD", color: "var(--c3)", values: cut(c.macd)}, {name: "시그널", color: "var(--c4)", values: cut(c.signal)}], {refs: [0], tick: (v) => v.toFixed(1), fmt: (v) => v.toFixed(2), height: 150, label: "MACD"});
-  barChart($("etf-hist"), labels, cut(c.hist), {signed: true, tick: (v) => v.toFixed(1), fmt: (v) => v.toFixed(2), name: "히스토그램", label: "MACD 히스토그램", height: 110});
-  lineChart($("etf-stoch"), labels, [{name: "%K", color: "var(--c3)", values: cut(c.k)}, {name: "%D", color: "var(--c4)", values: cut(c.d)}], {min: 0, max: 100, refs: [20, 80], tick: String, fmt: (v) => v.toFixed(0), height: 150, label: "스토캐스틱"});
+  const common = {noAxis: true};
+  candleChart($("etf-price"), labels, {open: cut(c.open), high: cut(c.high), low: cut(c.low), close: cut(c.close)}, MA.map(([k, n, col]) => ({name: n, color: col, values: cut(c.ma[k])})), {...common, height: 250, label: "캔들 차트와 이동평균선"});
+  barChart($("etf-volume"), labels, cut(c.volume), {...common, tick: compact, fmt: compact, name: "거래량", label: "거래량", height: 60});
+  lineChart($("etf-rsi"), labels, [{name: "RSI", color: "var(--c3)", values: cut(c.rsi)}], {...common, min: 0, max: 100, refs: [30, 70], tick: String, fmt: (v) => v.toFixed(0), height: 80, label: "RSI"});
+  barChart($("etf-macd"), labels, cut(c.hist), {...common, signed: true, tick: (v) => v.toFixed(1), fmt: (v) => v.toFixed(2), name: "히스토그램", label: "MACD", height: 95,
+    lines: [{name: "MACD", color: "var(--c3)", values: cut(c.macd)}, {name: "시그널", color: "var(--c4)", values: cut(c.signal)}]});
+  lineChart($("etf-stoch"), labels, [{name: "%K", color: "var(--c3)", values: cut(c.k)}, {name: "%D", color: "var(--c4)", values: cut(c.d)}], {min: 0, max: 100, refs: [20, 80], tick: String, fmt: (v) => v.toFixed(0), height: 105, label: "스토캐스틱"});
 }
 
 function showTab(tab) {
   state.tab = tab;
+  document.body.classList.toggle("wide", tab === "etf");
   for (const [id] of TABS) $("tab-" + id).hidden = id !== tab;
   renderTabs();
   $("rules-wrap").hidden = !["compare", "lab"].includes(tab);
