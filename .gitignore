@@ -10,3 +10,6 @@ var/
 # Swift app build output
 app/.build/
 app/build/
+
+# Xcode/SwiftPM per-user state
+app/.swiftpm/
