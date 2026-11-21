@@ -1,8 +1,8 @@
 """Per-ETF daily chart data: indicators, rule signal and how each signal state did afterwards.
 
 Indicators are computed on the whole history; the payload keeps the last RECENT_DAYS trading days.
-Price basis: total-return index (adjusted close, chained inside one snapshot), high/low scaled by
-index / raw close, volume raw. See analytics.indicators and analytics.chart_signal.
+Price basis: total-return index (adjusted close, chained inside one snapshot), open/high/low scaled
+by index / raw close, volume raw. See analytics.indicators and analytics.chart_signal.
 """
 
 from __future__ import annotations
@@ -36,19 +36,20 @@ STATES = ("buy", "neutral", "sell")
 
 def build_asset_chart(
     points: Sequence[PricePoint],
-    bars: Sequence[tuple[date, float, float, float, float]],
+    bars: Sequence[tuple[date, float, float, float, float, float]],
 ) -> dict | None:
     """Full-history indicator series plus daily rule states for one asset, or None if too short."""
     level = {p.trading_date: float(p.level) for p in total_return_index(points)}
-    rows = [bar for bar in bars if bar[0] in level and bar[3] > 0]
+    rows = [bar for bar in bars if bar[0] in level and bar[4] > 0]
     if len(rows) < 2:
         return None
     dates = [r[0] for r in rows]
     close = [level[r[0]] for r in rows]
-    scale = [level[r[0]] / r[3] for r in rows]
-    high = [r[1] * s for r, s in zip(rows, scale, strict=True)]
-    low = [r[2] * s for r, s in zip(rows, scale, strict=True)]
-    volume = [r[4] for r in rows]
+    scale = [level[r[0]] / r[4] for r in rows]
+    open_ = [r[1] * s for r, s in zip(rows, scale, strict=True)]
+    high = [r[2] * s for r, s in zip(rows, scale, strict=True)]
+    low = [r[3] * s for r, s in zip(rows, scale, strict=True)]
+    volume = [r[5] for r in rows]
     line, signal, histogram = macd(close)
     k, d = stochastic(high, low, close)
     averages = {n: sma(close, n) for n in MA_WINDOWS}
@@ -56,6 +57,9 @@ def build_asset_chart(
     return {
         "dates": dates,
         "close": close,
+        "open": open_,
+        "high": high,
+        "low": low,
         "ma": averages,
         "rsi": rsi_line,
         "macd": line,
@@ -91,6 +95,9 @@ def asset_payload(chart: dict, recent: int = RECENT_DAYS) -> dict:
     return {
         "dates": [d.isoformat() for d in chart["dates"][cut]],
         "close": _round([v / base for v in chart["close"][cut]], 3),
+        "open": _round([v / base for v in chart["open"][cut]], 3),
+        "high": _round([v / base for v in chart["high"][cut]], 3),
+        "low": _round([v / base for v in chart["low"][cut]], 3),
         "ma": {
             str(n): _round([None if v is None else v / base for v in chart["ma"][n][cut]], 3)
             for n in MA_WINDOWS

@@ -24,7 +24,7 @@ def series(step: float = 1.0):
     ]
     # raw close is half the adjusted close (a stand-in for later dividends/splits)
     bars = [
-        (d, (a + 1) / 2, (a - 1) / 2, a / 2, 1000.0 + i)
+        (d, a / 2, (a + 1) / 2, (a - 1) / 2, a / 2, 1000.0 + i)
         for i, (d, a) in enumerate(zip(dates, adjusted, strict=True))
     ]
     return points, bars, adjusted
@@ -103,3 +103,16 @@ def test_payload_carries_trailing_returns() -> None:
     payload = asset_payload(build_asset_chart(points, bars))
     assert payload["trailing"]["1M"] == pytest.approx(adjusted[-1] / adjusted[-22] - 1, abs=1e-4)
     assert payload["trailing"]["12M"] is not None
+
+
+def test_candles_are_scaled_with_the_close_and_stay_ordered() -> None:
+    points, bars, adjusted = series()
+    chart = build_asset_chart(points, bars)
+    for i in range(len(chart["close"])):
+        assert chart["low"][i] <= min(chart["open"][i], chart["close"][i])
+        assert chart["high"][i] >= max(chart["open"][i], chart["close"][i])
+    # raw open == raw close here, so the scaled open equals the total-return close
+    assert chart["open"][-1] == pytest.approx(chart["close"][-1])
+    payload = asset_payload(chart, recent=50)
+    assert all(len(payload[k]) == 50 for k in ("open", "high", "low", "close"))
+    assert payload["open"][0] == pytest.approx(100.0, rel=1e-3)
