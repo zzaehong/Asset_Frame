@@ -1934,7 +1934,7 @@ function renderStocks() {
   $("stk-toml").value = over ? "선택이 한도를 넘었습니다. 종목을 줄이세요." : Engine.stocksToml(picked);
   $("stk-copy").disabled = $("stk-save").disabled = over;
   if (BRIDGE) {
-    $("stk-app-save").disabled = over || STK.running;
+    $("stk-app-save").disabled = over;
     $("stk-app-collect").disabled = over || STK.running || !picked.length;
   }
 }
@@ -1947,6 +1947,7 @@ window.stocksEvent = (e) => {
   const note = $("stk-app-note"), log = $("stk-log");
   let text = e.message || "";
   if (!e.running && e.exitCode != null && e.kind === "progress") text = e.exitCode === 0 ? "마지막 수집: 성공" : `마지막 수집: 실패(종료 코드 ${e.exitCode}) — 아래 로그를 확인하세요.`;
+  if (e.running && e.kind === "saved") text += " 실행 중인 갱신에는 반영되지 않을 수 있고, 다음 갱신부터 적용됩니다.";
   if (e.running) text = (text ? text + " " : "") + (e.own ? "수집 중입니다." : "다른 갱신이 실행 중입니다(스케줄 또는 이전 실행).");
   note.textContent = text;
   note.hidden = !text;
