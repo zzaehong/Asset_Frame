@@ -8,6 +8,7 @@ in only variables that are not already set, and nothing here prints a value.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import subprocess
 import sys
@@ -22,6 +23,7 @@ class Step:
     name: str
     group: str  # "collect" | "derive" | "ledger" | "backup"
     run: Callable[[], None]
+    units: int = 1  # work items (tickers) the progress percentage counts for this step
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,15 +49,94 @@ def _failure_text(error: BaseException) -> str:
     return str(error.code) if isinstance(error, SystemExit) else f"{type(error).__name__}: {error}"
 
 
+class Progress:
+    """Writes `var/progress.json` so the Mac app can show a percentage while a run is live.
+
+    shortcut: the percentage counts tickers and treats every other step as one unit, so it tracks
+    time roughly (downloads dominate); it is not an ETA.
+    """
+
+    def __init__(self, path: Path | None, steps: Sequence[Step]) -> None:
+        self.path = path
+        self.steps = list(steps)
+        self.total = max(1, sum(max(1, s.units) for s in steps))
+        self.base = 0
+        self.index = 0
+        self.inside = 0
+
+    def begin(self, index: int) -> None:
+        self.index = index
+        self.base = sum(max(1, s.units) for s in self.steps[:index])
+        self.inside = 0
+        self._write()
+
+    def tick(self) -> None:
+        self.inside = min(self.inside + 1, max(1, self.steps[self.index].units))
+        self._write()
+
+    def end_step(self) -> None:
+        self.inside = max(1, self.steps[self.index].units)
+        self._write()
+
+    def clear(self) -> None:
+        if self.path:
+            self.path.unlink(missing_ok=True)
+
+    def _write(self) -> None:
+        if not self.path:
+            return
+        done = self.base + self.inside
+        body = {
+            "percent": min(100, done * 100 // self.total),
+            "step": self.steps[self.index].name,
+            "step_index": self.index + 1,
+            "steps": len(self.steps),
+            "step_done": self.inside,
+            "step_total": max(1, self.steps[self.index].units),
+        }
+        with contextlib.suppress(OSError):  # progress is a courtesy; never fail a run over it
+            temporary = self.path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(body), encoding="utf-8")
+            temporary.replace(self.path)
+
+
+_current: Progress | None = None
+
+
+def tick() -> None:
+    """Called once per ticker by a collection loop; a no-op outside `run_steps`."""
+    if _current:
+        _current.tick()
+
+
 def run_steps(
     steps: Sequence[Step],
     *,
     report: Callable[[str], None] = print,
     clock: Callable[[], float] = time.monotonic,
+    progress_path: Path | None = None,
 ) -> list[StepResult]:
+    global _current  # noqa: PLW0603 - the collection loops report through tick()
     results: list[StepResult] = []
     collect_failed = False
-    for step in steps:
+    _current = Progress(progress_path, steps)
+    try:
+        return _run(steps, results, collect_failed, report, clock)
+    finally:
+        _current.clear()
+        _current = None
+
+
+def _run(
+    steps: Sequence[Step],
+    results: list[StepResult],
+    collect_failed: bool,
+    report: Callable[[str], None],
+    clock: Callable[[], float],
+) -> list[StepResult]:
+    assert _current is not None
+    for number, step in enumerate(steps):
+        _current.begin(number)
         if step.group == "ledger" and collect_failed:
             results.append(StepResult(step.name, "skipped", 0.0, "a collection step failed"))
             report(f"[{step.name}] skipped: a collection step failed")
@@ -65,6 +146,7 @@ def run_steps(
             step.run()
         except SystemExit as error:
             if error.code in (0, None):
+                _current.end_step()
                 results.append(StepResult(step.name, "ok", clock() - started))
                 report(f"[{step.name}] ok")
                 continue
@@ -72,9 +154,11 @@ def run_steps(
         except Exception as error:  # noqa: BLE001 - one step's failure must not stop the others
             detail = _failure_text(error)
         else:
+            _current.end_step()
             results.append(StepResult(step.name, "ok", clock() - started))
             report(f"[{step.name}] ok")
             continue
+        _current.end_step()
         collect_failed = collect_failed or step.group == "collect"
         results.append(StepResult(step.name, "failed", clock() - started, detail))
         report(f"[{step.name}] FAILED: {detail}")

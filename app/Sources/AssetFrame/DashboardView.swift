@@ -85,6 +85,9 @@ struct WebView: NSViewRepresentable {
             let status = runner.status(root: root)
             var payload: [String: Any] = ["kind": kind, "message": text, "running": status.running, "own": status.ownRun, "lines": status.lines]
             if let code = status.exitCode { payload["exitCode"] = Int(code) }
+            if let p = status.progress {
+                payload["progress"] = ["percent": p.percent, "step": p.step, "stepIndex": p.stepIndex, "steps": p.steps, "stepDone": p.stepDone, "stepTotal": p.stepTotal]
+            }
             guard let data = try? JSONSerialization.data(withJSONObject: payload), let json = String(data: data, encoding: .utf8) else { return }
             view.evaluateJavaScript("window.stocksEvent && window.stocksEvent(\(json))")
         }

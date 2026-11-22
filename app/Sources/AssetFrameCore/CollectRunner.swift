@@ -17,6 +17,17 @@ public struct CollectStatus: Equatable {
     public var ownRun: Bool
     public var exitCode: Int32?
     public var lines: [String]
+    /// From `var/progress.json` (written by the CLI) while an update is live.
+    public var progress: CollectProgress? = nil
+}
+
+public struct CollectProgress: Equatable {
+    public var percent: Int
+    public var step: String
+    public var stepIndex: Int
+    public var steps: Int
+    public var stepDone: Int
+    public var stepTotal: Int
 }
 
 /// Starts `asset-frame update --steps stocks,dashboard` as a child process (ADR-0013). The app never
@@ -92,7 +103,18 @@ public final class CollectRunner: @unchecked Sendable {
         lock.unlock()
         return CollectStatus(
             running: own || Self.updateRunning(root: root), ownRun: own, exitCode: own ? nil : code,
-            lines: Self.tailLines(root.appendingPathComponent(Self.logRelative), count: tail))
+            lines: Self.tailLines(root.appendingPathComponent(Self.logRelative), count: tail),
+            progress: (own || Self.updateRunning(root: root)) ? Self.readProgress(root: root) : nil)
+    }
+
+    static func readProgress(root: URL) -> CollectProgress? {
+        guard let data = try? Data(contentsOf: root.appendingPathComponent("var/progress.json")),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let percent = json["percent"] as? Int, let step = json["step"] as? String,
+              let index = json["step_index"] as? Int, let steps = json["steps"] as? Int,
+              let done = json["step_done"] as? Int, let total = json["step_total"] as? Int
+        else { return nil }
+        return CollectProgress(percent: min(100, max(0, percent)), step: step, stepIndex: index, steps: steps, stepDone: done, stepTotal: total)
     }
 
     static func tailLines(_ file: URL, count: Int) -> [String] {

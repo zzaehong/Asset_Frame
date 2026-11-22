@@ -95,3 +95,18 @@ final class CollectRunnerTests: XCTestCase {
         XCTAssertFalse(CollectRunner.updateRunning(root: root))
     }
 }
+
+final class CollectProgressTests: XCTestCase {
+    func testReadsTheCliProgressFileAndIgnoresGarbage() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("var"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("var/progress.json")
+        XCTAssertNil(CollectRunner.readProgress(root: root))
+        try Data("not json".utf8).write(to: file)
+        XCTAssertNil(CollectRunner.readProgress(root: root))
+        try Data(#"{"percent":140,"step":"stocks","step_index":3,"steps":7,"step_done":4,"step_total":29}"#.utf8).write(to: file)
+        XCTAssertEqual(CollectRunner.readProgress(root: root),
+                       CollectProgress(percent: 100, step: "stocks", stepIndex: 3, steps: 7, stepDone: 4, stepTotal: 29))
+    }
+}

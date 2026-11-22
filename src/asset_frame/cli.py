@@ -77,6 +77,7 @@ from asset_frame.update import (
     select_steps,
     summary,
 )
+from asset_frame.update import tick as update_tick
 
 SOURCES_PATH = Path("config/sources.toml")
 UNIVERSE_PATH = Path("config/universe.toml")
@@ -331,6 +332,7 @@ def _ingest_universe(end_date: date, min_interval_seconds: float, full: bool) ->
         api_key=api_key,
         end_date=end_date,
         full=full,
+        progress=update_tick,
     )
     print(
         f"universe ingest through {end_date}: {len(result.collected)} collected, "
@@ -406,10 +408,16 @@ def _update_steps(end_date: date, min_interval_seconds: float) -> list[Step]:
     return [
         Step("fred", "collect", _ingest_all_fred),
         Step(
-            "universe", "collect", lambda: _ingest_universe(end_date, min_interval_seconds, False)
+            "universe",
+            "collect",
+            lambda: _ingest_universe(end_date, min_interval_seconds, False),
+            units=len(load_universe(UNIVERSE_PATH)),
         ),
         Step(
-            "stocks", "collect", lambda: _ingest_stocks_if_selected(end_date, min_interval_seconds)
+            "stocks",
+            "collect",
+            lambda: _ingest_stocks_if_selected(end_date, min_interval_seconds),
+            units=len(_selected_stocks()),
         ),
         Step("build-returns", "derive", _build_returns),
         Step("record-regime", "ledger", _record_regime_live),
@@ -433,7 +441,7 @@ def _update(arguments: argparse.Namespace) -> None:
         return
     try:
         with UpdateLock(_database_path().parent / "update.lock"):
-            results = run_steps(chosen)
+            results = run_steps(chosen, progress_path=_database_path().parent / "progress.json")
     except AlreadyRunning as error:
         print(error)
         return
@@ -488,6 +496,7 @@ def _ingest_stocks(end_date: date, min_interval_seconds: float) -> None:
         api_key=api_key,
         end_date=end_date,
         asset_type=AssetType.EQUITY,
+        progress=update_tick,
     )
     print(
         f"stock ingest through {end_date}: {len(result.collected)} collected, "

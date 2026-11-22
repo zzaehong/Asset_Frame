@@ -145,3 +145,29 @@ def test_failure_notification_names_steps_only_and_only_on_macos() -> None:
     notify_failure(["universe"], run=run, platform="linux")
     notify_failure([], run=run, platform="darwin")
     assert len(calls) == 1
+
+
+def test_progress_file_counts_tickers_and_is_removed_when_the_run_ends(tmp_path: Path) -> None:
+    from asset_frame import update
+
+    path = tmp_path / "progress.json"
+    seen: list[dict] = []
+
+    def work() -> None:
+        import json
+
+        seen.append(json.loads(path.read_text()))  # step 1 just began: nothing done yet
+        update.tick()
+        seen.append(json.loads(path.read_text()))  # one of three tickers finished
+
+    run_steps(
+        [Step("universe", "collect", work, units=3), Step("dashboard", "derive", ok)],
+        progress_path=path,
+    )
+
+    assert [s["percent"] for s in seen] == [0, 25]  # 0 of 4 units, then 1 of 4
+    assert (
+        seen[1]["step"] == "universe" and seen[1]["step_done"] == 1 and seen[1]["step_total"] == 3
+    )
+    assert not path.exists()
+    update.tick()  # outside a run: harmless

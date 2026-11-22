@@ -394,6 +394,7 @@ th[title] { text-decoration: underline dotted; text-underline-offset: 3px; }
           <button class="plain" type="button" id="stk-app-cancel" hidden>수집 중단</button>
         </div>
         <p class="note" id="stk-app-note" hidden></p>
+        <div id="stk-progress" hidden><progress id="stk-bar" max="100" value="0" style="width:100%"></progress><div class="note" id="stk-pct"></div></div>
         <pre id="stk-log" hidden></pre>
         <p class="muted">저장만 해도 매일 07:30 자동 갱신(<code>schedule install</code>로 등록한 경우)이 새 종목을 받습니다. 지금 수집은 시간당 50요청 제한 때문에 처음에는 2시간 넘게 걸릴 수 있고, 앱을 닫아도 계속됩니다. 이미 갱신이 돌고 있으면 시작하지 않습니다.</p>
       </div>
@@ -1952,6 +1953,12 @@ window.stocksEvent = (e) => {
   note.textContent = text;
   note.hidden = !text;
   note.style.color = e.kind === "error" || (!e.running && e.exitCode > 0) ? "var(--neg)" : "";
+  const pr = e.running && e.progress;
+  $("stk-progress").hidden = !pr;
+  if (pr) {
+    $("stk-bar").value = pr.percent;
+    $("stk-pct").textContent = `${pr.percent}% · ${pr.stepIndex}/${pr.steps}단계 ${pr.step}` + (pr.stepTotal > 1 ? ` (${pr.stepDone}/${pr.stepTotal})` : "");
+  }
   log.hidden = !(e.lines && e.lines.length);
   log.textContent = (e.lines || []).join("\n");
   log.scrollTop = log.scrollHeight;

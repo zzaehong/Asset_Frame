@@ -48,6 +48,7 @@ def ingest_universe(
     full: bool = False,
     asset_type: AssetType = AssetType.ETF,
     report: Callable[[str], None] = print,
+    progress: Callable[[], None] = lambda: None,
 ) -> UniverseIngestResult:
     """Collect each ticker's history; a ticker done for end_date is skipped on rerun.
 
@@ -56,7 +57,9 @@ def ingest_universe(
     fetch). `full=True` downloads the whole history again.
     """
     result = UniverseIngestResult()
-    for asset in assets:
+    for position, asset in enumerate(assets):
+        if position:
+            progress()  # the previous ticker is finished; the last one is closed by the caller
         if store.is_ingest_complete(asset.ticker, end_date):
             result.skipped.append(asset.ticker)
             continue
