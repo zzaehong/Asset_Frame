@@ -30,6 +30,12 @@
 | `macro_market_context` | 금리·달러 맥락 | 거시경제분석 | [macro_market_context.md](macro_market_context.md) |
 | `regime_performance` | 국면별 과거 성과 | 투자운용결과분석 | [regime_performance.md](regime_performance.md) |
 | `prediction_scoring` | 예측과 채점 | 투자운용결과분석 | [prediction_scoring.md](prediction_scoring.md) |
+| `proxy_history` | 대용 펀드 이력 | 데이터품질 | [proxy_history.md](proxy_history.md) |
+| `dividend_yield` | 배당수익률 | 투자운용결과분석 | [dividend_yield.md](dividend_yield.md) |
+| `chart_indicators` | 차트 지표 | 투자운용결과분석 | [chart_indicators.md](chart_indicators.md) |
+| `chart_signal` | 차트 규칙 신호 | 투자운용결과분석 | [chart_signal.md](chart_signal.md) |
+| `macro_action` | 거시 판단 | 투자운용결과분석 | [macro_action.md](macro_action.md) |
+| `signal_log` | 신호 원장 기록과 채점 | 투자운용결과분석 | [signal_log.md](signal_log.md) |
 
 ## 등록 예정
 
