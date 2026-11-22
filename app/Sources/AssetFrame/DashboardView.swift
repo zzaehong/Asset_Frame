@@ -53,6 +53,7 @@ struct WebView: NSViewRepresentable {
                 case "save":
                     try StockSelection.save(tickers, root: root)
                     reply(view, "saved", "선택 \(tickers.count)종목을 config/stocks.toml에 저장했습니다.")
+                    alert("저장 완료", "선택 \(tickers.count)종목을 저장했습니다. 다음 갱신부터 수집됩니다.")
                 case "collect":
                     guard !tickers.isEmpty else { return reply(view, "error", "수집할 종목을 먼저 고르세요.") }
                     try StockSelection.save(tickers, root: root)
@@ -68,7 +69,16 @@ struct WebView: NSViewRepresentable {
                 }
             } catch {
                 reply(view, "error", error.localizedDescription)
+                alert("저장하지 못했습니다", error.localizedDescription)
             }
+        }
+
+        private func alert(_ title: String, _ text: String) {
+            let box = NSAlert()
+            box.messageText = title
+            box.informativeText = text
+            box.addButton(withTitle: "확인")
+            box.runModal()
         }
 
         private func reply(_ view: WKWebView, _ kind: String, _ text: String) {
