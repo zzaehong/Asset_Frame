@@ -33,6 +33,10 @@ M1(자산배분 실험실)이 구현되어 있습니다: 데이터 층, 분석 �
 | 예측·채점: 모멘텀(12-1)·무작위·사용자 순위와 상관 부호 확률을 원장에 기록(월당 모델별 1건), 3개월 뒤 순위 IC·상·하위 스프레드·Brier 채점, MDE 표시, 잘못된 입력 거부 | `tests/test_prediction.py` |
 | 대용 펀드 이력: 상장 전 구간을 같은 시장 펀드로 이어 붙임(대상 첫 달 이전만, 항상 대용 표시), 겹침 36개월·등급별 상관 기준 미달이면 사용 안 함, 일간 지수 연결, 기존 월간 수익률과 분리 저장, 설정 검증 | `tests/test_proxy.py`, `tests/test_proxy_jobs.py`, `tests/test_proxies_config.py` |
 | 자산별 배당수익률: 최근 12개월 분배금÷기준일 종가, 분할 후 분배금 보정, 중복 배당락일 1회 계산, 이력 12개월 미만이면 표시 안 함, 실험실 자산 행에 표시 | `tests/test_dividend.py`, `tests/test_dashboard.py` |
+| 앱의 개별주 선택 저장·수집: 티커 검증(형식·중복·50종목·삽입 시도)과 잘못된 입력 시 파일 불변, 파일 텍스트가 JS와 같음, CLI 자식 프로세스 실행·로그·종료 코드, 실행 중 잠금 시 시작 거부, 이 앱이 시작한 수집만 중단 | `app/Tests/AssetFrameCoreTests/StockSelectionTests.swift`, `app/Tests/AssetFrameCoreTests/CollectRunnerTests.swift`, `tests/test_dashboard_engine.py` |
+| 자동 갱신: 단계가 실패해도 나머지 계속·요약·알림, 수집 실패 시 원장 기록 건너뜀, 단계 선택·알 수 없는 이름 거부, 동시 실행 잠금(죽은 pid 교체), `.env`는 비어 있는 변수만 채우고 값을 반환하지 않음, launchd plist(시각 검증·비밀 없음)·등록·해제·상태 | `tests/test_update.py`, `tests/test_schedule.py` |
+| API 키 조회: 환경변수 우선·비어 있으면 키체인, 값이 명령줄·오류 메시지에 나오지 않음, macOS 외에서는 키체인을 건드리지 않음, 앱의 키체인 저장·교체·삭제·공백 제거(Swift) | `tests/test_secrets.py`, `app/Tests/AssetFrameCoreTests/KeychainTests.swift` |
+| 개별주 관찰 목록: stocks.toml 검증(없으면 선택 없음, 형식·중복·ETF 겹침·50종목 한도), 선택 종목만 주식으로 수집하고 재실행 시 이어받기, 후보·수집 상태 요약, 대시보드가 만드는 stocks.toml 텍스트가 파이썬 로더와 일치(선택 없으면 수집 명령이 요청 전에 중단) | `tests/test_stocks.py`, `tests/test_stock_candidates.py`, `tests/test_dashboard_engine.py`, `tests/test_cli.py` |
 | 차트 지표(SMA·EMA·RSI·MACD·스토캐스틱·거래량 비율)와 기간별 수익률: 손 계산 fixture, 이력 부족은 None, 고가·저가 보정, 최근 일수 자르기 | `tests/test_indicators.py`, `tests/test_chart_jobs.py` |
 | 차트 규칙 신호(4개 투표 합계, 임계 ±2, 스토캐스틱 교차 5거래일 유지, 히스토그램 잡음 처리), 월말 신호별 1·3·6개월 과거 성과 | `tests/test_chart_signal.py`, `tests/test_chart_jobs.py` |
 | 거시 판단(국면별 강했던·약했던 자산, 독립 표본 5 미만 제외, 자격 4개 미만이면 제안 안 함, 곡선·정책금리·달러 경고와 자료 없음) | `tests/test_regime_actions.py`, `tests/test_dashboard.py` |
@@ -90,6 +94,9 @@ uv run asset-frame ingest-universe --full   # 전체 이력을 다시 받음
 uv run asset-frame universe verify          # 상장일 검증. ok만 config/universe.toml에 기록
 uv run asset-frame ingest-fred --series DTB3
 uv run asset-frame ingest-proxies           # config/proxies.toml의 대용 펀드 이력(약 1시간, 75초 간격)
+uv run asset-frame ingest-stocks            # config/stocks.toml에 고른 개별주만 수집(대시보드 "개별주 선택" 탭에서 만든 파일, 최대 50종목, 약 2시간)
+uv run asset-frame update                    # 모든 갱신을 한 번에(FRED·ETF·개별주 가격 → 수익률 → 월말 국면 기록 → 대시보드 → 백업, --steps·--dry-run)
+uv run asset-frame schedule install          # 매일 07:30 자동 갱신 등록(macOS launchd, --hour·--minute), status·uninstall도 있음
 uv run asset-frame build-returns            # monthly_return, return_anomaly에 새 빌드 추가 + 대용 월·겹침 검사 저장
 uv run asset-frame universe status          # 콘솔 표 + var/reports/universe_status.csv
 uv run asset-frame universe analyze         # var/reports/analysis_risk.csv, analysis_correlation.csv
@@ -117,13 +124,17 @@ uv run asset-frame backtest --window-months 24   # 위험 추정 창 민감도(�
 - `universe verify`의 `mismatch`는 설정 파일을 바꾸지 않습니다. 사람이 확인합니다.
 - 계산 규칙(월말 기준, 대용 근사, 버전)은 [개념 레지스트리](docs/concepts/README.md)에 있습니다.
 
+### 자동 갱신
+
+`asset-frame schedule install`이 매일 07:30에 `asset-frame update`를 실행하도록 launchd에 등록합니다([ADR-0012](docs/adr/0012-scheduled-update.md)). 로그는 `var/logs/update.log`, 상태는 `schedule status`로 봅니다. 월말 국면 기록은 수집이 모두 성공했을 때만 원장에 추가되고, 예측·신호 기록과 채점은 자동화하지 않습니다. Mac이 자고 있으면 깨어난 뒤 한 번 실행하고, 꺼져 있으면 건너뜁니다. 스케줄은 저장소의 현재 브랜치 코드를 그대로 실행하니 브랜치를 바꿀 때 유의하세요. 키는 `.env`(스케줄 실행이 읽음) 또는 키체인에서 가져옵니다.
+
 ### Mac 앱
 
 ```bash
 app/build_app.sh --install   # app/build/AssetFrame.app을 만들고 ~/Applications에도 복사(이 Mac 전용 임시 서명)
 ```
 
-`~/Applications/AssetFrame.app`은 Launchpad·Spotlight·Finder에서 일반 앱처럼 열립니다. 빌드할 때 이 저장소 경로를 앱에 넣어 두므로 폴더를 고르거나 환경변수를 줄 필요가 없습니다. 우선순위는 `ASSET_FRAME_HOME` → "폴더 선택…"으로 고른 폴더 → 빌드 때 넣은 경로입니다. 저장소를 옮겼다면 다시 빌드하세요. 앱은 DB를 읽기 전용으로 열고, 데이터는 위 CLI로 갱신한 뒤 ⌘R로 다시 읽습니다. 설계는 [ADR-0008](docs/adr/0008-mac-app-read-only.md)입니다.
+`~/Applications/AssetFrame.app`은 Launchpad·Spotlight·Finder에서 일반 앱처럼 열립니다. 빌드할 때 이 저장소 경로를 앱에 넣어 두므로 폴더를 고르거나 환경변수를 줄 필요가 없습니다. 우선순위는 `ASSET_FRAME_HOME` → "폴더 선택…"으로 고른 폴더 → 빌드 때 넣은 경로입니다. 저장소를 옮겼다면 다시 빌드하세요. API 키는 앱의 "API 키" 화면에서 macOS 키체인에 저장할 수 있습니다(값은 다시 표시하지 않음, [ADR-0011](docs/adr/0011-api-keys-in-macos-keychain.md)). CLI는 환경변수가 있으면 그것을, 없으면 키체인을 읽습니다. 터미널이 키체인 키를 처음 읽을 때 접근 허용 창이 뜨면 "항상 허용"을 누르세요. 수집은 파이썬 CLI가 하고, 앱은 "개별주 선택" 화면에서 선택을 `config/stocks.toml`에 저장하고 "저장하고 지금 수집"으로 `asset-frame update --steps stocks,dashboard`를 시작할 수 있습니다([ADR-0013](docs/adr/0013-app-saves-stock-selection-and-starts-collection.md), 이미 갱신이 돌고 있으면 시작하지 않음). 앱은 DB를 읽기 전용으로 열고, 데이터는 위 CLI로 갱신한 뒤 ⌘R로 다시 읽습니다. 설계는 [ADR-0008](docs/adr/0008-mac-app-read-only.md)입니다.
 
 ## 데이터 규칙
 

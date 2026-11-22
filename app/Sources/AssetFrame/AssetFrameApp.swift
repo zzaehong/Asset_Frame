@@ -18,9 +18,16 @@ struct AssetFrameApp: App {
             }
             CommandMenu("화면") {
                 ForEach(Screen.sidebarOrder) { screen in
-                    Button(screen.rawValue) { model.screen = screen }.keyboardShortcut(screen.shortcut)
+                    Button(screen.rawValue) { model.screen = screen }.optionalShortcut(screen.shortcut)
                 }
             }
         }
+    }
+}
+
+extension View {
+    /// Adds ⌘<key> only when there is a key (screens past the ninth have none).
+    @ViewBuilder func optionalShortcut(_ key: KeyEquivalent?) -> some View {
+        if let key { keyboardShortcut(key) } else { self }
     }
 }

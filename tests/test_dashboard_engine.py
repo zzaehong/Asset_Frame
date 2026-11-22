@@ -135,3 +135,54 @@ def test_correlation_risk_and_rolling_match_python(js: dict) -> None:
 
     assert last == pytest.approx(correlation(xs, ys), abs=1e-9)  # type: ignore[arg-type]
     assert js["rolling"][22] is None  # fewer than 24 months
+
+
+def test_stocks_toml_round_trips_through_the_python_loader(tmp_path: Path) -> None:
+    from asset_frame.stocks import load_stocks
+    from asset_frame.universe import load_universe
+
+    selection = ["NVDA", "BRK-B", "JPM"]
+    script = (
+        "const E = require(process.argv[1]); "
+        "console.log(JSON.stringify(E.stocksToml(JSON.parse(process.argv[2]))))"
+    )
+    engine = Path("src/asset_frame/report/dashboard_engine.js").resolve()
+    out = subprocess.run(
+        [NODE, "-e", script, str(engine), json.dumps(selection)],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    path = tmp_path / "stocks.toml"
+    path.write_text(json.loads(out))
+    specs = load_stocks(path, load_universe(Path("config/universe.toml")))
+    assert [s.ticker for s in specs] == selection
+
+
+def test_stocks_toml_rejects_a_malformed_ticker() -> None:
+    script = "const E = require(process.argv[1]); E.stocksToml(['bad ticker'])"
+    engine = Path("src/asset_frame/report/dashboard_engine.js").resolve()
+    result = subprocess.run([NODE, "-e", script, str(engine)], capture_output=True, text=True)
+    assert result.returncode != 0 and "invalid ticker" in result.stderr
+
+
+def test_stocks_toml_text_matches_the_golden_the_swift_app_also_asserts() -> None:
+    # The same literal is asserted in app/Tests/AssetFrameCoreTests/StockSelectionTests.swift.
+    golden = (
+        '# 수집할 개별주 목록 (ADR-0010). 대시보드 "개별주 선택" 탭에서 만든 내용이다.\n'
+        "schema_version = 1\n\n"
+        '[[stocks]]\nticker = "NVDA"\n\n'
+        '[[stocks]]\nticker = "BRK-B"\n'
+    )
+    script = (
+        "const E = require(process.argv[1]); "
+        "process.stdout.write(E.stocksToml(JSON.parse(process.argv[2])))"
+    )
+    engine = Path("src/asset_frame/report/dashboard_engine.js").resolve()
+    out = subprocess.run(
+        [NODE, "-e", script, str(engine), json.dumps(["NVDA", "BRK-B"])],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert out == golden

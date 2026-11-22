@@ -8,8 +8,10 @@ enum Screen: String, CaseIterable, Identifiable {
     case compare = "③ 전략 비교"
     case lab = "③ 포트폴리오 실험실"
     case etf = "ETF 차트 분석"
+    case stocks = "개별주 선택"
     case ledger = "원장"
     case data = "데이터"
+    case keys = "API 키"
 
     var id: String { rawValue }
     /// Name of the dashboard tab this screen shows; nil for native screens.
@@ -21,11 +23,12 @@ enum Screen: String, CaseIterable, Identifiable {
         case .compare: "compare"
         case .lab: "lab"
         case .etf: "etf"
+        case .stocks: "stocks"
         default: nil
         }
     }
-    static let analysis: [Screen] = [.overview, .regime, .history, .compare, .lab, .etf]
-    static let records: [Screen] = [.ledger, .data]
+    static let analysis: [Screen] = [.overview, .regime, .history, .compare, .lab, .etf, .stocks]
+    static let records: [Screen] = [.ledger, .data, .keys]
     /// ASSET_FRAME_SECTION=<screen title> picks the first screen (used to check each screen).
     static var initial: Screen {
         ProcessInfo.processInfo.environment["ASSET_FRAME_SECTION"].flatMap(Screen.init(rawValue:)) ?? .home
@@ -39,12 +42,17 @@ enum Screen: String, CaseIterable, Identifiable {
         case .compare: "chart.xyaxis.line"
         case .lab: "slider.horizontal.3"
         case .etf: "chart.line.uptrend.xyaxis"
+        case .stocks: "checklist"
         case .ledger: "list.bullet.rectangle"
         case .data: "externaldrive"
+        case .keys: "key"
         }
     }
-    /// ⌘1…⌘9 in sidebar order.
-    var shortcut: KeyEquivalent { KeyEquivalent(Character(String(Screen.sidebarOrder.firstIndex(of: self)! + 1))) }
+    /// ⌘1…⌘9 in sidebar order; the tenth screen and later have none.
+    var shortcut: KeyEquivalent? {
+        let number = Screen.sidebarOrder.firstIndex(of: self)! + 1
+        return number <= 9 ? KeyEquivalent(Character(String(number))) : nil
+    }
     static let sidebarOrder: [Screen] = [.home] + analysis + records
 }
 
@@ -81,9 +89,10 @@ struct RootView: View {
                     }
                     switch model.screen {
                     case .home: OverviewView()
-                    case .overview, .regime, .history, .compare, .lab, .etf: DashboardView(tab: model.screen.webTab ?? "regime")
+                    case .overview, .regime, .history, .compare, .lab, .etf, .stocks: DashboardView(tab: model.screen.webTab ?? "regime")
                     case .ledger: LedgerView()
                     case .data: DataView()
+                    case .keys: ApiKeysView()
                     }
                 }
             }

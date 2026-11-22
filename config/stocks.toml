@@ -1,0 +1,92 @@
+# 수집할 개별주 목록 (ADR-0010). 대시보드 "개별주 선택" 탭에서 만든 내용이다.
+schema_version = 1
+
+[[stocks]]
+ticker = "NVDA"
+
+[[stocks]]
+ticker = "MSFT"
+
+[[stocks]]
+ticker = "AAPL"
+
+[[stocks]]
+ticker = "AVGO"
+
+[[stocks]]
+ticker = "AMZN"
+
+[[stocks]]
+ticker = "GOOGL"
+
+[[stocks]]
+ticker = "META"
+
+[[stocks]]
+ticker = "TSLA"
+
+[[stocks]]
+ticker = "BRK-B"
+
+[[stocks]]
+ticker = "JPM"
+
+[[stocks]]
+ticker = "LLY"
+
+[[stocks]]
+ticker = "UNH"
+
+[[stocks]]
+ticker = "COST"
+
+[[stocks]]
+ticker = "WMT"
+
+[[stocks]]
+ticker = "KO"
+
+[[stocks]]
+ticker = "PEP"
+
+[[stocks]]
+ticker = "MCD"
+
+[[stocks]]
+ticker = "NFLX"
+
+[[stocks]]
+ticker = "XOM"
+
+[[stocks]]
+ticker = "CVX"
+
+[[stocks]]
+ticker = "ORCL"
+
+[[stocks]]
+ticker = "AMD"
+
+[[stocks]]
+ticker = "CAT"
+
+[[stocks]]
+ticker = "GE"
+
+[[stocks]]
+ticker = "NEE"
+
+[[stocks]]
+ticker = "SO"
+
+[[stocks]]
+ticker = "LIN"
+
+[[stocks]]
+ticker = "NEM"
+
+[[stocks]]
+ticker = "PLD"
+
+[[stocks]]
+ticker = "AMT"

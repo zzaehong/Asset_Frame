@@ -61,6 +61,7 @@ def build_payload(
     proxies: Sequence[dict] = (),
     dividends: Mapping[str, dict] | None = None,
     charts: Mapping[str, dict] | None = None,
+    stocks: Mapping | None = None,
 ) -> dict:
     strategy_ids = [s.id for s in strategies]
     anchors = [a.ticker for a in universe if a.level == 1 and a.role == "anchor"]
@@ -197,6 +198,7 @@ def build_payload(
         "proxies": list(proxies),
         "dividends": dict(dividends or {}),
         "charts": dict(charts or {}),
+        "stocks": dict(stocks or {}),
         "equity": equity,
         "macro": macro,
         "definitions": {

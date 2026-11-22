@@ -7,6 +7,7 @@ root="$(cd .. && pwd)"
 swift build -c release
 bin="$(swift build -c release --show-bin-path)"
 app="build/AssetFrame.app"
+osascript -e 'tell application id "local.assetframe.app" to quit' >/dev/null 2>&1 || true
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS"
 cp "$bin/AssetFrame" "$app/Contents/MacOS/AssetFrame"

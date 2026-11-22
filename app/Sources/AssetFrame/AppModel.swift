@@ -11,6 +11,8 @@ final class AppModel: ObservableObject {
     @Published var loadedAt: Date?
     @Published var webReloadToken = 0
     @Published var screen: Screen = Screen.initial
+    /// Runs `asset-frame update --steps stocks,dashboard` for the 개별주 선택 screen (ADR-0013).
+    let collector = CollectRunner()
 
     func load() {
         guard let location else { return }

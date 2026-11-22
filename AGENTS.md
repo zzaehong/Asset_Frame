@@ -37,10 +37,10 @@
 ## 4. Development Environment
 
 - 개발 셸: WSL2 Ubuntu 24.04(또는 macOS), Python 3.13 목표·3.12 호환, 패키지 관리 `uv`
-- 구조: `src/` + `tests/`. 런타임 의존성 없음(표준 라이브러리만). Mac 앱은 `app/`(Swift Package, 외부 패키지 없음, [ADR-0008](docs/adr/0008-mac-app-read-only.md))이며 DB를 읽기 전용으로만 연다. 앱에 계산·기록 로직을 복제하지 않는다.
+- 구조: `src/` + `tests/`. 런타임 의존성 없음(표준 라이브러리만). Mac 앱은 `app/`(Swift Package, 외부 패키지 없음, [ADR-0008](docs/adr/0008-mac-app-read-only.md))이며 DB를 읽기 전용으로만 연다(예외: API 키의 키체인 저장 [ADR-0011](docs/adr/0011-api-keys-in-macos-keychain.md), 개별주 선택 파일 쓰기와 갱신 CLI 실행 [ADR-0013](docs/adr/0013-app-saves-stock-selection-and-starts-collection.md)). 앱에 계산·기록 로직을 복제하지 않는다.
 - 저장: SQLite(`DATABASE_PATH`), 원본은 불변 로컬 파일(`RAW_STORE_PATH`)
 - 글로벌 `pip install` 금지. `.venv`는 `uv`로 관리한다. dependency는 `pyproject.toml`, 정확한 버전은 `uv.lock`이 담당한다.
-- secret은 `.env` 또는 secret manager로만 주입한다.
+- secret은 `.env` 또는 secret manager(macOS 키체인 포함)로만 주입한다.
 
 ```bash
 cp .env.example .env
