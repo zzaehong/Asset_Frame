@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from asset_frame.cli import _required_environment, main
@@ -50,9 +52,14 @@ def test_ingest_commands_require_api_keys(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_ingest_stocks_with_nothing_selected_stops_before_any_request(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.delenv("TIINGO_API_KEY", raising=False)  # would fail first if it got that far
+    empty = tmp_path / "stocks.toml"
+    empty.write_text("schema_version = 1\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "asset_frame.cli.STOCKS_PATH", empty
+    )  # the user's own selection is not a fixture
 
     with pytest.raises(SystemExit, match="no stocks selected"):
         main(["ingest-stocks"])

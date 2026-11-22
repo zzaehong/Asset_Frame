@@ -31,7 +31,10 @@ def write(tmp_path: Path, body: str) -> Path:
 def test_missing_file_and_empty_selection_mean_nothing_selected(tmp_path: Path) -> None:
     assert load_stocks(tmp_path / "none.toml", UNIVERSE) == ()
     assert load_stocks(write(tmp_path, "schema_version = 1\n"), UNIVERSE) == ()
-    assert load_stocks(Path("config/stocks.toml"), UNIVERSE) == ()  # shipped default
+    shipped = load_stocks(
+        Path("config/stocks.toml"), UNIVERSE
+    )  # the user's own selection: must stay valid
+    assert len(shipped) <= 50
 
 
 def test_selection_uses_candidate_names_and_normalizes_case(tmp_path: Path) -> None:
